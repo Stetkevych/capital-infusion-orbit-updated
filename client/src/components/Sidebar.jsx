@@ -32,8 +32,8 @@ export default function Sidebar() {
   const links = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
 
   return (
-    <div className="w-56 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0">
-      <div className="flex-1 overflow-y-auto py-4 px-3">
+    <div className="w-52 bg-white border-r border-apple-gray7 flex flex-col shrink-0">
+      <div className="flex-1 overflow-y-auto py-5 px-3">
         <nav className="space-y-0.5">
           {links.map(({ path, label, icon: Icon }) => {
             const active = location.pathname === path;
@@ -41,13 +41,13 @@ export default function Sidebar() {
               <Link
                 key={path}
                 to={path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-sm ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-150 text-sm ${
                   active
-                    ? 'bg-blue-600/15 text-blue-400 border border-blue-600/25'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
+                    ? 'bg-apple-blue/10 text-apple-blue font-medium'
+                    : 'text-apple-gray3 hover:bg-apple-gray8 hover:text-apple-gray1'
                 }`}
               >
-                <Icon size={16} className={active ? 'text-blue-400' : 'text-slate-500'} />
+                <Icon size={15} className={active ? 'text-apple-blue' : 'text-apple-gray5'} />
                 {label}
               </Link>
             );

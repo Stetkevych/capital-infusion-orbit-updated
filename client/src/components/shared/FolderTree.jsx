@@ -14,25 +14,25 @@ export default function FolderTree({ clientId, selectedCategory, onSelect }) {
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition group ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all duration-150 ${
               active
-                ? 'bg-blue-600/20 border border-blue-600/40 text-blue-300'
-                : 'hover:bg-slate-800 text-slate-300 border border-transparent'
+                ? 'bg-apple-blue/10 text-apple-blue'
+                : 'text-apple-gray3 hover:bg-apple-gray8 hover:text-apple-gray1'
             }`}
           >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               {active
-                ? <FolderOpen size={15} className="text-blue-400 shrink-0" />
-                : <Folder size={15} className="text-slate-500 shrink-0" />
+                ? <FolderOpen size={14} className="text-apple-blue shrink-0" />
+                : <Folder size={14} className="text-apple-gray5 shrink-0" />
               }
-              <span className="text-sm truncate">{cat.icon} {cat.label}</span>
+              <span className="text-xs font-medium truncate">{cat.label}</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-              {missing && (
-                <AlertCircle size={13} className="text-red-500" title="No documents" />
-              )}
-              <span className={`text-xs px-1.5 py-0.5 rounded ${
-                docs.length > 0 ? 'bg-slate-700 text-slate-400' : 'bg-red-900/30 text-red-500'
+            <div className="flex items-center gap-1 shrink-0 ml-1">
+              {missing && <AlertCircle size={11} className="text-red-400" />}
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${
+                docs.length > 0
+                  ? 'bg-apple-gray7 text-apple-gray4'
+                  : 'bg-red-50 text-red-400'
               }`}>
                 {docs.length}
               </span>
