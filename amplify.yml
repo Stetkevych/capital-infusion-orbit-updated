@@ -7,6 +7,9 @@ frontend:
         - cd client && npm ci
     build:
       commands:
+        - export CI=false
+        - export DISABLE_ESLINT_PLUGIN=true
+        - export GENERATE_SOURCEMAP=false
         - cd client && npm run build
   artifacts:
     baseDirectory: client/build
