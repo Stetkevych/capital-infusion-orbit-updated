@@ -3,14 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
-  StickyNote, Activity, Settings, Upload, User, CheckSquare
+  StickyNote, Activity, Settings, Upload, User, CheckSquare,
+  Zap, BarChart2
 } from 'lucide-react';
 
 const REP_LINKS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/reps', label: 'Reps', icon: Users },
+  { path: '/reps', label: 'Rep Info', icon: Users },
   { path: '/clients', label: 'Clients', icon: Users },
+  { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Document Center', icon: FolderOpen },
+  { path: '/underwriting', label: 'Underwriting', icon: Zap },
+  { path: '/analytics', label: 'Analytics', icon: BarChart2 },
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/activity', label: 'Activity', icon: Activity },

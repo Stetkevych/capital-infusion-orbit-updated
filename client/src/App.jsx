@@ -9,10 +9,13 @@ import Sidebar from './components/Sidebar';
 
 // Rep / Admin pages
 import RepDashboard from './pages/RepPortal/Dashboard';
-import RepsPage from './pages/RepPortal/Reps';
+import RepInfo from './pages/RepPortal/RepInfo';
 import ClientsPage from './pages/RepPortal/Clients';
 import ClientDetail from './pages/RepPortal/ClientDetail';
+import SecureUpload from './pages/RepPortal/SecureUpload';
 import DocumentCenter from './pages/RepPortal/DocumentCenter';
+import AutoUnderwriting from './pages/RepPortal/Underwriting/AutoUnderwriting';
+import Analytics from './pages/RepPortal/Analytics';
 import RequestsPage from './pages/RepPortal/Requests';
 import NotesPage from './pages/RepPortal/Notes';
 import ActivityPage from './pages/RepPortal/Activity';
@@ -38,7 +41,7 @@ function AppShell() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-apple-gray9 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
@@ -51,20 +54,20 @@ function AppShell() {
 }
 
 function RepRoutes() {
-  const { user } = useAuth();
-  const isAdmin = user.role === 'admin';
-
   return (
     <Routes>
       <Route path="/" element={<RepDashboard />} />
-      {isAdmin && <Route path="/reps" element={<RepsPage />} />}
+      <Route path="/reps" element={<RepInfo />} />
       <Route path="/clients" element={<ClientsPage />} />
       <Route path="/clients/:id" element={<ClientDetail />} />
+      <Route path="/upload" element={<SecureUpload />} />
       <Route path="/documents" element={<DocumentCenter />} />
+      <Route path="/underwriting" element={<AutoUnderwriting />} />
+      <Route path="/analytics" element={<Analytics />} />
       <Route path="/requests" element={<RequestsPage />} />
       <Route path="/notes" element={<NotesPage />} />
       <Route path="/activity" element={<ActivityPage />} />
-      <Route path="/settings" element={<SettingsPlaceholder />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -84,11 +87,11 @@ function ClientRoutes() {
   );
 }
 
-function SettingsPlaceholder() {
+function SettingsPage() {
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold text-white mb-2">Settings</h1>
-      <p className="text-slate-400 text-sm">Settings panel — coming soon.</p>
+    <div className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-semibold text-apple-gray1 tracking-tight mb-2">Settings</h1>
+      <p className="text-apple-gray4 text-sm">Settings panel — coming soon.</p>
     </div>
   );
 }
@@ -97,7 +100,12 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155' } }} />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#fff', color: '#1d1d1f', border: '1px solid #e5e5ea', borderRadius: '12px', fontSize: '13px' },
+          }}
+        />
         <AppShell />
       </Router>
     </AuthProvider>
