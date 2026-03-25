@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: mca_user
+      POSTGRES_PASSWORD: mca_password
+      POSTGRES_DB: mca_lending
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema/001_init_schema.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mca_user -d mca_lending"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://mca_user:mca_password@postgres:5432/mca_lending
+      PORT: 5000
+      NODE_ENV: development
+      JWT_SECRET: dev-secret-key-change-in-production
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-sandbox}
+      PLAID_SECRET: ${PLAID_SECRET:-sandbox}
+      PLAID_ENV: sandbox
+      AWS_REGION: us-east-1
+      AWS_S3_BUCKET: mca-lending-dev
+      FRONTEND_URL: http://localhost:3000
+      API_BASE_URL: http://localhost:5000/api
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server:/app/server
+    command: npm run dev
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:5000/api
+    volumes:
+      - ./client:/app/client
+    command: npm start
+
+volumes:
+  postgres_data:

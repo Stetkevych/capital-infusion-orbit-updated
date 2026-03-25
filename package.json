@@ -1,0 +1,20 @@
+{
+  "name": "mca-lending-platform",
+  "version": "1.0.0",
+  "description": "Production-ready Merchant Cash Advance lending platform",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ..",
+    "dev": "concurrently \"cd client && npm start\" \"cd server && npm run dev\"",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "start": "node start.sh",
+    "deploy": "./deploy.sh",
+    "deploy:seed": "./deploy.sh --seed",
+    "test": "cd client && npm test && cd ../server && npm test",
+    "migrate": "cd server && npm run migrate",
+    "seed": "cd server && npm run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
