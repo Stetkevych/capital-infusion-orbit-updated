@@ -3,14 +3,9 @@ frontend:
   phases:
     preBuild:
       commands:
-        - nvm install 18
-        - nvm use 18
-        - cd client && npm ci
+        - cd client && npm install
     build:
       commands:
-        - export CI=false
-        - export DISABLE_ESLINT_PLUGIN=true
-        - export GENERATE_SOURCEMAP=false
         - cd client && npm run build
   artifacts:
     baseDirectory: client/build
