@@ -3,6 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
+        - nvm install 18
         - nvm use 18
         - cd client && npm ci
     build:
