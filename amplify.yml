@@ -4,10 +4,10 @@ frontend:
     preBuild:
       commands:
         - nvm use 18
-        - cd client && npm install
+        - cd client && npm ci
     build:
       commands:
-        - cd client && CI=false npm run build
+        - cd client && npm run build
   artifacts:
     baseDirectory: client/build
     files:
