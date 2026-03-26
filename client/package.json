@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "React frontend for MCA lending platform",
   "private": true,
-  "homepage": "/",
+  "homepage": "https://main.d2iq2t6ose4q0u.amplifyapp.com",
   "engines": {
     "node": ">=16.0.0"
   },
