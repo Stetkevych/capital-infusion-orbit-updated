@@ -1,9 +1,8 @@
 {
   "name": "mca-lending-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React frontend for MCA lending platform",
   "private": true,
-  "homepage": "https://main.d2iq2t6ose4q0u.amplifyapp.com",
   "engines": {
     "node": ">=16.0.0"
   },
@@ -40,20 +39,10 @@
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
-    "extends": [
-      "react-app"
-    ]
+    "extends": ["react-app"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }
