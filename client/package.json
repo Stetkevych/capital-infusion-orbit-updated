@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "React frontend for MCA lending platform",
   "private": true,
+  "homepage": ".",
   "engines": {
     "node": ">=16.0.0"
   },
