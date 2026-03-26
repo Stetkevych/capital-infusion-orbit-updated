@@ -3,10 +3,10 @@ frontend:
   phases:
     preBuild:
       commands:
-        - cd client && npm install
+        - npm install --prefix client
     build:
       commands:
-        - cd client && CI=false npm run build
+        - npm run build --prefix client
   artifacts:
     baseDirectory: client/build
     files:
