@@ -12,7 +12,7 @@ const REP_LINKS = [
   { path: '/reps', label: 'Rep Info', icon: Users },
   { path: '/clients', label: 'Clients', icon: Users },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
-  { path: '/documents', label: 'Document Center', icon: FolderOpen },
+  { path: '/documents', label: 'Documents', icon: FolderOpen },
   { path: '/underwriting', label: 'Underwriting', icon: Zap },
   { path: '/analytics', label: 'Analytics', icon: BarChart2 },
   { path: '/requests', label: 'Requests', icon: Bell },
@@ -37,8 +37,8 @@ export default function Sidebar() {
   const links = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
 
   return (
-    <div className="w-52 bg-white border-r border-apple-gray7 flex flex-col shrink-0">
-      <div className="flex-1 overflow-y-auto py-5 px-3">
+    <div className="w-52 bg-white border-r border-gray-100 flex flex-col shrink-0">
+      <div className="flex-1 overflow-y-auto py-4 px-2">
         <nav className="space-y-0.5">
           {links.map(({ path, label, icon: Icon }) => {
             const active = location.pathname === path;
@@ -46,13 +46,13 @@ export default function Sidebar() {
               <Link
                 key={path}
                 to={path}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-150 text-sm ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-sm ${
                   active
-                    ? 'bg-apple-blue/10 text-apple-blue font-medium'
-                    : 'text-apple-gray3 hover:bg-apple-gray8 hover:text-apple-gray1'
+                    ? 'bg-blue-50 text-blue-600 font-medium'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                 }`}
               >
-                <Icon size={15} className={active ? 'text-apple-blue' : 'text-apple-gray5'} />
+                <Icon size={15} className={active ? 'text-blue-600' : 'text-gray-400'} />
                 {label}
               </Link>
             );

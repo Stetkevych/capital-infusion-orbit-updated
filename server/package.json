@@ -12,27 +12,29 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "pg": "^8.11.0",
-    "jsonwebtoken": "^9.0.2",
+    "@aws-sdk/client-s3": "^3.1020.0",
     "@aws-sdk/client-ses": "^3.0.0",
-    "bcryptjs": "^2.4.3",
-    "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.0",
-    "joi": "^17.11.0",
+    "@aws-sdk/s3-request-presigner": "^3.1020.0",
     "aws-sdk": "^2.1500.0",
     "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
     "date-fns": "^2.30.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
-    "uuid": "^9.0.1",
     "multer": "^1.4.5-lts.1",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.11.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
     "jest": "^29.7.0",
+    "nodemon": "^3.0.1",
     "supertest": "^6.3.3"
   },
   "engines": {

@@ -43,7 +43,12 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    'https://main.d2iq2t6ose4q0u.amplifyapp.com',
+    'https://main.dpfmybb1s06ep.amplifyapp.com',
+    FRONTEND_URL,
+    'http://localhost:3000',
+  ].filter(Boolean),
   credentials: true
 }));
 

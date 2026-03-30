@@ -1,214 +1,114 @@
 const express = require('express');
-const multer = require('multer');
-const AWS = require('aws-sdk');
-const { v4: uuidv4 } = require('uuid');
-const { query } = require('../config/database');
-const { auth } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-
 const router = express.Router();
+const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
+const fs = require('fs');
+const path = require('path');
 
-// Configure AWS S3
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION
-});
+// File-based document registry (swap for DB later)
+const REGISTRY_PATH = path.join(__dirname, '../../data/documents.json');
+const dataDir = path.join(__dirname, '../../data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-// Configure multer for memory storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (req, file, cb) => {
-    const allowedMimes = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type'));
-    }
-  }
-});
+function loadDocs() {
+  try { return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { return []; }
+}
+function saveDocs(docs) { fs.writeFileSync(REGISTRY_PATH, JSON.stringify(docs, null, 2)); }
 
-// Upload document
-router.post('/upload', auth, upload.single('file'), asyncHandler(async (req, res) => {
-  const { merchant_id, application_id, document_type } = req.body;
-
-  if (!req.file || !merchant_id || !document_type) {
-    return res.status(400).json({ message: 'Missing required fields' });
-  }
-
+// ─── GET /api/documents/presign ───────────────────────────────────────────────
+// Returns a presigned S3 URL for direct browser-to-S3 upload
+router.post('/presign', async (req, res) => {
   try {
-    // Verify merchant exists
-    const merchantResult = await query(
-      'SELECT legal_name FROM merchants WHERE id = $1',
-      [merchant_id]
-    );
-
-    if (merchantResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Merchant not found' });
+    const { clientId, category, fileName, contentType } = req.body;
+    if (!clientId || !category || !fileName) {
+      return res.status(400).json({ error: 'clientId, category, fileName required' });
     }
+    const { url, key } = await getPresignedUploadUrl({ clientId, category, fileName, contentType });
+    res.json({ url, key });
+  } catch (err) {
+    console.error('[S3] Presign error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    const merchant = merchantResult.rows[0];
-    const fileKey = `documents/${merchant_id}/${uuidv4()}-${req.file.originalname}`;
+// ─── POST /api/documents/confirm ─────────────────────────────────────────────
+// Called after successful S3 upload to register the document
+router.post('/confirm', async (req, res) => {
+  try {
+    const { key, clientId, repId, category, fileName, fileSize, uploadedBy, visibility = 'all' } = req.body;
 
-    // Upload to S3
-    const s3Params = {
-      Bucket: process.env.AWS_S3_BUCKET,
-      Key: fileKey,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-      ServerSideEncryption: 'AES256'
+    // Verify file actually exists in S3
+    const exists = await fileExists(key);
+    if (!exists) return res.status(400).json({ error: 'File not found in S3' });
+
+    const doc = {
+      id: `doc_${Date.now()}`,
+      key,
+      clientId,
+      repId,
+      category,
+      fileName,
+      fileSize,
+      uploadedBy,
+      uploadedAt: new Date().toISOString(),
+      status: 'Uploaded',
+      visibility,
+      tags: [],
+      note: '',
     };
 
-    await s3.upload(s3Params).promise();
+    const docs = loadDocs();
+    docs.push(doc);
+    saveDocs(docs);
 
-    // Store document record
-    const result = await query(
-      `INSERT INTO documents (
-        file_name, file_url, file_size, document_type,
-        merchant_id, merchant_name, application_id, uploaded_by,
-        status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      RETURNING *`,
-      [
-        req.file.originalname,
-        fileKey,
-        req.file.size,
-        document_type,
-        merchant_id,
-        merchant.legal_name,
-        application_id,
-        req.user.id,
-        'pending_review'
-      ]
-    );
-
-    // Log upload
-    await query(
-      `INSERT INTO upload_logs (user_id, merchant_id, document_id, file_name, file_size, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
-      [req.user.id, merchant_id, result.rows[0].id, req.file.originalname, req.file.size, 'success']
-    );
-
-    res.status(201).json(result.rows[0]);
+    res.json({ doc });
   } catch (err) {
-    console.error('Upload document error:', err);
-    res.status(500).json({ message: 'Failed to upload document' });
+    console.error('[S3] Confirm error:', err.message);
+    res.status(500).json({ error: err.message });
   }
-}));
+});
 
-// Get signed URL for document download
-router.get('/:id/download', auth, asyncHandler(async (req, res) => {
+// ─── GET /api/documents/client/:clientId ─────────────────────────────────────
+router.get('/client/:clientId', (req, res) => {
+  const docs = loadDocs().filter(d => d.clientId === req.params.clientId);
+  res.json(docs);
+});
+
+// ─── GET /api/documents/download/:id ─────────────────────────────────────────
+router.get('/download/:id', async (req, res) => {
   try {
-    const result = await query(
-      'SELECT * FROM documents WHERE id = $1',
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Document not found' });
-    }
-
-    const doc = result.rows[0];
-
-    // Generate signed URL
-    const signedUrl = s3.getSignedUrl('getObject', {
-      Bucket: process.env.AWS_S3_BUCKET,
-      Key: doc.file_url,
-      Expires: 300 // 5 minutes
-    });
-
-    res.json({ signedUrl });
+    const docs = loadDocs();
+    const doc = docs.find(d => d.id === req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    const url = await getPresignedDownloadUrl(doc.key);
+    res.json({ url });
   } catch (err) {
-    console.error('Get signed URL error:', err);
-    res.status(500).json({ message: 'Failed to generate download URL' });
+    res.status(500).json({ error: err.message });
   }
-}));
+});
 
-// Get all documents
-router.get('/', auth, asyncHandler(async (req, res) => {
+// ─── PATCH /api/documents/:id/status ─────────────────────────────────────────
+router.patch('/:id/status', (req, res) => {
+  const docs = loadDocs();
+  const idx = docs.findIndex(d => d.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  docs[idx].status = req.body.status;
+  saveDocs(docs);
+  res.json(docs[idx]);
+});
+
+// ─── DELETE /api/documents/:id ────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
   try {
-    const { merchant_id, application_id, document_type } = req.query;
-    let sql = 'SELECT * FROM documents';
-    const params = [];
-    const conditions = [];
-
-    if (merchant_id) {
-      conditions.push(`merchant_id = $${params.length + 1}`);
-      params.push(merchant_id);
-    }
-
-    if (application_id) {
-      conditions.push(`application_id = $${params.length + 1}`);
-      params.push(application_id);
-    }
-
-    if (document_type) {
-      conditions.push(`document_type = $${params.length + 1}`);
-      params.push(document_type);
-    }
-
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
-
-    sql += ' ORDER BY created_at DESC';
-
-    const result = await query(sql, params);
-    res.json(result.rows);
+    const docs = loadDocs();
+    const idx = docs.findIndex(d => d.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    await deleteFile(docs[idx].key);
+    docs.splice(idx, 1);
+    saveDocs(docs);
+    res.json({ deleted: true });
   } catch (err) {
-    console.error('Get documents error:', err);
-    res.status(500).json({ message: 'Failed to fetch documents' });
+    res.status(500).json({ error: err.message });
   }
-}));
-
-// Update document status
-router.patch('/:id', auth, asyncHandler(async (req, res) => {
-  const { status, au_gold_status, au_gold_results, au_gold_score, au_gold_recommendation } = req.body;
-
-  try {
-    const updates = [];
-    const values = [];
-    let paramNum = 1;
-
-    if (status) {
-      updates.push(`status = $${paramNum++}`);
-      values.push(status);
-    }
-    if (au_gold_status) {
-      updates.push(`au_gold_status = $${paramNum++}`);
-      values.push(au_gold_status);
-    }
-    if (au_gold_results) {
-      updates.push(`au_gold_results = $${paramNum++}`);
-      values.push(JSON.stringify(au_gold_results));
-    }
-    if (au_gold_score) {
-      updates.push(`au_gold_score = $${paramNum++}`);
-      values.push(au_gold_score);
-    }
-    if (au_gold_recommendation) {
-      updates.push(`au_gold_recommendation = $${paramNum++}`);
-      values.push(au_gold_recommendation);
-    }
-
-    updates.push('updated_at = CURRENT_TIMESTAMP');
-    values.push(req.params.id);
-
-    const result = await query(
-      `UPDATE documents SET ${updates.join(', ')} WHERE id = $${paramNum} RETURNING *`,
-      values
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Document not found' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Update document error:', err);
-    res.status(500).json({ message: 'Failed to update document' });
-  }
-}));
+});
 
 module.exports = router;
