@@ -47,6 +47,8 @@ app.use(cors({
   origin: [
     'https://main.d2iq2t6ose4q0u.amplifyapp.com',
     'https://main.dpfmybb1s06ep.amplifyapp.com',
+    'https://www.orbit-technology.com',
+    'https://orbit-technology.com',
     FRONTEND_URL,
     'http://localhost:3000',
   ].filter(Boolean),

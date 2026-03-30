@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const UserStore = require('../services/userStore');
+const EventLogger = require('../services/eventLogger');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'capital-infusion-secret-change-in-prod';
@@ -40,6 +41,7 @@ router.post('/login', (req, res) => {
 
   const { password_hash, ...safe } = user;
   const token = generateToken(safe);
+  EventLogger.login({ user_id: safe.id, email: safe.email, role: safe.role });
   res.json({ token, user: safe });
 });
 

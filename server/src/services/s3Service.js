@@ -3,7 +3,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216';
+const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
 
 // ─── Generate presigned upload URL ───────────────────────────────────────────
 async function getPresignedUploadUrl({ clientId, category, fileName, contentType }) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
+const EventLogger = require('../services/eventLogger');
 const fs = require('fs');
 const path = require('path');
 
@@ -59,6 +60,18 @@ router.post('/confirm', async (req, res) => {
     const docs = loadDocs();
     docs.push(doc);
     saveDocs(docs);
+
+    // Log to S3 for Athena analytics
+    EventLogger.upload({
+      upload_id: doc.id,
+      client_id: clientId,
+      rep_id: repId,
+      category,
+      file_name: fileName,
+      file_size_mb: parseFloat(fileSize) || 0,
+      status: 'Uploaded',
+      uploaded_at: doc.uploadedAt,
+    });
 
     res.json({ doc });
   } catch (err) {
