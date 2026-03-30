@@ -88,6 +88,19 @@ router.post('/webhook', express.json(), async (req, res) => {
   }
 });
 
+// ─── POST /api/docusign/request-document ────────────────────────────────────
+router.post('/request-document', express.json(), async (req, res) => {
+  try {
+    const { clientEmail, clientName, businessName, category, instructions, dueDate, repName, portalUrl } = req.body;
+    const { sendDocumentRequestEmail } = require('../services/emailService');
+    await sendDocumentRequestEmail({ clientEmail, clientName, businessName, category, instructions, dueDate, repName, portalUrl });
+    return res.json({ sent: true });
+  } catch (err) {
+    console.error('[DocuSign] Request email failed:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/docusign/status/:envelopeId ─────────────────────────────────────
 router.get('/status/:envelopeId', async (req, res) => {
   try {

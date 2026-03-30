@@ -84,4 +84,73 @@ async function sendWelcomeEmail({ to, name, envelopeId, subject }) {
   }
 }
 
-module.exports = { sendWelcomeEmail };
+async function sendDocumentRequestEmail({ clientEmail, clientName, businessName, category, instructions, dueDate, repName, portalUrl }) {
+  const firstName = clientName.split(' ')[0];
+  const uploadUrl = `${portalUrl || PLATFORM_URL}/upload`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; margin: 0; padding: 0; }
+    .container { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: #0071e3; padding: 32px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; font-size: 22px; font-weight: 600; }
+    .header p { color: rgba(255,255,255,0.8); margin: 6px 0 0; font-size: 14px; }
+    .body { padding: 36px 32px; }
+    .body h2 { color: #1d1d1f; font-size: 18px; font-weight: 600; margin: 0 0 12px; }
+    .body p { color: #424245; font-size: 14px; line-height: 1.6; margin: 0 0 16px; }
+    .doc-box { background: #f5f5f7; border-radius: 10px; padding: 16px; margin: 20px 0; border-left: 4px solid #0071e3; }
+    .doc-box p { margin: 4px 0; font-size: 13px; color: #424245; }
+    .doc-box strong { color: #1d1d1f; }
+    .cta { display: block; background: #0071e3; color: #fff; text-decoration: none; text-align: center; padding: 14px 24px; border-radius: 10px; font-size: 15px; font-weight: 600; margin: 24px 0; }
+    .footer { padding: 20px 32px; border-top: 1px solid #f2f2f7; text-align: center; }
+    .footer p { color: #86868b; font-size: 12px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Capital Infusion</h1>
+      <p>Document Request</p>
+    </div>
+    <div class="body">
+      <h2>Hi ${firstName},</h2>
+      <p>Your representative <strong>${repName}</strong> has requested a document from you for your application at <strong>${businessName}</strong>.</p>
+      <div class="doc-box">
+        <p><strong>Document Needed:</strong> ${category}</p>
+        <p><strong>Instructions:</strong> ${instructions || 'Please upload as soon as possible.'}</p>
+        ${dueDate ? `<p><strong>Due Date:</strong> ${new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>` : ''}
+      </div>
+      <p>Click below to log in and upload the document directly to your secure portal:</p>
+      <a href="${uploadUrl}" class="cta">Upload Document →</a>
+      <p style="font-size:13px; color:#86868b;">If you have any questions, reply to this email or contact your representative directly.</p>
+    </div>
+    <div class="footer">
+      <p>Capital Infusion · Merchant Cash Advance Platform</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const command = new SendEmailCommand({
+    Source: `Capital Infusion <${FROM_EMAIL}>`,
+    Destination: { ToAddresses: [clientEmail] },
+    Message: {
+      Subject: { Data: `Action Required: ${category} Needed for Your Application` },
+      Body: {
+        Html: { Data: html },
+        Text: { Data: `Hi ${firstName}, ${repName} has requested: ${category}. Instructions: ${instructions}. Upload here: ${uploadUrl}` },
+      },
+    },
+  });
+
+  const result = await ses.send(command);
+  console.log(`[Email] Document request sent to ${clientEmail}`);
+  return result;
+}
+
+module.exports = { sendWelcomeEmail, sendDocumentRequestEmail };
+
