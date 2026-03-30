@@ -18,6 +18,7 @@ const REP_LINKS = [
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/activity', label: 'Activity', icon: Activity },
+  { path: '/users', label: 'User Management', icon: Users },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

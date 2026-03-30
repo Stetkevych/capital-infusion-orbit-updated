@@ -29,6 +29,9 @@ console.log(`Environment: ${NODE_ENV}`);
 console.log(`Port: ${PORT}`);
 console.log(`Frontend URL: ${FRONTEND_URL}`);
 
+// Initialize user store
+require('./services/userStore').init();
+
 // Initialize database
 initializeDb().catch(err => {
   console.warn('DB init warning:', err.message);

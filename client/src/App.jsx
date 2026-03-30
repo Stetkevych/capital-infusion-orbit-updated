@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
+import UserManagement from './pages/RepPortal/UserManagement';
+
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Navbar from './components/Navbar';
@@ -70,6 +72,7 @@ function RepRoutes() {
       <Route path="/notes" element={<NotesPage />} />
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/users" element={<UserManagement />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

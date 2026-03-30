@@ -1,178 +1,132 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { query } = require('../config/database');
-const { auth, authorize } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-const Joi = require('joi');
-
+const UserStore = require('../services/userStore');
 const router = express.Router();
 
-const loginSchema = Joi.object({
-  email: Joi.string().email().required(),
-  password: Joi.string().required()
-});
+const JWT_SECRET = process.env.JWT_SECRET || 'capital-infusion-secret-change-in-prod';
 
-const registerSchema = Joi.object({
-  email: Joi.string().email().required(),
-  full_name: Joi.string().required(),
-  password: Joi.string().min(8).required(),
-  role: Joi.string().valid('admin', 'sales_rep', 'client').required()
-});
-
-const generateToken = (user) => {
+function generateToken(user) {
   return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      full_name: user.full_name
-    },
-    process.env.JWT_SECRET,
+    { id: user.id, email: user.email, role: user.role, full_name: user.full_name, rep_id: user.rep_id, client_id: user.client_id },
+    JWT_SECRET,
     { expiresIn: '24h' }
   );
-};
+}
 
-// Register
-router.post('/register', asyncHandler(async (req, res) => {
-  const { error, value } = registerSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ message: error.details[0].message });
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ message: 'No token' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Invalid token' });
   }
+}
+
+function adminOnly(req, res, next) {
+  if (req.user?.role !== 'admin') return res.status(403).json({ message: 'Admin only' });
+  next();
+}
+
+// ─── POST /api/auth/login ─────────────────────────────────────────────────────
+router.post('/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+  const user = UserStore.findByEmail(email);
+  if (!user || !user.is_active) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!UserStore.verifyPassword(user, password)) return res.status(401).json({ message: 'Invalid credentials' });
+
+  const { password_hash, ...safe } = user;
+  const token = generateToken(safe);
+  res.json({ token, user: safe });
+});
+
+// ─── POST /api/auth/register (from DocuSign welcome email link) ───────────────
+router.post('/register', (req, res) => {
+  const { email, full_name, business_name, password } = req.body;
+  if (!email || !full_name || !password) return res.status(400).json({ message: 'Missing required fields' });
+  if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
 
   try {
-    // Check if user exists
-    const existingUser = await query(
-      'SELECT id FROM users WHERE email = $1',
-      [value.email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(value.password, 10);
-
-    // Create user
-    const result = await query(
-      `INSERT INTO users (email, full_name, password_hash, role, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       RETURNING id, email, full_name, role`,
-      [value.email, value.full_name, hashedPassword, value.role]
-    );
-
-    const user = result.rows[0];
-    const token = generateToken(user);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user
+    const user = UserStore.create({
+      email,
+      full_name,
+      role: 'client',
+      password,
+      client_id: `client-${Date.now()}`,
     });
-  } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ message: 'Registration failed' });
-  }
-}));
-
-// Login
-router.post('/login', asyncHandler(async (req, res) => {
-  const { error, value } = loginSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ message: error.details[0].message });
-  }
-
-  try {
-    const result = await query(
-      'SELECT id, email, full_name, password_hash, role FROM users WHERE email = $1',
-      [value.email]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const user = result.rows[0];
-    const validPassword = await bcrypt.compare(value.password, user.password_hash);
-
-    if (!validPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Update last login
-    await query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-      [user.id]
-    );
-
     const token = generateToken(user);
-    const { password_hash, ...userWithoutPassword } = user;
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: userWithoutPassword
-    });
+    res.status(201).json({ token, user });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Login failed' });
+    res.status(400).json({ message: err.message });
   }
-}));
+});
 
-// Get current user
-router.get('/me', auth, asyncHandler(async (req, res) => {
-  try {
-    const result = await query(
-      'SELECT id, email, full_name, role, created_at FROM users WHERE id = $1',
-      [req.user.id]
-    );
+// ─── GET /api/auth/me ─────────────────────────────────────────────────────────
+router.get('/me', authMiddleware, (req, res) => {
+  const user = UserStore.findById(req.user.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  const { password_hash, ...safe } = user;
+  res.json(safe);
+});
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Get user error:', err);
-    res.status(500).json({ message: 'Failed to fetch user' });
-  }
-}));
-
-// Change password
-router.post('/change-password', auth, asyncHandler(async (req, res) => {
+// ─── POST /api/auth/change-password ──────────────────────────────────────────
+router.post('/change-password', authMiddleware, (req, res) => {
   const { currentPassword, newPassword } = req.body;
-
   if (!currentPassword || !newPassword || newPassword.length < 8) {
     return res.status(400).json({ message: 'Invalid password input' });
   }
-
-  try {
-    const result = await query(
-      'SELECT password_hash FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const validPassword = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await query(
-      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [hashedPassword, req.user.id]
-    );
-
-    res.json({ message: 'Password changed successfully' });
-  } catch (err) {
-    console.error('Change password error:', err);
-    res.status(500).json({ message: 'Failed to change password' });
+  const user = UserStore.findById(req.user.id);
+  if (!UserStore.verifyPassword(user, currentPassword)) {
+    return res.status(401).json({ message: 'Current password is incorrect' });
   }
-}));
+  UserStore.update(req.user.id, { password: newPassword });
+  res.json({ message: 'Password changed successfully' });
+});
+
+// ─── Admin: GET /api/auth/users ───────────────────────────────────────────────
+router.get('/users', authMiddleware, adminOnly, (req, res) => {
+  res.json(UserStore.findAll());
+});
+
+// ─── Admin: POST /api/auth/users (create employee/rep/client account) ─────────
+router.post('/users', authMiddleware, adminOnly, (req, res) => {
+  const { email, full_name, role, password, rep_id, client_id } = req.body;
+  if (!email || !full_name || !role || !password) {
+    return res.status(400).json({ message: 'email, full_name, role, and password are required' });
+  }
+  if (!['admin', 'rep', 'client'].includes(role)) {
+    return res.status(400).json({ message: 'Role must be admin, rep, or client' });
+  }
+  try {
+    const user = UserStore.create({ email, full_name, role, password, rep_id, client_id });
+    res.status(201).json({ message: 'User created', user });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ─── Admin: PATCH /api/auth/users/:id ────────────────────────────────────────
+router.patch('/users/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const user = UserStore.update(req.params.id, req.body);
+    res.json({ message: 'User updated', user });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ─── Admin: DELETE /api/auth/users/:id (deactivate) ──────────────────────────
+router.delete('/users/:id', authMiddleware, adminOnly, (req, res) => {
+  try {
+    UserStore.deactivate(req.params.id);
+    res.json({ message: 'User deactivated' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
 
 module.exports = router;
+module.exports.authMiddleware = authMiddleware;
