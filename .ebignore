@@ -1,0 +1,11 @@
+client/
+client/node_modules/
+client/build/
+.git/
+*.zip
+*.log
+test-docusign.js
+docker-compose.yml
+buildspec.yml
+amplify.yml
+rewrite-rules.json

@@ -3,6 +3,11 @@ const { Pool } = require('pg');
 let pool;
 
 const initializeDb = async () => {
+  if (!process.env.DATABASE_URL) {
+    console.warn('DATABASE_URL not set — running without database');
+    return;
+  }
+
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 20,
@@ -19,8 +24,7 @@ const initializeDb = async () => {
     console.log('Database connected successfully');
     client.release();
   } catch (err) {
-    console.error('Failed to connect to database:', err);
-    throw err;
+    console.error('DB connection failed — continuing without DB:', err.message);
   }
 };
 

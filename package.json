@@ -7,7 +7,7 @@
     "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ..",
     "dev": "concurrently \"cd client && npm start\" \"cd server && npm run dev\"",
     "build": "cd client && npm run build && cd ../server && npm run build",
-    "start": "node start.sh",
+    "start": "node server/src/index.js",
     "deploy": "./deploy.sh",
     "deploy:seed": "./deploy.sh --seed",
     "test": "cd client && npm test && cd ../server && npm test",

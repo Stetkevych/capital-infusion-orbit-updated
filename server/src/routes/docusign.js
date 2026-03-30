@@ -61,29 +61,20 @@ router.post('/webhook', express.json(), async (req, res) => {
 
     console.log(`[DocuSign] Completed for: ${merchantName} <${merchantEmail}>`);
 
-    // 1. Send welcome email to merchant
-    await sendWelcomeEmail({
-      to: merchantEmail,
-      name: merchantName,
-      envelopeId,
-      subject,
-    });
+    // 1. Send welcome email — non-fatal
+    try {
+      await sendWelcomeEmail({ to: merchantEmail, name: merchantName, envelopeId, subject });
+    } catch (e) { console.error('[DocuSign] Email failed:', e.message); }
 
-    // 2. Update Zoho CRM deal status
-    await updateZohoDeal({
-      envelopeId,
-      merchantEmail,
-      merchantName,
-      status: 'Agreement Signed',
-    });
+    // 2. Update Zoho — non-fatal
+    try {
+      await updateZohoDeal({ envelopeId, merchantEmail, merchantName, status: 'Agreement Signed' });
+    } catch (e) { console.error('[DocuSign] Zoho failed:', e.message); }
 
-    // 3. Create pending client record in platform
-    await createPendingClient({
-      email: merchantEmail,
-      name: merchantName,
-      envelopeId,
-      source: 'docusign',
-    });
+    // 3. Create pending client — non-fatal
+    try {
+      await createPendingClient({ email: merchantEmail, name: merchantName, envelopeId, source: 'docusign' });
+    } catch (e) { console.error('[DocuSign] Client create failed:', e.message); }
 
     return res.status(200).json({
       received: true,

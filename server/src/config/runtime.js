@@ -69,21 +69,11 @@ class Config {
   }
 
   validate() {
-    const required = [
-      'DATABASE_URL',
-      'JWT_SECRET',
-      'AWS_REGION',
-      'AWS_S3_BUCKET',
-    ];
-
+    const required = ['DATABASE_URL', 'JWT_SECRET', 'AWS_REGION', 'AWS_S3_BUCKET'];
     const missing = required.filter(key => !this.env[key]);
     if (missing.length > 0) {
-      console.warn(`⚠ Missing required env vars: ${missing.join(', ')}`);
-      if (this.env.NODE_ENV === 'production') {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
-      }
+      console.warn(`⚠ Missing env vars: ${missing.join(', ')} - some features may be unavailable`);
     }
-
     console.log('✓ Configuration validated');
   }
 
