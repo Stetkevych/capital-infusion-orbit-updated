@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Capital Infusion Analytics - Glue Database, Tables, and Athena Setup
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Default: orbit-documents-882611632216-882611632216-us-east-1-an
+  AthenaResultsBucket:
+    Type: String
+    Default: orbit-documents-882611632216-882611632216-us-east-1-an
+  Environment:
+    Type: String
+    Default: prod
+
+Resources:
+
+  # ── Glue Database ─────────────────────────────────────────────────────────
+  AnalyticsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: capital_infusion_analytics
+        Description: Capital Infusion MCA Platform Analytics Database
+
+  # ── Glue Tables ───────────────────────────────────────────────────────────
+
+  DealsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsDatabase
+      TableInput:
+        Name: deals
+        Description: MCA deal records
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+          typeOfData: file
+        StorageDescriptor:
+          Location: !Sub s3://${S3BucketName}/analytics/deals/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+          Columns:
+            - Name: deal_id
+              Type: string
+            - Name: rep_id
+              Type: string
+            - Name: rep_name
+              Type: string
+            - Name: client_id
+              Type: string
+            - Name: client_name
+              Type: string
+            - Name: lender_name
+              Type: string
+            - Name: stage
+              Type: string
+            - Name: status
+              Type: string
+            - Name: requested_amount
+              Type: double
+            - Name: approved_amount
+              Type: double
+            - Name: funded_amount
+              Type: double
+            - Name: factor_rate
+              Type: double
+            - Name: payback_amount
+              Type: double
+            - Name: submitted_date
+              Type: string
+            - Name: approved_date
+              Type: string
+            - Name: funded_date
+              Type: string
+            - Name: industry
+              Type: string
+            - Name: state
+              Type: string
+            - Name: position
+              Type: string
+            - Name: created_at
+              Type: string
+        PartitionKeys:
+          - Name: year
+            Type: string
+          - Name: month
+            Type: string
+
+  LenderOutcomesTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsDatabase
+      TableInput:
+        Name: lender_outcomes
+        Description: Lender submission and outcome records
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+        StorageDescriptor:
+          Location: !Sub s3://${S3BucketName}/analytics/lender_outcomes/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+          Columns:
+            - Name: outcome_id
+              Type: string
+            - Name: deal_id
+              Type: string
+            - Name: rep_id
+              Type: string
+            - Name: lender_name
+              Type: string
+            - Name: submission_date
+              Type: string
+            - Name: decision
+              Type: string
+            - Name: decision_date
+              Type: string
+            - Name: offered_amount
+              Type: double
+            - Name: funded_amount
+              Type: double
+            - Name: factor_rate
+              Type: double
+            - Name: days_to_decision
+              Type: int
+            - Name: decline_reason
+              Type: string
+        PartitionKeys:
+          - Name: year
+            Type: string
+          - Name: month
+            Type: string
+
+  UnderwritingMetricsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsDatabase
+      TableInput:
+        Name: underwriting_metrics
+        Description: Extracted underwriting metrics from bank statements
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+        StorageDescriptor:
+          Location: !Sub s3://${S3BucketName}/analytics/underwriting_metrics/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+          Columns:
+            - Name: metric_id
+              Type: string
+            - Name: client_id
+              Type: string
+            - Name: rep_id
+              Type: string
+            - Name: avg_monthly_revenue
+              Type: double
+            - Name: avg_monthly_deposits
+              Type: double
+            - Name: negative_days
+              Type: int
+            - Name: months_covered
+              Type: int
+            - Name: avg_daily_balance
+              Type: double
+            - Name: total_deposits
+              Type: double
+            - Name: analyzed_at
+              Type: string
+
+  DebtSchedulesTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsDatabase
+      TableInput:
+        Name: debt_schedules
+        Description: Outstanding debt and amortization schedules
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+        StorageDescriptor:
+          Location: !Sub s3://${S3BucketName}/analytics/debt_schedules/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+          Columns:
+            - Name: schedule_id
+              Type: string
+            - Name: client_id
+              Type: string
+            - Name: rep_id
+              Type: string
+            - Name: lender_name
+              Type: string
+            - Name: original_amount
+              Type: double
+            - Name: outstanding_balance
+              Type: double
+            - Name: daily_payment
+              Type: double
+            - Name: monthly_payment
+              Type: double
+            - Name: factor_rate
+              Type: double
+            - Name: payoff_date
+              Type: string
+            - Name: position
+              Type: string
+            - Name: created_at
+              Type: string
+
+  DocumentUploadsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref AnalyticsDatabase
+      TableInput:
+        Name: document_uploads
+        Description: Document upload activity and metadata
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: json
+        StorageDescriptor:
+          Location: !Sub s3://${S3BucketName}/analytics/document_uploads/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+          Columns:
+            - Name: upload_id
+              Type: string
+            - Name: client_id
+              Type: string
+            - Name: rep_id
+              Type: string
+            - Name: category
+              Type: string
+            - Name: file_name
+              Type: string
+            - Name: file_size_mb
+              Type: double
+            - Name: status
+              Type: string
+            - Name: uploaded_at
+              Type: string
+        PartitionKeys:
+          - Name: year
+            Type: string
+          - Name: month
+            Type: string
+
+  # ── Glue Crawler ──────────────────────────────────────────────────────────
+  AnalyticsCrawlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CapitalInfusionGlueCrawlerRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:GetObject', 's3:PutObject', 's3:ListBucket']
+                Resource:
+                  - !Sub arn:aws:s3:::${S3BucketName}
+                  - !Sub arn:aws:s3:::${S3BucketName}/*
+
+  AnalyticsCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: capital-infusion-analytics-crawler
+      Role: !GetAtt AnalyticsCrawlerRole.Arn
+      DatabaseName: !Ref AnalyticsDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub s3://${S3BucketName}/analytics/
+      Schedule:
+        ScheduleExpression: cron(0 6 * * ? *)
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+
+  # ── Athena Workgroup ──────────────────────────────────────────────────────
+  AthenaWorkgroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: capital-infusion-analytics
+      Description: Capital Infusion Analytics Workgroup
+      WorkGroupConfiguration:
+        ResultConfiguration:
+          OutputLocation: !Sub s3://${AthenaResultsBucket}/athena-results/
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+
+Outputs:
+  GlueDatabaseName:
+    Value: capital_infusion_analytics
+    Export:
+      Name: CapitalInfusionGlueDatabase
+  AthenaWorkgroupName:
+    Value: capital-infusion-analytics
+    Export:
+      Name: CapitalInfusionAthenaWorkgroup

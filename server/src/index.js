@@ -17,6 +17,7 @@ const docusignRoutes = require('./routes/docusign');
 const zohoRoutes = require('./routes/zoho');
 const offersRoutes = require('./routes/offers');
 const analyticsRoutes = require('./routes/analytics');
+const { authMiddleware } = require('./routes/auth');
 const metricsRoutes = require('./routes/metrics');
 
 const app = express();
@@ -78,7 +79,7 @@ app.use('/api/plaid', plaidRoutes);
 app.use('/api/docusign', docusignRoutes);
 app.use('/api/zoho', zohoRoutes);
 app.use('/api/offers', offersRoutes);
-app.use('/api/analytics', analyticsRoutes);
+app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/metrics', metricsRoutes);
 
 // 404 handler
