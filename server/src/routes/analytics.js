@@ -1,98 +1,123 @@
 const express = require('express');
 const router = express.Router();
 
-// ── Mock data for when Athena isn't populated yet ─────────────────────────────
-function getMockAnalytics(repId, isAdmin) {
-  const repFilter = isAdmin ? null : repId;
+// ── Calculated metric helpers ─────────────────────────────────────────────────
+function calcMetrics(deals) {
+  const total = deals.length;
+  const approved = deals.filter(d => ['approved','funded'].includes(d.approval_status?.toLowerCase()));
+  const funded = deals.filter(d => d.approval_status?.toLowerCase() === 'funded');
+  const totalFundedVol = funded.reduce((s, d) => s + (parseFloat(d.funded_amount) || 0), 0);
+  const avgDealSize = funded.length ? totalFundedVol / funded.length : 0;
+  const appToApproval = total ? (approved.length / total * 100) : 0;
+  const approvalToFunding = approved.length ? (funded.length / approved.length * 100) : 0;
 
-  const allDeals = [
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Libertas', status: 'funded', amount: 75000, factor: 1.35, submitted: '2026-01-15', funded: '2026-01-22', industry: 'Retail', stage: 'Funded' },
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Libertas', status: 'funded', amount: 50000, factor: 1.28, submitted: '2026-02-01', funded: '2026-02-08', industry: 'Food', stage: 'Funded' },
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Kapitus', status: 'approved', amount: 120000, factor: 1.42, submitted: '2026-02-20', funded: null, industry: 'Construction', stage: 'Approved' },
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Kapitus', status: 'declined', amount: 80000, factor: null, submitted: '2026-03-01', funded: null, industry: 'Auto', stage: 'Declined' },
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Greenbox', status: 'funded', amount: 95000, factor: 1.38, submitted: '2026-03-10', funded: '2026-03-18', industry: 'Healthcare', stage: 'Funded' },
-    { rep_id: 'r-nik', rep_name: 'Nikholas Lazo', lender: 'Greenbox', status: 'submitted', amount: 60000, factor: null, submitted: '2026-03-25', funded: null, industry: 'Retail', stage: 'Submitted' },
-    { rep_id: 'r1', rep_name: 'Sarah Mitchell', lender: 'Libertas', status: 'funded', amount: 45000, factor: 1.29, submitted: '2026-01-10', funded: '2026-01-17', industry: 'Food', stage: 'Funded' },
-    { rep_id: 'r1', rep_name: 'Sarah Mitchell', lender: 'Kapitus', status: 'funded', amount: 88000, factor: 1.35, submitted: '2026-02-15', funded: '2026-02-22', industry: 'Retail', stage: 'Funded' },
-    { rep_id: 'r2', rep_name: 'James Carter', lender: 'Greenbox', status: 'funded', amount: 110000, factor: 1.40, submitted: '2026-01-20', funded: '2026-01-28', industry: 'Construction', stage: 'Funded' },
-  ];
+  // Stage durations
+  const withDurations = funded.filter(d => d.days_total_to_fund > 0);
+  const avgDaysToFund = withDurations.length
+    ? withDurations.reduce((s, d) => s + d.days_total_to_fund, 0) / withDurations.length : 0;
 
-  const deals = repFilter ? allDeals.filter(d => d.rep_id === repFilter) : allDeals;
-
-  const funded = deals.filter(d => d.status === 'funded');
-  const submitted = deals.filter(d => ['submitted','approved','funded','declined'].includes(d.status));
-  const approved = deals.filter(d => ['approved','funded'].includes(d.status));
-  const pipeline = deals.filter(d => ['submitted','approved'].includes(d.status));
-
-  const totalFunded = funded.reduce((s, d) => s + d.amount, 0);
-  const avgDealSize = funded.length ? totalFunded / funded.length : 0;
-  const approvalRate = submitted.length ? (approved.length / submitted.length * 100) : 0;
-  const fundingRate = submitted.length ? (funded.length / submitted.length * 100) : 0;
-
-  // Monthly trend
-  const monthlyMap = {};
-  deals.forEach(d => {
-    const month = d.submitted.substring(0, 7);
-    if (!monthlyMap[month]) monthlyMap[month] = { month, submitted: 0, approved: 0, funded: 0, volume: 0 };
-    monthlyMap[month].submitted++;
-    if (['approved','funded'].includes(d.status)) monthlyMap[month].approved++;
-    if (d.status === 'funded') { monthlyMap[month].funded++; monthlyMap[month].volume += d.amount; }
-  });
-  const monthlyTrend = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+  const stageDurations = {
+    submitToDocs:       avg(funded, 'days_submit_to_docs'),
+    docsToUnderwrite:   avg(funded, 'days_docs_to_underwrite'),
+    underwriteToApprove: avg(funded, 'days_underwrite_to_approve'),
+    approveToFund:      avg(funded, 'days_approve_to_fund'),
+    totalToFund:        avgDaysToFund,
+  };
 
   // Lender breakdown
   const lenderMap = {};
   deals.forEach(d => {
-    if (!lenderMap[d.lender]) lenderMap[d.lender] = { lender: d.lender, submissions: 0, approvals: 0, funded: 0, volume: 0, rates: [] };
-    lenderMap[d.lender].submissions++;
-    if (['approved','funded'].includes(d.status)) lenderMap[d.lender].approvals++;
-    if (d.status === 'funded') { lenderMap[d.lender].funded++; lenderMap[d.lender].volume += d.amount; if (d.factor) lenderMap[d.lender].rates.push(d.factor); }
+    const l = d.lender_name || 'Unknown';
+    if (!lenderMap[l]) lenderMap[l] = { lender: l, submissions: 0, approved: 0, funded: 0, volume: 0 };
+    lenderMap[l].submissions++;
+    if (['approved','funded'].includes(d.approval_status?.toLowerCase())) lenderMap[l].approved++;
+    if (d.approval_status?.toLowerCase() === 'funded') {
+      lenderMap[l].funded++;
+      lenderMap[l].volume += parseFloat(d.funded_amount) || 0;
+    }
   });
   const lenderBreakdown = Object.values(lenderMap).map(l => ({
     ...l,
-    approvalRate: l.submissions ? Math.round(l.approvals / l.submissions * 100) : 0,
-    avgFactor: l.rates.length ? (l.rates.reduce((s, r) => s + r, 0) / l.rates.length).toFixed(2) : null,
+    fundingRate: l.submissions ? Math.round(l.funded / l.submissions * 100) : 0,
+    approvalRate: l.submissions ? Math.round(l.approved / l.submissions * 100) : 0,
   })).sort((a, b) => b.volume - a.volume);
+
+  // Deal size distribution buckets
+  const buckets = { '<25K': 0, '25-50K': 0, '50-75K': 0, '75-100K': 0, '100-150K': 0, '150K+': 0 };
+  funded.forEach(d => {
+    const amt = parseFloat(d.funded_amount) || 0;
+    if (amt < 25000) buckets['<25K']++;
+    else if (amt < 50000) buckets['25-50K']++;
+    else if (amt < 75000) buckets['50-75K']++;
+    else if (amt < 100000) buckets['75-100K']++;
+    else if (amt < 150000) buckets['100-150K']++;
+    else buckets['150K+']++;
+  });
+  const dealSizeDistribution = Object.entries(buckets).map(([range, count]) => ({ range, count }));
+
+  // Monthly trend
+  const monthlyMap = {};
+  deals.forEach(d => {
+    const month = (d.application_submitted_at || d.created_at || '').substring(0, 7);
+    if (!month) return;
+    if (!monthlyMap[month]) monthlyMap[month] = { month, submitted: 0, approved: 0, funded: 0, volume: 0 };
+    monthlyMap[month].submitted++;
+    if (['approved','funded'].includes(d.approval_status?.toLowerCase())) monthlyMap[month].approved++;
+    if (d.approval_status?.toLowerCase() === 'funded') {
+      monthlyMap[month].funded++;
+      monthlyMap[month].volume += parseFloat(d.funded_amount) || 0;
+    }
+  });
+  const monthlyTrend = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
 
   // Pipeline by stage
   const stageMap = {};
-  pipeline.forEach(d => {
-    if (!stageMap[d.stage]) stageMap[d.stage] = { stage: d.stage, count: 0, value: 0 };
-    stageMap[d.stage].count++;
-    stageMap[d.stage].value += d.amount;
+  deals.forEach(d => {
+    const s = d.stage || 'Unknown';
+    if (!stageMap[s]) stageMap[s] = { stage: s, count: 0, value: 0 };
+    stageMap[s].count++;
+    stageMap[s].value += parseFloat(d.requested_amount) || 0;
   });
 
-  // Rep comparison (admin only)
-  const repMap = {};
-  allDeals.forEach(d => {
-    if (!repMap[d.rep_id]) repMap[d.rep_id] = { rep_id: d.rep_id, rep_name: d.rep_name, funded: 0, volume: 0, submitted: 0 };
-    repMap[d.rep_id].submitted++;
-    if (d.status === 'funded') { repMap[d.rep_id].funded++; repMap[d.rep_id].volume += d.amount; }
-  });
+  // Debt/risk metrics
+  const withDebt = deals.filter(d => d.daily_payment_obligation > 0);
+  const avgDailyObligation = withDebt.length ? avg(withDebt, 'daily_payment_obligation') : 0;
+  const avgWithholding = withDebt.length ? avg(withDebt, 'withholding_percentage') : 0;
+
+  // MTD counts
+  const now = new Date();
+  const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const mtdDeals = deals.filter(d => (d.application_submitted_at || d.created_at) >= mtdStart);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const todayDeals = deals.filter(d => (d.application_submitted_at || d.created_at) >= todayStart);
 
   return {
     summary: {
-      totalFunded: Math.round(totalFunded),
-      totalFundedDeals: funded.length,
+      totalApps: total,
+      mtdApps: mtdDeals.length,
+      todayApps: todayDeals.length,
+      approvedCount: approved.length,
+      fundedCount: funded.length,
+      appToApprovalRatio: Math.round(appToApproval * 10) / 10,
+      approvalToFundingRatio: Math.round(approvalToFunding * 10) / 10,
+      totalFundedVolume: Math.round(totalFundedVol),
       avgDealSize: Math.round(avgDealSize),
-      approvalRate: Math.round(approvalRate),
-      fundingRate: Math.round(fundingRate),
-      activePipeline: pipeline.length,
-      pipelineValue: pipeline.reduce((s, d) => s + d.amount, 0),
-      totalDeals: deals.length,
+      avgDaysToFund: Math.round(avgDaysToFund * 10) / 10,
+      avgDailyObligation: Math.round(avgDailyObligation),
+      avgWithholdingPct: Math.round(avgWithholding * 10) / 10,
     },
-    monthlyTrend,
+    stageDurations,
     lenderBreakdown,
+    dealSizeDistribution,
+    monthlyTrend,
     pipelineByStage: Object.values(stageMap),
-    repComparison: isAdmin ? Object.values(repMap) : null,
-    deals: deals.slice(0, 20),
+    deals: deals.slice(0, 50),
   };
 }
 
-// ── Middleware: enforce rep scoping ───────────────────────────────────────────
-function getRepScope(user) {
-  if (user.role === 'admin') return null; // admin sees all
-  return user.repId || user.rep_id || user.id;
+function avg(arr, key) {
+  const vals = arr.map(d => parseFloat(d[key])).filter(v => v > 0);
+  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
 }
 
 // ── GET /api/analytics/summary ────────────────────────────────────────────────
@@ -102,54 +127,62 @@ router.get('/summary', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     if (user.role === 'client') return res.status(403).json({ error: 'Access denied' });
 
-    const repId = getRepScope(user);
+    const DealStore = require('../services/dealStore');
     const isAdmin = user.role === 'admin';
+    const repId = isAdmin ? null : (user.rep_id || user.repId || user.id);
 
-    // Try Athena first, fall back to mock
-    try {
-      const { runQuery } = require('../services/athenaService');
-      const repFilter = repId ? `WHERE rep_id = '${repId}'` : '';
+    let deals = isAdmin ? DealStore.getAll() : DealStore.getByRep(repId);
 
-      const [summary, monthly, lenders, pipeline] = await Promise.all([
-        runQuery(`SELECT * FROM rep_production_summary ${repFilter}`),
-        runQuery(`SELECT * FROM monthly_production ${repFilter} ORDER BY year DESC, month DESC LIMIT 12`),
-        runQuery(`SELECT * FROM lender_performance_by_rep ${repFilter} ORDER BY total_funded DESC`),
-        runQuery(`SELECT * FROM pipeline_by_stage ${repFilter}`),
-      ]);
+    // Apply filters from query params
+    if (req.query.rep && isAdmin) deals = deals.filter(d => d.rep_id === req.query.rep);
+    if (req.query.lender) deals = deals.filter(d => d.lender_name === req.query.lender);
+    if (req.query.from) deals = deals.filter(d => (d.application_submitted_at || d.created_at) >= req.query.from);
+    if (req.query.to) deals = deals.filter(d => (d.application_submitted_at || d.created_at) <= req.query.to);
 
-      return res.json({ summary, monthly, lenders, pipeline, source: 'athena' });
-    } catch (athenaErr) {
-      console.log('[Analytics] Athena unavailable, using mock data:', athenaErr.message);
-      const data = getMockAnalytics(repId, isAdmin);
-      return res.json({ ...data, source: 'mock' });
+    const metrics = calcMetrics(deals);
+
+    // Rep comparison for admin
+    if (isAdmin) {
+      const allDeals = DealStore.getAll();
+      const repMap = {};
+      allDeals.forEach(d => {
+        if (!repMap[d.rep_id]) repMap[d.rep_id] = { rep_id: d.rep_id, rep_name: d.rep_name, deals: [] };
+        repMap[d.rep_id].deals.push(d);
+      });
+      metrics.repComparison = Object.values(repMap).map(r => {
+        const m = calcMetrics(r.deals);
+        return { rep_id: r.rep_id, rep_name: r.rep_name, ...m.summary };
+      });
     }
+
+    res.json({ ...metrics, source: 'live' });
   } catch (err) {
-    console.error('[Analytics] Error:', err.message);
+    console.error('[Analytics]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /api/analytics/lenders ────────────────────────────────────────────────
-router.get('/lenders', async (req, res) => {
+// ── GET /api/analytics/underwriting ──────────────────────────────────────────
+router.get('/underwriting', (req, res) => {
   try {
     const user = req.user;
     if (!user || user.role === 'client') return res.status(403).json({ error: 'Access denied' });
-    const repId = getRepScope(user);
-    const isAdmin = user.role === 'admin';
-    const data = getMockAnalytics(repId, isAdmin);
-    res.json({ lenders: data.lenderBreakdown, source: 'mock' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// ── GET /api/analytics/reps (admin only) ──────────────────────────────────────
-router.get('/reps', async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    const data = getMockAnalytics(null, true);
-    res.json({ reps: data.repComparison, source: 'mock' });
+    const DealStore = require('../services/dealStore');
+    const isAdmin = user.role === 'admin';
+    const repId = isAdmin ? null : (user.rep_id || user.repId || user.id);
+    const deals = isAdmin ? DealStore.getAll() : DealStore.getByRep(repId);
+
+    const withUW = deals.filter(d => d.avg_monthly_revenue || d.nsf_count !== undefined);
+    res.json({
+      avgMonthlyRevenue: Math.round(avg(withUW, 'avg_monthly_revenue')),
+      avgTrueRevenue: Math.round(avg(withUW, 'true_revenue')),
+      avgNsfCount: Math.round(avg(withUW, 'nsf_count') * 10) / 10,
+      avgNegativeDays: Math.round(avg(withUW, 'negative_days') * 10) / 10,
+      avgDailyBalance: Math.round(avg(withUW, 'avg_daily_balance')),
+      avgDebtBurdenRatio: Math.round(avg(withUW, 'debt_burden_ratio') * 100) / 100,
+      count: withUW.length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

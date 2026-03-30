@@ -25,8 +25,12 @@ const EMPTY_FORM = {
   client_name: '', client_id: '', lender_name: '', stage: 'Submitted',
   requested_amount: '', approved_amount: '', funded_amount: '',
   factor_rate: '', payback_amount: '', industry: '', state: '',
-  position: '1st', submitted_date: new Date().toISOString().split('T')[0],
-  approved_date: '', funded_date: '', notes: '',
+  position: '1st', source: 'direct',
+  submitted_date: new Date().toISOString().split('T')[0],
+  approved_date: '', funded_date: '',
+  docs_uploaded_at: '', underwritten_at: '',
+  total_existing_mca_balance: '', daily_payment_obligation: '', withholding_percentage: '',
+  notes: '',
 };
 
 function fmt$(n) {
@@ -272,7 +276,7 @@ export default function DealLog() {
               </Field>
             </div>
 
-            {/* Row 5 — Industry + State + Dates */}
+            {/* Row 5 — Industry + State + Source */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Field label="Industry">
                 <select value={form.industry} onChange={e => set('industry', e.target.value)} className={selectCls}>
@@ -283,12 +287,58 @@ export default function DealLog() {
               <Field label="State">
                 <input value={form.state} onChange={e => set('state', e.target.value)} className={inputCls} placeholder="NY" maxLength={2} />
               </Field>
+              <Field label="Source">
+                <select value={form.source} onChange={e => set('source', e.target.value)} className={selectCls}>
+                  {['direct','referral','broker','docusign','other'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+                </select>
+              </Field>
               <Field label="Submitted Date">
                 <input type="date" value={form.submitted_date} onChange={e => set('submitted_date', e.target.value)} className={inputCls} />
               </Field>
-              <Field label="Funded Date">
-                <input type="date" value={form.funded_date} onChange={e => set('funded_date', e.target.value)} className={inputCls} />
-              </Field>
+            </div>
+
+            {/* Stage timestamps */}
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">✏️ Stage Timestamps (Manual — used for time-to-fund analytics)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Field label="Docs Uploaded">
+                  <input type="date" value={form.docs_uploaded_at} onChange={e => set('docs_uploaded_at', e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Underwritten">
+                  <input type="date" value={form.underwritten_at} onChange={e => set('underwritten_at', e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Approved Date">
+                  <input type="date" value={form.approved_date} onChange={e => set('approved_date', e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Funded Date">
+                  <input type="date" value={form.funded_date} onChange={e => set('funded_date', e.target.value)} className={inputCls} />
+                </Field>
+              </div>
+            </div>
+
+            {/* Debt metrics */}
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">✏️ Debt & Obligation (Manual — used for risk analytics)</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Field label="Existing MCA Balance">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" value={form.total_existing_mca_balance} onChange={e => set('total_existing_mca_balance', e.target.value)} className={`${inputCls} pl-7`} placeholder="0" />
+                  </div>
+                </Field>
+                <Field label="Daily Payment Obligation">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" value={form.daily_payment_obligation} onChange={e => set('daily_payment_obligation', e.target.value)} className={`${inputCls} pl-7`} placeholder="0" />
+                  </div>
+                </Field>
+                <Field label="Withholding %">
+                  <div className="relative">
+                    <input type="number" step="0.1" value={form.withholding_percentage} onChange={e => set('withholding_percentage', e.target.value)} className={`${inputCls} pr-7`} placeholder="12.5" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                  </div>
+                </Field>
+              </div>
             </div>
 
             {/* Notes */}
