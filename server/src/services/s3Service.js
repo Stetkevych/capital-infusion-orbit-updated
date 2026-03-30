@@ -14,11 +14,10 @@ async function getPresignedUploadUrl({ clientId, category, fileName, contentType
     Bucket: BUCKET,
     Key: key,
     ContentType: contentType || 'application/octet-stream',
-    ServerSideEncryption: 'AES256',
     Metadata: { clientId, category, originalName: fileName },
   });
 
-  const url = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5 min
+  const url = await getSignedUrl(s3, command, { expiresIn: 300 });
   return { url, key };
 }
 
