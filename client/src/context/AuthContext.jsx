@@ -34,11 +34,12 @@ export function AuthProvider({ children }) {
         const data = await res.json();
         const sessionUser = {
           id: data.user.id,
-          name: data.user.full_name,
+          name: data.user.full_name || data.user.name,
           email: data.user.email,
           role: data.user.role,
           repId: data.user.rep_id || null,
           clientId: data.user.client_id || null,
+          token: data.token,
         };
         localStorage.setItem('mca_user', JSON.stringify(sessionUser));
         localStorage.setItem('mca_token', data.token);

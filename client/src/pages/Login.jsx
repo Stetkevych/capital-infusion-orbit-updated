@@ -18,9 +18,9 @@ export default function Login() {
       { label: 'Maria Gonzalez', sub: 'Gonzalez Catering Co.', email: 'client2@demo.com' },
     ],
     rep: [
-      { label: 'Sarah Mitchell', sub: 'Rep — East Coast', email: 'rep@demo.com' },
-      { label: 'James Carter', sub: 'Rep — West Coast', email: 'rep2@demo.com' },
-      { label: 'Admin User', sub: 'Full Access', email: 'admin@demo.com' },
+      { label: 'Alex Stetkevych', sub: 'Admin', email: 'alexs@capital-infusion.com' },
+      { label: 'Chris', sub: 'Rep', email: 'chris@capital-infusion.com' },
+      { label: 'Sarah Mitchell (Demo)', sub: 'Rep — Demo', email: 'rep@demo.com' },
     ],
   };
 
@@ -66,7 +66,7 @@ export default function Login() {
             </button>
 
             <button
-              onClick={() => { setFlow('rep'); setEmail('rep@demo.com'); setPassword('password'); }}
+              onClick={() => { setFlow('rep'); setEmail('alexs@capital-infusion.com'); setPassword('CapitalAdmin2024!'); }}
               className="group bg-white rounded-apple-lg p-7 text-left shadow-apple hover:shadow-apple-lg transition-all duration-200 border border-apple-gray7 hover:border-indigo-300"
             >
               <div className="w-11 h-11 bg-indigo-50 rounded-xl flex items-center justify-center mb-5 group-hover:bg-indigo-600 transition-colors duration-200">
