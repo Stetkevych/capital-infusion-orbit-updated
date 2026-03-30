@@ -18,6 +18,7 @@ import ClientDetail from './pages/RepPortal/ClientDetail';
 import SecureUpload from './pages/RepPortal/SecureUpload';
 import DocumentCenter from './pages/RepPortal/DocumentCenter';
 import AutoUnderwriting from './pages/RepPortal/Underwriting/AutoUnderwriting';
+import DealLog from './pages/RepPortal/DealLog';
 import Analytics from './pages/RepPortal/Analytics';
 import RequestsPage from './pages/RepPortal/Requests';
 import NotesPage from './pages/RepPortal/Notes';
@@ -67,6 +68,7 @@ function RepRoutes() {
       <Route path="/upload" element={<SecureUpload />} />
       <Route path="/documents" element={<DocumentCenter />} />
       <Route path="/underwriting" element={<AutoUnderwriting />} />
+      <Route path="/deals" element={<DealLog />} />
       <Route path="/analytics" element={<Analytics />} />
       <Route path="/requests" element={<RequestsPage />} />
       <Route path="/notes" element={<NotesPage />} />

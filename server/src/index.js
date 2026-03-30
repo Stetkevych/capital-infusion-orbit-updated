@@ -17,6 +17,7 @@ const docusignRoutes = require('./routes/docusign');
 const zohoRoutes = require('./routes/zoho');
 const offersRoutes = require('./routes/offers');
 const analyticsRoutes = require('./routes/analytics');
+const dealRoutes = require('./routes/deals');
 const { authMiddleware } = require('./routes/auth');
 const metricsRoutes = require('./routes/metrics');
 
@@ -81,6 +82,7 @@ app.use('/api/plaid', plaidRoutes);
 app.use('/api/docusign', docusignRoutes);
 app.use('/api/zoho', zohoRoutes);
 app.use('/api/offers', offersRoutes);
+app.use('/api/deals', dealRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/metrics', metricsRoutes);
 

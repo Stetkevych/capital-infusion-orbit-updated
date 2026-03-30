@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2
+  Zap, BarChart2, TrendingUp
 } from 'lucide-react';
 
 const REP_LINKS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/reps', label: 'Rep Info', icon: Users },
   { path: '/clients', label: 'Clients', icon: Users },
+  { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Documents', icon: FolderOpen },
   { path: '/underwriting', label: 'Underwriting', icon: Zap },
