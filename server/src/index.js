@@ -31,9 +31,11 @@ console.log(`Frontend URL: ${FRONTEND_URL}`);
 
 // Initialize database
 initializeDb().catch(err => {
-  console.error('❌ Failed to initialize database:', err);
-  process.exit(1);
+  console.warn('DB init warning:', err.message);
 });
+
+// Trust proxy for EB/nginx
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());

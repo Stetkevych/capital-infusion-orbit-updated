@@ -1,2 +1,1 @@
-web: npm run start
-release: npm run migrate
+web: node server/src/index.js

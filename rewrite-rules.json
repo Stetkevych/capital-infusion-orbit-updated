@@ -1,1 +1,12 @@
-[{"source":"/<*>","target":"/index.html","status":"200"}]
+[
+  {
+    "source": "/static/<*>",
+    "target": "/static/<*>",
+    "status": "200"
+  },
+  {
+    "source": "/<*>",
+    "target": "/index.html",
+    "status": "200"
+  }
+]
