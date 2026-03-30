@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2, TrendingUp
+  Zap, BarChart2, TrendingUp, HelpCircle
 } from 'lucide-react';
 
 const REP_LINKS = [
@@ -20,6 +20,7 @@ const REP_LINKS = [
   { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/activity', label: 'Activity', icon: Activity },
   { path: '/users', label: 'User Management', icon: Users },
+  { path: '/help', label: 'Help & Guide', icon: HelpCircle },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

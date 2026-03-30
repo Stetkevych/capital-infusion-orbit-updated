@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const { authMiddleware } = require('./routes/auth');
 const applicationRoutes = require('./routes/applications');
 const dealRoutes = require('./routes/deals');
+const clientsApiRoutes = require('./routes/clients');
 const documentRoutes = require('./routes/documents');
 const plaidRoutes = require('./routes/plaid');
 const docusignRoutes = require('./routes/docusign');
@@ -60,6 +61,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/deals', dealRoutes);
+app.use('/api/clients-api', clientsApiRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/plaid', plaidRoutes);
 app.use('/api/docusign', docusignRoutes);

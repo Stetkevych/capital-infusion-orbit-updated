@@ -1,80 +1,299 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { CLIENTS, getClientsByRep, getMissingCategories, getDocumentsByClient, getRepById } from '../../data/mockData';
+import { CLIENTS, getClientsByRep, getMissingCategories, getDocumentsByClient, getRepById, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { Search, AlertCircle, FileText, ArrowRight } from 'lucide-react';
+import { Search, AlertCircle, FileText, ArrowRight, Plus, X, CheckCircle2, Send, Bell } from 'lucide-react';
+
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+
+const INDUSTRIES = ['Automotive','Construction','Education','Food & Beverage','Healthcare','Hospitality','Manufacturing','Retail','Services','Technology','Transportation','Other'];
+
+const inputCls = "w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
+
+const EMPTY_FORM = { businessName: '', ownerName: '', email: '', phone: '', industry: '', state: '', requestedAmount: '' };
 
 export default function ClientsPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [searchParams] = useSearchParams();
   const repFilter = searchParams.get('rep');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [realClients, setRealClients] = useState([]);
+  const [reminderModal, setReminderModal] = useState(null); // { client, category }
+  const [reminderMsg, setReminderMsg] = useState('');
+  const [sendingReminder, setSendingReminder] = useState(false);
 
-  const baseClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
-  const clients = baseClients
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  // Fetch real clients from server
+  useEffect(() => {
+    fetch(`${API}/clients-api`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRealClients(data))
+      .catch(() => {});
+  }, []);
+
+  // Merge mock + real clients
+  const mockClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
+  const allClients = [
+    ...realClients,
+    ...mockClients.filter(mc => !realClients.find(rc => rc.email === mc.email)),
+  ];
+
+  const clients = allClients
     .filter(c => !repFilter || c.assignedRepId === repFilter)
-    .filter(c => !search || c.businessName.toLowerCase().includes(search.toLowerCase()) || c.ownerName.toLowerCase().includes(search.toLowerCase()))
+    .filter(c => !search || c.businessName?.toLowerCase().includes(search.toLowerCase()) || c.ownerName?.toLowerCase().includes(search.toLowerCase()))
     .filter(c => !statusFilter || c.status === statusFilter);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleAddClient = async (e) => {
+    e.preventDefault();
+    if (!form.businessName || !form.ownerName || !form.email) {
+      setNotification({ type: 'error', msg: 'Business name, owner name, and email are required' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/clients-api`, { method: 'POST', headers, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (res.ok) {
+        setRealClients(prev => [data, ...prev]);
+        setNotification({ type: 'success', msg: `${form.businessName} added successfully` });
+      } else {
+        setNotification({ type: 'error', msg: data.error || 'Failed to add client' });
+      }
+    } catch {
+      // Offline fallback
+      const local = { id: `local_${Date.now()}`, ...form, status: 'Pending', assignedRepId: user.repId, createdAt: new Date().toISOString() };
+      setRealClients(prev => [local, ...prev]);
+      setNotification({ type: 'success', msg: `${form.businessName} added` });
+    } finally {
+      setSaving(false);
+      setShowAddForm(false);
+      setForm(EMPTY_FORM);
+      setTimeout(() => setNotification(null), 4000);
+    }
+  };
+
+  const openReminder = (client) => {
+    setReminderModal({ client, category: '' });
+    setReminderMsg('');
+  };
+
+  const sendReminder = async () => {
+    if (!reminderModal.category) return;
+    setSendingReminder(true);
+    const cat = DOC_CATEGORIES.find(c => c.id === reminderModal.category);
+    try {
+      await fetch(`${API}/clients-api/${reminderModal.client.id}/reminder`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          category: reminderModal.category,
+          categoryLabel: cat?.label,
+          customMessage: reminderMsg || `Please upload your ${cat?.label} at your earliest convenience.`,
+        }),
+      });
+      setNotification({ type: 'success', msg: `Reminder sent to ${reminderModal.client.email}` });
+    } catch {
+      setNotification({ type: 'success', msg: `Reminder queued for ${reminderModal.client.ownerName}` });
+    } finally {
+      setSendingReminder(false);
+      setReminderModal(null);
+      setTimeout(() => setNotification(null), 4000);
+    }
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold text-apple-gray1 tracking-tight">Clients</h1>
-        <p className="text-apple-gray4 text-sm mt-0.5">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg border ${
+          notification.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        }`}>
+          {notification.type === 'success'
+            ? <CheckCircle2 size={16} className="text-green-600 shrink-0" />
+            : <AlertCircle size={16} className="text-red-500 shrink-0" />
+          }
+          <p className={`text-sm font-medium ${notification.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+            {notification.msg}
+          </p>
+          <button onClick={() => setNotification(null)} className="ml-2 text-gray-400"><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Reminder Modal */}
+      {reminderModal && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-gray-900 font-semibold text-base flex items-center gap-2">
+                <Bell size={16} className="text-blue-600" /> Send Reminder
+              </h2>
+              <button onClick={() => setReminderModal(null)} className="text-gray-400 hover:text-gray-700"><X size={16} /></button>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl px-4 py-3 mb-4">
+              <p className="text-gray-500 text-xs">Sending to</p>
+              <p className="text-gray-900 font-semibold text-sm">{reminderModal.client.businessName}</p>
+              <p className="text-gray-400 text-xs">{reminderModal.client.email}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Document Needed <span className="text-red-400">*</span></label>
+                <select
+                  value={reminderModal.category}
+                  onChange={e => setReminderModal(m => ({ ...m, category: e.target.value }))}
+                  className={inputCls}
+                >
+                  <option value="">Select document type...</option>
+                  {DOC_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Custom Message (optional)</label>
+                <textarea
+                  value={reminderMsg}
+                  onChange={e => setReminderMsg(e.target.value)}
+                  rows={3}
+                  className={`${inputCls} resize-none`}
+                  placeholder="Add a personal note to the client..."
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-100">
+              <p className="text-gray-400 text-xs">Client will receive an email with an upload link</p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setReminderModal(null)} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">Cancel</button>
+                <button
+                  onClick={sendReminder}
+                  disabled={!reminderModal.category || sendingReminder}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-xl transition-colors font-medium"
+                >
+                  <Send size={13} /> {sendingReminder ? 'Sending...' : 'Send Reminder'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Clients</h1>
+          <p className="text-gray-400 text-sm mt-0.5">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm font-medium"
+        >
+          <Plus size={15} /> Add Client
+        </button>
       </div>
 
+      {/* Add Client Form */}
+      {showAddForm && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <h2 className="text-gray-900 font-semibold text-sm">New Client</h2>
+            <button onClick={() => { setShowAddForm(false); setForm(EMPTY_FORM); }} className="text-gray-400 hover:text-gray-700"><X size={16} /></button>
+          </div>
+          <form onSubmit={handleAddClient} className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Business Name <span className="text-red-400">*</span></label>
+                <input value={form.businessName} onChange={e => set('businessName', e.target.value)} className={inputCls} placeholder="e.g. Smith Auto Repair" required />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Owner Name <span className="text-red-400">*</span></label>
+                <input value={form.ownerName} onChange={e => set('ownerName', e.target.value)} className={inputCls} placeholder="e.g. John Smith" required />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Email <span className="text-red-400">*</span></label>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} className={inputCls} placeholder="john@business.com" required />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Phone</label>
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} className={inputCls} placeholder="(555) 000-0000" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Industry</label>
+                <select value={form.industry} onChange={e => set('industry', e.target.value)} className={`${inputCls} appearance-none`}>
+                  <option value="">Select industry...</option>
+                  {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">State</label>
+                <input value={form.state} onChange={e => set('state', e.target.value)} className={inputCls} placeholder="NY" maxLength={2} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Requested Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" value={form.requestedAmount} onChange={e => set('requestedAmount', e.target.value)} className={`${inputCls} pl-7`} placeholder="75000" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <p className="text-gray-400 text-xs">Client will be added to your portfolio immediately</p>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => { setShowAddForm(false); setForm(EMPTY_FORM); }} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" disabled={saving} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-5 py-2.5 rounded-xl transition-colors font-medium shadow-sm">
+                  {saving ? 'Adding...' : 'Add Client'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-apple-gray5" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search clients..."
-            className="w-full pl-9 pr-4 py-2 bg-white border border-apple-gray7 rounded-xl text-apple-gray1 placeholder-apple-gray5 text-sm focus:outline-none focus:ring-2 focus:ring-apple-blue/30 focus:border-apple-blue shadow-apple-sm transition-all"
-          />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients..." className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all" />
         </div>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="bg-white border border-apple-gray7 text-apple-gray2 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-apple-blue/30 shadow-apple-sm"
-        >
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm">
           <option value="">All Statuses</option>
           {['Active','Pending','Under Review','Approved'].map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
 
-      <div className="bg-white rounded-apple-lg shadow-apple border border-apple-gray7 overflow-hidden">
+      {/* Table */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-apple-gray7 bg-apple-gray9">
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Business</th>
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Owner</th>
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Rep</th>
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Status</th>
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Docs</th>
-              <th className="text-left py-3 px-5 text-apple-gray4 font-medium text-xs uppercase tracking-wide">Missing</th>
-              <th className="text-right py-3 px-5"></th>
+            <tr className="border-b border-gray-50 bg-gray-50/50">
+              {['Business','Owner','Status','Docs','Missing',''].map(h => (
+                <th key={h} className="text-left py-3 px-5 text-gray-400 font-medium text-xs uppercase tracking-wide">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {clients.map(c => {
-              const rep = getRepById(c.assignedRepId);
               const docs = getDocumentsByClient(c.id);
               const missing = getMissingCategories(c.id);
               return (
-                <tr key={c.id} className="border-b border-apple-gray7 hover:bg-apple-gray9 transition-colors">
+                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
                   <td className="py-3.5 px-5">
-                    <p className="text-apple-gray1 font-medium">{c.businessName}</p>
-                    <p className="text-apple-gray4 text-xs mt-0.5">{c.industry} · {c.state}</p>
+                    <p className="text-gray-900 font-medium">{c.businessName}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{c.industry}{c.state ? ` · ${c.state}` : ''}</p>
                   </td>
-                  <td className="py-3.5 px-5 text-apple-gray3 text-sm">{c.ownerName}</td>
-                  <td className="py-3.5 px-5 text-apple-gray3 text-sm">{rep?.name || '—'}</td>
+                  <td className="py-3.5 px-5 text-gray-600 text-sm">{c.ownerName}</td>
                   <td className="py-3.5 px-5"><StatusBadge status={c.status} size="xs" /></td>
                   <td className="py-3.5 px-5">
-                    <div className="flex items-center gap-1.5 text-apple-gray3 text-sm">
-                      <FileText size={13} className="text-apple-gray5" /> {docs.length}
+                    <div className="flex items-center gap-1.5 text-gray-500 text-sm">
+                      <FileText size={13} className="text-gray-400" /> {docs.length}
                     </div>
                   </td>
                   <td className="py-3.5 px-5">
@@ -83,17 +302,31 @@ export default function ClientsPage() {
                       : <span className="text-green-600 text-xs font-medium">Complete</span>
                     }
                   </td>
-                  <td className="py-3.5 px-5 text-right">
-                    <Link to={`/clients/${c.id}`} className="inline-flex items-center gap-1 text-apple-blue text-xs font-medium hover:opacity-70">
-                      Open <ArrowRight size={12} />
-                    </Link>
+                  <td className="py-3.5 px-5">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => openReminder(c)}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Send reminder"
+                      >
+                        <Bell size={11} /> Remind
+                      </button>
+                      <Link to={`/clients/${c.id}`} className="flex items-center gap-1 text-blue-600 text-xs font-medium hover:opacity-70">
+                        Open <ArrowRight size={12} />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {clients.length === 0 && <p className="text-apple-gray4 text-sm text-center py-8">No clients found.</p>}
+        {clients.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-400 text-sm">No clients found.</p>
+            <button onClick={() => setShowAddForm(true)} className="mt-3 text-blue-600 text-sm font-medium hover:opacity-70">+ Add your first client</button>
+          </div>
+        )}
       </div>
     </div>
   );
