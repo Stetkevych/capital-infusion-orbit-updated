@@ -1,5 +1,10 @@
 [
   {
+    "source": "/api/<*>",
+    "target": "http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api/<*>",
+    "status": "200"
+  },
+  {
     "source": "/static/<*>",
     "target": "/static/<*>",
     "status": "200"
