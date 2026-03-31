@@ -68,4 +68,4 @@ async function downloadDocument(envelopeId) {
   return response.data; // PDF buffer — upload to S3
 }
 
-module.exports = { getAccessToken, getEnvelopeStatus, downloadDocument };
+module.exports = { getAccessToken, getEnvelopeStatus, downloadDocument, downloadSignedDocument: downloadDocument };

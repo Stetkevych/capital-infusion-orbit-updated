@@ -1,10 +1,19 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 
 const { sendWelcomeEmail } = require('../services/emailService');
 const { updateZohoDeal } = require('../services/zohoService');
 const { createPendingClient } = require('../services/clientService');
+const { getPresignedUploadUrl, fileExists } = require('../services/s3Service');
+
+const REGISTRY_PATH = path.join(__dirname, '../../data/documents.json');
+const dataDir = path.join(__dirname, '../../data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+function loadDocs() { try { return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { return []; } }
+function saveDocs(docs) { fs.writeFileSync(REGISTRY_PATH, JSON.stringify(docs, null, 2)); }
 
 // ─── Verify DocuSign HMAC signature ──────────────────────────────────────────
 function verifyDocuSignSignature(req) {
@@ -72,9 +81,55 @@ router.post('/webhook', express.json(), async (req, res) => {
     } catch (e) { console.error('[DocuSign] Zoho failed:', e.message); }
 
     // 3. Create pending client — non-fatal
+    let clientRecord = null;
     try {
-      await createPendingClient({ email: merchantEmail, name: merchantName, envelopeId, source: 'docusign' });
+      clientRecord = await createPendingClient({ email: merchantEmail, name: merchantName, envelopeId, source: 'docusign' });
     } catch (e) { console.error('[DocuSign] Client create failed:', e.message); }
+
+    // 4. Download signed PDF from DocuSign and store in S3 — non-fatal
+    try {
+      const docusignService = require('../services/docusignService');
+      const clientId = clientRecord?.id || clientRecord?.client_id || envelopeId;
+
+      // Get signed document bytes from DocuSign
+      const pdfBuffer = await docusignService.downloadSignedDocument(envelopeId);
+
+      if (pdfBuffer) {
+        const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+        const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+        const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
+        const key = `clients/${clientId}/application/signed_application_${envelopeId}.pdf`;
+
+        await s3.send(new PutObjectCommand({
+          Bucket: BUCKET,
+          Key: key,
+          Body: pdfBuffer,
+          ContentType: 'application/pdf',
+          Metadata: { envelopeId, clientEmail: merchantEmail, clientName: merchantName },
+        }));
+
+        // Register in document store
+        const docs = loadDocs();
+        docs.push({
+          id: `doc_docusign_${envelopeId}`,
+          key,
+          clientId,
+          category: 'application',
+          fileName: `Signed_Application_${merchantName.replace(/\s+/g, '_')}.pdf`,
+          fileSize: `${(pdfBuffer.length / 1024).toFixed(0)} KB`,
+          uploadedBy: 'docusign',
+          uploadedAt: new Date().toISOString(),
+          status: 'Approved',
+          visibility: 'all',
+          tags: ['docusign', 'signed'],
+          note: `Auto-stored from DocuSign envelope ${envelopeId}`,
+          extractionStatus: 'n/a',
+          extractedFinancials: null,
+        });
+        saveDocs(docs);
+        console.log(`[DocuSign] Signed PDF stored in S3: ${key}`);
+      }
+    } catch (e) { console.error('[DocuSign] PDF store failed:', e.message); }
 
     return res.status(200).json({
       received: true,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Download, Eye } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { DOC_CATEGORIES } from '../../data/mockData';
 
@@ -82,8 +82,7 @@ export default function DocumentTable({ documents, onStatusChange, canChangeStat
               <td className="py-3.5 px-5 text-gray-400 text-xs">{fmt(doc.uploadedAt)}</td>
               <td className="py-3.5 px-5 text-gray-400 text-xs">{doc.fileSize}</td>
               <td className="py-3.5 px-5">
-                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"><Eye size={13} /></button>
+                <div className="flex items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => downloadDoc(doc)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"><Download size={13} /></button>
                 </div>
               </td>
