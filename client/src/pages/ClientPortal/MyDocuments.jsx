@@ -19,20 +19,20 @@ export default function MyDocuments() {
   return (
     <div className="p-6 space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-white">My Documents</h1>
-        <p className="text-slate-400 text-sm mt-0.5">{client.businessName}</p>
+        <h1 className="text-xl font-bold text-gray-900">My Documents</h1>
+        <p className="text-gray-400 text-sm mt-0.5">{client.businessName}</p>
       </div>
 
       <div className="grid grid-cols-[200px_1fr] gap-5">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
-          <p className="text-slate-500 text-xs font-medium uppercase tracking-wide px-2 mb-2">Folders</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+          <p className="text-gray-500 text-xs font-medium uppercase tracking-wide px-2 mb-2">Folders</p>
           <FolderTree clientId={client.id} selectedCategory={selectedCategory} onSelect={setSelectedCategory} />
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl">
-          <div className="px-5 py-4 border-b border-slate-800">
-            <p className="text-white font-semibold text-sm">{catLabel}</p>
-            <p className="text-slate-500 text-xs">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <p className="text-gray-900 font-semibold text-sm">{catLabel}</p>
+            <p className="text-gray-400 text-xs">{docs.length} file{docs.length !== 1 ? 's' : ''}</p>
           </div>
           <DocumentTable documents={docs} canChangeStatus={false} />
         </div>
