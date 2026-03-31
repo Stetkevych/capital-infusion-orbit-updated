@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { REPS, getClientsByRep, getDocumentsByClient, getMissingCategories, getRepById } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { Mail, Phone, Users, FileText, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { Mail, Phone, Users, FileText, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function RepInfo() {
   const { user } = useAuth();
@@ -19,25 +19,6 @@ export default function RepInfo() {
           </h1>
           <p className="text-apple-gray4 text-sm mt-0.5">
             {isAdmin ? `${repsToShow.length} active reps` : 'Your rep profile and assigned clients'}
-          </p>
-        </div>
-        {/* Zoho sync placeholder */}
-        <button className="flex items-center gap-2 bg-white border border-apple-gray7 rounded-xl px-4 py-2 text-apple-gray3 text-sm hover:bg-apple-gray9 transition-colors shadow-apple-sm">
-          <RefreshCw size={14} className="text-apple-gray4" />
-          Sync from Zoho
-          <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-md ml-1">Soon</span>
-        </button>
-      </div>
-
-      {/* Zoho notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-apple-lg px-4 py-3 flex items-start gap-3">
-        <div className="w-5 h-5 bg-apple-blue rounded-full flex items-center justify-center shrink-0 mt-0.5">
-          <span className="text-white text-xs font-bold">i</span>
-        </div>
-        <div>
-          <p className="text-apple-blue text-sm font-medium">Zoho CRM Integration</p>
-          <p className="text-blue-500 text-xs mt-0.5">
-            Rep profiles will automatically sync from Zoho CRM. Client-facing rep info (name, photo, contact) will be pulled live from Zoho on the client portal. Integration coming soon.
           </p>
         </div>
       </div>

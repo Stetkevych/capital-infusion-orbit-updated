@@ -19,7 +19,7 @@ const REP_LINKS = [
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/activity', label: 'Activity', icon: Activity },
-  { path: '/users', label: 'User Management', icon: Users },
+  { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/help', label: 'Help & Guide', icon: HelpCircle },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -34,9 +34,11 @@ const CLIENT_LINKS = [
 ];
 
 export default function Sidebar() {
-  const { viewMode } = useAuth();
+  const { viewMode, user } = useAuth();
   const location = useLocation();
-  const links = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
+  const isAdmin = user?.role === 'admin';
+  const baseLinks = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
+  const links = baseLinks.filter(l => !l.adminOnly || isAdmin);
 
   return (
     <div className="w-52 bg-white border-r border-gray-100 flex flex-col shrink-0">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { CLIENTS, DOCUMENTS, DOCUMENT_REQUESTS, getClientsByRep, DOC_CATEGORIES } from '../../data/mockData';
 import {
@@ -41,7 +41,6 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Analytics() {
   const { user } = useAuth();
-  const [range] = useState('30d');
 
   const myClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
   const myClientIds = new Set(myClients.map(c => c.id));
@@ -111,13 +110,6 @@ export default function Analytics() {
             <BarChart2 size={22} className="text-blue-600" /> Analytics
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">Portfolio overview and document metrics</p>
-        </div>
-        <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-xl p-1">
-          {['7d', '30d', '90d'].map(r => (
-            <button key={r} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              range === r ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-700'
-            }`}>{r}</button>
-          ))}
         </div>
       </div>
 
