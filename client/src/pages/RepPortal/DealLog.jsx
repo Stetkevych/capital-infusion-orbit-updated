@@ -7,9 +7,18 @@ import { Plus, X, CheckCircle2, AlertCircle, TrendingUp, DollarSign, ChevronDown
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 const LENDERS = [
-  'Libertas', 'Kapitus', 'Greenbox Capital', 'Credibly', 'Fora Financial',
-  'Rapid Finance', 'National Funding', 'Fundbox', 'BlueVine', 'OnDeck',
-  'Merchant Growth', 'Expansion Capital', 'Other'
+  'AFB', 'AFG', 'Amerifi', 'Arsenal', 'Backd', 'Bitty', 'BizDev', 'Britecap',
+  'Byzfunder', 'Canacap', 'Cedar', 'CFG', 'Channel Can', 'Cobalt', 'Credibly',
+  'Dexly', 'Drip Capital', 'East Harbor', 'Everest', 'Expansion Capital Group',
+  'Family Funding', 'Fintap', 'Forward', 'Fox', 'Fund So Fast', 'Fundfi',
+  'Fundworks', 'Garden', 'GFE', 'Greenbox', 'Headway', 'Hunter Caroline',
+  'iCapital', 'IDEA', 'Indvance', 'Iruka', 'Journey', 'JRW Capital', 'JW Capital',
+  'Kapitus', 'KM Capital', 'Legend', 'Lendini', 'Lexio', 'LG', 'Libertas',
+  'Lily', 'Loanbud', 'Luminar', 'Mayfair', 'Merchant Growth', 'Merit Equipment',
+  'Mulligan', 'Newco', 'Nexi', 'OnDeck', 'OntTap', 'Pearl', 'Pinnacle', 'PIRS',
+  'Payroc', 'Rapid', 'RTMI', 'Sheaves', 'Slim Capital', 'Smart Step', 'SmartBiz',
+  'Smarter Merchant', 'Spartan', 'Specialty', 'Throttle', 'Vader', 'Velocity',
+  'Wall', '2M7',
 ];
 
 const STAGES = ['Submitted', 'Under Review', 'Approved', 'Funded', 'Declined', 'Withdrawn'];
@@ -19,7 +28,15 @@ const INDUSTRIES = [
   'Hospitality', 'Manufacturing', 'Retail', 'Services', 'Technology', 'Transportation', 'Other'
 ];
 
-const POSITIONS = ['1st', '2nd', '3rd'];
+const POSITIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+
+const LEAD_SOURCES = [
+  'Apple Lambo', 'Apple TEM', 'Avocado', 'Bizdev', 'Buggati', 'BusinessLoans.com',
+  'Camry', 'Chevy', 'Dodge', 'Facebook', 'Facebook SPO', 'Ferrari', 'Ferrari Dialer',
+  'Granny Smith', 'Hot Lead', 'Lending Tree', 'MrCapitalInfusion', 'Phil',
+  'Porsche', 'Referral', 'T&E', 'Text Blast', 'Text Replier', 'Toyota Corolla',
+  'Toyota Yaris', 'Website Visit',
+];
 
 const EMPTY_FORM = {
   client_name: '', client_id: '', lender_name: '', stage: 'Submitted',
@@ -287,9 +304,10 @@ export default function DealLog() {
               <Field label="State">
                 <input value={form.state} onChange={e => set('state', e.target.value)} className={inputCls} placeholder="NY" maxLength={2} />
               </Field>
-              <Field label="Source">
+              <Field label="Lead Source">
                 <select value={form.source} onChange={e => set('source', e.target.value)} className={selectCls}>
-                  {['direct','referral','broker','docusign','other'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+                  <option value="">Select source...</option>
+                  {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
               <Field label="Submitted Date">
