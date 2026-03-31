@@ -8,7 +8,7 @@ const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/a
 
 const LENDERS = [
   'AFB', 'AFG', 'Amerifi', 'Arsenal', 'Backd', 'Bitty', 'BizDev', 'Britecap',
-  'Byzfunder', 'Canacap', 'Cedar', 'CFG', 'Channel', 'Can', 'Cobalt', 'Credibly',
+  'Byzfunder', 'Canacap', 'Cedar', 'CFG', 'Channel', 'Cobalt', 'Credibly',
   'Dexly', 'Drip Capital', 'East Harbor', 'Everest', 'Expansion Capital Group',
   'Family Funding', 'Fintap', 'Forward', 'Fox', 'Fund So Fast', 'Fundfi',
   'Fundworks', 'Garden', 'GFE', 'Greenbox', 'Headway', 'Hunter Caroline',
