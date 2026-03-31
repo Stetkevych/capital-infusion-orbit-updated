@@ -44,8 +44,7 @@ export default function Login() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-lg">
           <div className="text-center mb-12">
-            <img src={OrbitLogo} alt="Capital Infusion Orbit" className="h-20 w-auto mx-auto mb-3 object-contain" />
-            <p className="text-gray-400 mt-2 text-sm">Financial Technology System</p>
+            <img src={OrbitLogo} alt="Capital Infusion Orbit" className="h-60 w-auto mx-auto mb-3 object-contain" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
