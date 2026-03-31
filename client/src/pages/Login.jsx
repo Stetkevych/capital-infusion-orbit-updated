@@ -43,11 +43,8 @@ export default function Login() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-lg">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-2xl mb-5">
-              <span className="text-white font-bold text-base">CI</span>
-            </div>
-            <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Capital Infusion</h1>
-            <p className="text-gray-400 mt-2 text-sm">Merchant Cash Advance Platform</p>
+            <img src="/OrbitLogo.png" alt="Capital Infusion Orbit" className="h-16 w-auto mx-auto mb-3" />
+            <p className="text-gray-400 mt-2 text-sm">Financial Technology System</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
