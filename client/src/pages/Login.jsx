@@ -62,14 +62,14 @@ export default function Login() {
 
             <button
               onClick={() => { setFlow('rep'); setEmail('alexs@capital-infusion.com'); setPassword('CapitalAdmin2024!'); }}
-              className="group bg-white border border-gray-200 hover:border-gray-400 rounded-2xl p-7 text-left transition-all hover:shadow-md"
+              className="group bg-white border border-gray-200 hover:border-green-400 rounded-2xl p-7 text-left transition-all hover:shadow-md"
             >
-              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-5 group-hover:bg-gray-900 transition-colors">
+              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-5 group-hover:bg-green-600 transition-colors">
                 <UserCog size={18} className="text-gray-600 group-hover:text-white transition-colors" />
               </div>
               <h2 className="text-gray-900 font-semibold text-base mb-1.5">Rep / Admin Login</h2>
               <p className="text-gray-400 text-sm leading-relaxed">Manage clients, review documents, and oversee operations.</p>
-              <p className="text-gray-700 text-sm font-medium mt-5">Continue →</p>
+              <p className="text-green-600 text-sm font-medium mt-5 opacity-0 group-hover:opacity-100 transition-opacity">Continue →</p>
             </button>
           </div>
 
