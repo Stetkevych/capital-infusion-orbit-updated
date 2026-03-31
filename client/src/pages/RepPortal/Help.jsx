@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Download, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
 
 const SECTIONS = [
   {
@@ -96,97 +96,6 @@ const SECTIONS = [
   },
 ];
 
-function generatePDF() {
-  import('jspdf').then(({ default: jsPDF }) => {
-    import('jspdf-autotable').then(() => {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = doc.internal.pageSize.getWidth();
-      let y = 20;
-
-      // Header
-      doc.setFillColor(37, 99, 235);
-      doc.rect(0, 0, pageW, 30, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Capital Infusion Platform', 15, 13);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Rep User Guide', 15, 22);
-      doc.setFontSize(9);
-      doc.text(`Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, pageW - 15, 22, { align: 'right' });
-
-      y = 42;
-
-      // URL box
-      doc.setFillColor(239, 246, 255);
-      doc.setDrawColor(191, 219, 254);
-      doc.roundedRect(15, y - 5, pageW - 30, 12, 2, 2, 'FD');
-      doc.setTextColor(37, 99, 235);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Platform URL:', 20, y + 2);
-      doc.setFont('helvetica', 'normal');
-      doc.text('https://main.d2iq2t6ose4q0u.amplifyapp.com', 50, y + 2);
-      y += 16;
-
-      SECTIONS.forEach(section => {
-        // Check page space
-        if (y > 250) { doc.addPage(); y = 20; }
-
-        // Section header
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(15, y - 3, pageW - 30, 10, 2, 2, 'FD');
-        doc.setTextColor(17, 24, 39);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${section.icon}  ${section.title}`, 20, y + 4);
-        y += 14;
-
-        section.steps.forEach((step, i) => {
-          if (y > 265) { doc.addPage(); y = 20; }
-
-          // Step number circle
-          doc.setFillColor(37, 99, 235);
-          doc.circle(22, y + 1, 3, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${i + 1}`, 22, y + 2.5, { align: 'center' });
-
-          // Step label
-          doc.setTextColor(17, 24, 39);
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.text(step.label, 28, y + 2);
-
-          // Step detail
-          y += 6;
-          doc.setTextColor(107, 114, 128);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          const lines = doc.splitTextToSize(step.detail, pageW - 45);
-          doc.text(lines, 28, y);
-          y += lines.length * 4 + 4;
-        });
-
-        y += 4;
-      });
-
-      // Footer on last page
-      doc.setFillColor(37, 99, 235);
-      doc.rect(0, doc.internal.pageSize.getHeight() - 12, pageW, 12, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Capital Infusion · Merchant Cash Advance Platform · Confidential', pageW / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
-
-      doc.save('Capital_Infusion_Rep_Guide.pdf');
-    });
-  });
-}
-
 export default function HelpPage() {
   const [openSection, setOpenSection] = useState(0);
 
@@ -200,12 +109,7 @@ export default function HelpPage() {
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">Everything you need to use the platform effectively</p>
         </div>
-        <button
-          onClick={generatePDF}
-          className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-sm px-4 py-2.5 rounded-xl transition-colors font-medium shadow-sm"
-        >
-          <Download size={15} /> Download PDF Guide
-        </button>
+
       </div>
 
       {/* Quick reference */}
@@ -271,7 +175,7 @@ export default function HelpPage() {
         <CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5" />
         <div>
           <p className="text-gray-700 text-sm font-medium">Need help?</p>
-          <p className="text-gray-400 text-sm mt-0.5">Contact your admin at <span className="text-blue-600">alexs@capital-infusion.com</span> or download the PDF guide above to keep as a reference.</p>
+          <p className="text-gray-400 text-sm mt-0.5">Contact your admin at <span className="text-blue-600">alexs@capital-infusion.com</span>.</p>
         </div>
       </div>
     </div>
