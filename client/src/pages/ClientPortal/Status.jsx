@@ -1,20 +1,34 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getClientById, getDocumentsByClient, DOC_CATEGORIES } from '../../data/mockData';
+import { getClientById, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { FileText } from 'lucide-react';
+
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 function fmt(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function ClientStatus() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const client = getClientById(user.clientId);
-  const docs = client ? getDocumentsByClient(client.id).filter(d => d.visibility !== 'internal') : [];
+  const clientId = client?.id || user?.clientId || user?.id;
+  const [realDocs, setRealDocs] = useState([]);
 
-  if (!client) return <div className="p-6 text-slate-400">Profile not found.</div>;
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(`${API}/documents/client/${clientId}`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(docs => setRealDocs(docs))
+      .catch(() => {});
+  }, [clientId]);
+
+  if (!clientId) return <div className="p-6 text-gray-400">Profile not found.</div>;
+
+  const docs = realDocs.filter(d => d.visibility !== 'internal');
   const byCategory = DOC_CATEGORIES.map(cat => ({
     ...cat,
     docs: docs.filter(d => d.category === cat.id),
