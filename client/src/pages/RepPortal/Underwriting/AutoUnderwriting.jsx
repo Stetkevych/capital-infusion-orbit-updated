@@ -175,14 +175,14 @@ export default function AutoUnderwriting() {
       };
     } else {
       // Deterministic fallback while Textract processes
+      // Use requested amount as the avg monthly revenue proxy (most accurate without real data)
       const seed = deterministicSeed(client.id, bankDocs.length, client.requestedAmount);
-      const seedFrac = (seed % 1000) / 1000;
-      const avgMonthlyRevenue = Math.round(client.requestedAmount * (1.8 + seedFrac * 0.8) / 100) * 100;
+      const avgMonthlyRevenue = client.requestedAmount; // requested = what they think they make monthly
       financialsToUse = {
         avgMonthlyRevenue,
         estimatedAnnualRevenue: avgMonthlyRevenue * 12,
         numberOfDeposits: 18 + (seed % 30),
-        negativeDays: seed % 6,
+        negativeDays: seed % 4,
         monthsCovered: bankDocs.length,
         fromTextract: false,
       };
