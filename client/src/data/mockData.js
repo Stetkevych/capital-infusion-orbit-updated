@@ -1,4 +1,4 @@
-export const ROLES = { CLIENT: 'client', REP: 'rep', ADMIN: 'admin' };
+export const ROLES = { CLIENT: 'client', REP: 'rep', TEAM_LEAD: 'team_lead', ADMIN: 'admin' };
 
 export const DOC_STATUS = {
   MISSING: 'Missing',

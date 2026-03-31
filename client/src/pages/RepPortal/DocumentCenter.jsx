@@ -14,11 +14,27 @@ export default function DocumentCenter() {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [serverDocs, setServerDocs] = useState([]);
+
+  const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+
+  React.useEffect(() => {
+    const stored = localStorage.getItem('mca_user');
+    const sessionUser = stored ? JSON.parse(stored) : null;
+    fetch(`${API}/documents/client/all`, {
+      headers: { Authorization: `Bearer ${sessionUser?.token || ''}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setServerDocs(d))
+      .catch(() => {});
+  }, []);
 
   const myClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
   const myClientIds = new Set(myClients.map(c => c.id));
 
-  const docs = DOCUMENTS
+  const allDocs = serverDocs.length > 0 ? serverDocs : DOCUMENTS;
+
+  const docs = allDocs
     .filter(d => myClientIds.has(d.clientId))
     .filter(d => user.role !== 'client' || d.visibility !== 'internal')
     .filter(d => !search || d.fileName.toLowerCase().includes(search.toLowerCase()))

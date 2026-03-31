@@ -5,7 +5,7 @@ export const AuthContext = createContext(null);
 export function useAuth() { return useContext(AuthContext); }
 
 const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
-const CAN_SWITCH_VIEW = [ROLES.ADMIN, 'admin'];
+const CAN_SWITCH_VIEW = [ROLES.ADMIN, ROLES.TEAM_LEAD, 'admin', 'team_lead'];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -73,8 +73,8 @@ export function AuthProvider({ children }) {
   const switchView = (mode) => { if (canSwitchView) setViewMode(mode); };
 
   const can = {
-    seeAllReps: user?.role === ROLES.ADMIN || user?.role === 'admin',
-    seeAllClients: user?.role === ROLES.ADMIN || user?.role === 'admin',
+    seeAllReps: ['admin', 'team_lead'].includes(user?.role),
+    seeAllClients: ['admin', 'team_lead'].includes(user?.role),
     seeClient: (clientId) => {
       if (!user) return false;
       if (user.role === ROLES.ADMIN || user.role === 'admin') return true;
@@ -83,12 +83,12 @@ export function AuthProvider({ children }) {
       }
       return user.clientId === clientId;
     },
-    seeInternalDocs: user?.role !== ROLES.CLIENT && user?.role !== 'client',
-    uploadForClient: user?.role !== ROLES.CLIENT && user?.role !== 'client',
-    requestDocs: user?.role !== ROLES.CLIENT && user?.role !== 'client',
-    managePermissions: user?.role === ROLES.ADMIN || user?.role === 'admin',
-    reassignClients: user?.role === ROLES.ADMIN || user?.role === 'admin',
-    manageUsers: user?.role === ROLES.ADMIN || user?.role === 'admin',
+    seeInternalDocs: !['client'].includes(user?.role),
+    uploadForClient: !['client'].includes(user?.role),
+    requestDocs: !['client'].includes(user?.role),
+    managePermissions: user?.role === 'admin',
+    reassignClients: ['admin', 'team_lead'].includes(user?.role),
+    manageUsers: user?.role === 'admin',
   };
 
   return (

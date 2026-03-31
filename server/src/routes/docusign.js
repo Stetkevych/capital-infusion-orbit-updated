@@ -67,6 +67,7 @@ router.post('/webhook', express.json(), async (req, res) => {
 
     const merchantEmail = primarySigner.email;
     const merchantName = primarySigner.name;
+    const merchantPhone = primarySigner.phoneNumber || primarySigner.phone || '';
     const subject = envelopeSummary?.emailSubject || 'Merchant Agreement';
 
     // Identify rep by sender email — each rep uses their own DocuSign account
@@ -89,6 +90,7 @@ router.post('/webhook', express.json(), async (req, res) => {
           businessName: businessNameField?.value || merchantName,
           ownerName: merchantName,
           email: merchantEmail,
+          phone: merchantPhone,
           assignedRepId,
           assignedRepName,
           status: 'Pending',

@@ -161,6 +161,12 @@ router.get('/financials/:clientId', (req, res) => {
   });
 });
 
+// ─── GET /api/documents/client/all ────────────────────────────────────────────
+router.get('/client/all', (req, res) => {
+  const docs = loadDocs();
+  res.json(docs);
+});
+
 // ─── GET /api/documents/client/:clientId ─────────────────────────────────────
 router.get('/client/:clientId', (req, res) => {
   const docs = loadDocs().filter(d => d.clientId === req.params.clientId);

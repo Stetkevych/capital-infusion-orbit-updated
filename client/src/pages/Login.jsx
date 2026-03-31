@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, AlertCircle, Building2, UserCog } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Building2, UserCog, Mail } from 'lucide-react';
 import OrbitLogo from '../assets/OrbitLogo.png';
 
 export default function Login() {
@@ -10,6 +10,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMsg, setForgotMsg] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -132,6 +136,13 @@ export default function Login() {
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
+            <button
+              type="button"
+              onClick={() => setForgotMode(true)}
+              className="w-full text-center text-sm text-blue-600 hover:opacity-70 mt-2"
+            >
+              Forgot password?
+            </button>
           </form>
 
           <div className="mt-6 pt-5 border-t border-gray-100">
@@ -149,6 +160,56 @@ export default function Login() {
             </div>
           </div>
         </div>
+
+        {/* Forgot Password Modal */}
+        {forgotMode && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 w-full max-w-sm">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-11 h-11 bg-blue-50 rounded-2xl mb-4">
+                  <Mail size={20} className="text-blue-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Reset Password</h2>
+                <p className="text-gray-400 text-sm mt-1">Enter your email and we'll send a reset link</p>
+              </div>
+              {forgotMsg && (
+                <div className="flex items-center gap-2 bg-green-50 border border-green-100 text-green-700 text-sm rounded-xl px-4 py-3 mb-4">
+                  {forgotMsg}
+                </div>
+              )}
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setForgotLoading(true);
+                try {
+                  const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
+                  await fetch(`${API}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: forgotEmail }),
+                  });
+                } catch {}
+                setForgotMsg('If an account exists with that email, a reset link has been sent.');
+                setForgotLoading(false);
+              }} className="space-y-4">
+                <input
+                  type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  placeholder="you@example.com"
+                />
+                <button type="submit" disabled={forgotLoading}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl disabled:opacity-50"
+                >
+                  {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+                <button type="button" onClick={() => { setForgotMode(false); setForgotMsg(''); }}
+                  className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Back to login
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

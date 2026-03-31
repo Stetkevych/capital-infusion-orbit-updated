@@ -77,6 +77,54 @@ router.post('/register', (req, res) => {
   }
 });
 
+// ─── POST /api/auth/forgot-password ───────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email required' });
+
+  const user = UserStore.findByEmail(email);
+  // Always return success to prevent email enumeration
+  if (!user) return res.json({ sent: true });
+
+  const crypto = require('crypto');
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const resetExpiry = Date.now() + 3600000; // 1 hour
+  UserStore.update(user.id, { resetToken, resetExpiry });
+
+  const FRONTEND_URL = process.env.FRONTEND_URL || 'https://orbit-technology.com';
+  const resetUrl = `${FRONTEND_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+
+  try {
+    const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+    const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    await ses.send(new SendEmailCommand({
+      Source: `Capital Infusion <${process.env.FROM_EMAIL || 'noreply@orbit-technology.com'}>`,
+      Destination: { ToAddresses: [email] },
+      Message: {
+        Subject: { Data: 'Reset Your Password' },
+        Body: { Html: { Data: `<p>Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 1 hour.</p>` } },
+      },
+    }));
+  } catch (e) { console.error('[Auth] Reset email failed:', e.message); }
+
+  res.json({ sent: true });
+});
+
+// ─── POST /api/auth/reset-password ────────────────────────────────────────────
+router.post('/reset-password', (req, res) => {
+  const { email, token, newPassword } = req.body;
+  if (!email || !token || !newPassword) return res.status(400).json({ message: 'Missing fields' });
+  if (newPassword.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+
+  const user = UserStore.findByEmail(email);
+  if (!user || user.resetToken !== token || Date.now() > user.resetExpiry) {
+    return res.status(400).json({ message: 'Invalid or expired reset link' });
+  }
+
+  UserStore.update(user.id, { password: newPassword, resetToken: null, resetExpiry: null });
+  res.json({ message: 'Password reset successfully' });
+});
+
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────────
 router.get('/me', authMiddleware, (req, res) => {
   const user = UserStore.findById(req.user.id);
@@ -110,8 +158,8 @@ router.post('/users', authMiddleware, adminOnly, (req, res) => {
   if (!email || !full_name || !role || !password) {
     return res.status(400).json({ message: 'email, full_name, role, and password are required' });
   }
-  if (!['admin', 'rep', 'client'].includes(role)) {
-    return res.status(400).json({ message: 'Role must be admin, rep, or client' });
+  if (!['admin', 'rep', 'client', 'team_lead'].includes(role)) {
+    return res.status(400).json({ message: 'Role must be admin, team_lead, rep, or client' });
   }
   try {
     const user = UserStore.create({ email, full_name, role, password, rep_id, client_id });

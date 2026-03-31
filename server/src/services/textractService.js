@@ -7,20 +7,50 @@ const textract = new TextractClient({ region: REGION });
 
 // ─── Known MCA/lender keywords to detect positions ───────────────────────────
 const LENDER_KEYWORDS = [
-  'idea', 'channel can', 'channelcan', 'wall street', 'fund so fast', 'fundsofast',
-  'lg funding', 'legend funding', 'pinnacle', 'specialty', 'britecap', 'fox capital',
+  'idea', 'channel', 'can', 'wall', 'fund so fast', 'fundsofast',
+  'lg', 'legend', 'pinnacle', 'specialty', 'britecap', 'fox',
   'rtmi', 'family funding', 'afb', 'dexly', 'credibly', 'ondeck', 'on deck',
   'libertas', 'kapitus', 'pirs', 'afg', 'mulligan', 'byzfunder', 'fintap',
-  'fundworks', 'forward financing', 'headway', 'cedar advance', 'hunter caroline',
-  'newco', 'smarter merchant', 'spartan', 'luminar', 'everest', 'bitty advance',
+  'fundworks', 'forward', 'headway', 'cedar', 'hunter caroline',
+  'newco', 'smarter merchant', 'spartan', 'luminar', 'everest', 'bitty',
   'arsenal', 'pearl', 'cfg', 'gfe', 'mayfair', 'iruka', 'cobalt', 'lily',
   'jw capital', 'amerifi', 'lendini', 'nexi', 'fundfi', 'throttle', 'velocity',
-  'smart step', 'garden', 'vader', 'rapid finance', 'greenbox', 'advance',
+  'smart step', 'garden', 'vader', 'rapid', 'greenbox',
   'backd', 'journey', '2m7', 'merchant growth', 'canacap', 'icapital',
-  'sheaves', 'ontap', 'km capital', 'lexio', 'expansion capital', 'payroc',
+  'sheaves', 'ontap', 'km capital', 'lexio', 'expansion', 'payroc',
   'drip capital', 'jrw capital', 'east harbor', 'merit equipment', 'slim capital',
-  'smartbiz', 'loanbud', 'indvance', 'wall funding',
+  'smartbiz', 'loanbud', 'indvance', 'inadvance',
+  'mca servicing', 'global merchant', 'fundry', 'enova', 'mrbizcap', 'sbfs',
+  'ufce', 'united first', 'global funding', 'dbf servicing', 'strategic funding',
+  'funding metrics', '3201961', 'ontario inc', '11302078', 'canada ltd',
+  'retail capital', 'fund cap', 'merchant opportunities', 'advance service',
+  'ecg', 'j&g', 'icg', 'jr capital', 'lending services', 'ural link',
+  'ascentra', 'delta', 'delta bridge', 'house', 'fundamental',
+  'channel partners',
 ];
+
+// Sort longest-first so "channel partners" matches before "channel"
+const SORTED_KEYWORDS = [...LENDER_KEYWORDS].sort((a, b) => b.length - a.length);
+
+// Match lender keywords in a line of text — returns array of matched keywords
+// e.g. "GREENBOX CAPITA" matches "greenbox", "SHEAVES CAPITAL" matches "sheaves"
+function matchLender(lineText) {
+  const lower = lineText.toLowerCase();
+  const matches = [];
+  const used = new Set();
+  for (const keyword of SORTED_KEYWORDS) {
+    if (lower.includes(keyword) && !used.has(keyword)) {
+      matches.push(keyword);
+      used.add(keyword);
+      // If a longer keyword contains a shorter one, skip the shorter
+      // e.g. "channel partners" found → skip "channel"
+      for (const other of SORTED_KEYWORDS) {
+        if (other !== keyword && keyword.includes(other)) used.add(other);
+      }
+    }
+  }
+  return matches;
+}
 
 // ─── Start async Textract job ─────────────────────────────────────────────────
 async function startTextractJob(s3Key) {
@@ -72,15 +102,9 @@ function parseFinancials(blocks) {
 
   const fullText = lines.join('\n').toLowerCase();
 
-  // ── Step 1: Extract all credit (deposit) transactions ─────────────────────
-  // Strategy: scan every line for a dollar amount preceded or followed by
-  // credit indicators. We sum ALL credits to get total deposits, then divide
-  // by months covered to get avg monthly revenue.
-
   const creditLines = [];
   const debitLines = [];
 
-  // Regex: dollar amount with optional sign/CR/DR suffix or prefix
   const dollarRe = /\$?([\d,]+\.\d{2})/g;
 
   lines.forEach(line => {
@@ -101,18 +125,14 @@ function parseFinancials(blocks) {
       /\b(dr|debit|withdrawal|withdraw|payment|purchase|pos |ach debit|wire out|check|fee|charge)\b/.test(lower) ||
       /-\s*\$/.test(line);
 
-    // If line has CR marker or no debit marker, treat as credit
     if (isCredit && !isDebit) {
       amounts.forEach(v => creditLines.push({ amount: v, line }));
     } else if (isDebit && !isCredit) {
       amounts.forEach(v => debitLines.push({ amount: v, line }));
-    } else if (!isCredit && !isDebit) {
-      // Ambiguous — skip to avoid double counting
     }
   });
 
-  // ── Step 2: Determine months covered ──────────────────────────────────────
-  // Look for month names in the document
+  // ── Determine months covered ──────────────────────────────────────────────
   const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
   const foundMonths = new Set();
   let mm;
@@ -121,47 +141,42 @@ function parseFinancials(blocks) {
   }
   const monthsCovered = Math.max(foundMonths.size, 1);
 
-  // ── Step 3: Avg monthly revenue = total credits / months ──────────────────
+  // ── Avg monthly revenue ───────────────────────────────────────────────────
   const totalCredits = creditLines.reduce((sum, c) => sum + c.amount, 0);
   const numberOfDeposits = creditLines.length;
 
-  // Only trust if we found meaningful credits
   const avgMonthlyRevenue = numberOfDeposits > 0 && totalCredits > 0
     ? Math.round(totalCredits / monthsCovered)
     : null;
 
   const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
 
-  // ── Step 4: Negative days ──────────────────────────────────────────────────
+  // ── Negative days ─────────────────────────────────────────────────────────
   const negRe = /(-\$[\d,]+\.?\d{0,2}|\bOD\b|overdraft|nsf|insufficient funds|negative balance)/gi;
   const negMatches = fullText.match(negRe) || [];
   const negativeDays = negMatches.length;
 
-  // ── Step 5: Lender position detection ─────────────────────────────────────
+  // ── Lender position detection (keyword-based, fuzzy) ──────────────────────
   const detectedLenders = {};
 
   lines.forEach(line => {
-    const lower = line.toLowerCase();
+    const matched = matchLender(line);
+    matched.forEach(keyword => {
+      const amounts = [];
+      let m2;
+      const re = /\$?([\d,]+\.\d{2})/g;
+      while ((m2 = re.exec(line)) !== null) {
+        const val = parseDollar(m2[1]);
+        if (val !== null && val >= 100 && val <= 500000) amounts.push(val);
+      }
 
-    LENDER_KEYWORDS.forEach(keyword => {
-      if (lower.includes(keyword)) {
-        // Extract dollar amount from this line
-        const amounts = [];
-        let m2;
-        while ((m2 = dollarRe.exec(line)) !== null) {
-          const val = parseDollar(m2[1]);
-          if (val !== null && val >= 100 && val <= 500000) amounts.push(val);
-        }
-
-        // Normalize lender name
-        const normalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-        if (!detectedLenders[normalized]) {
-          detectedLenders[normalized] = { name: normalized, totalPaid: 0, occurrences: 0 };
-        }
-        detectedLenders[normalized].occurrences += 1;
-        if (amounts.length) {
-          detectedLenders[normalized].totalPaid += amounts.reduce((a, b) => a + b, 0);
-        }
+      const normalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+      if (!detectedLenders[normalized]) {
+        detectedLenders[normalized] = { name: normalized, totalPaid: 0, occurrences: 0 };
+      }
+      detectedLenders[normalized].occurrences += 1;
+      if (amounts.length) {
+        detectedLenders[normalized].totalPaid += amounts.reduce((a, b) => a + b, 0);
       }
     });
   });

@@ -56,7 +56,8 @@ export default function UploadCenter() {
       <div>
         <h2 className="text-gray-700 font-semibold text-sm mb-3">All Document Categories</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {DOC_CATEGORIES.filter(c => !requestedCatIds.has(c.id)).map(cat => (
+          {[{ id: 'bank_statements', label: 'Bank Statements', icon: '🏦' }, { id: 'voided_check', label: 'Voided Check', icon: '✅' }, { id: 'drivers_license', label: "Driver's License / ID", icon: '🪪' }]
+            .filter(c => !requestedCatIds.has(c.id)).map(cat => (
             <div key={cat.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
               <p className="text-gray-700 font-medium text-sm mb-3">{cat.icon} {cat.label}</p>
               <UploadZone

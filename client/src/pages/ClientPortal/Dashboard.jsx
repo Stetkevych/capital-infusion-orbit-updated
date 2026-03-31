@@ -38,16 +38,19 @@ export default function ClientDashboard() {
         {[
           { icon: FileText, value: docs.length, label: 'Documents', color: 'text-blue-600', bg: 'bg-blue-50' },
           { icon: Bell, value: requests.length, label: 'Requests', color: 'text-amber-500', bg: 'bg-amber-50' },
-          { icon: AlertCircle, value: missing.length, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50' },
-        ].map(s => (
-          <div key={s.label} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 text-center">
-            <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2`}>
-              <s.icon size={16} className={s.color} />
+          { icon: AlertCircle, value: missing.length, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50', link: '/my-documents' },
+        ].map(s => {
+          const inner = (
+            <div className={`bg-white border border-gray-100 rounded-2xl shadow-sm p-4 text-center ${s.link ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
+              <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2`}>
+                <s.icon size={16} className={s.color} />
+              </div>
+              <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{s.label}</p>
             </div>
-            <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-gray-400 text-xs mt-0.5">{s.label}</p>
-          </div>
-        ))}
+          );
+          return s.link ? <Link key={s.label} to={s.link}>{inner}</Link> : <div key={s.label}>{inner}</div>;
+        })}
       </div>
 
       {requests.length > 0 && (

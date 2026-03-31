@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Users, Plus, X, CheckCircle2, AlertCircle, Eye, EyeOff, Shield, UserCog, Building2 } from 'lucide-react';
+import { Users, Plus, X, CheckCircle2, AlertCircle, Eye, EyeOff, Shield, UserCog, Building2, GitBranch } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
 
 const ROLE_CONFIG = {
-  admin:  { label: 'Admin',  icon: Shield,    color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },
-  rep:    { label: 'Rep',    icon: UserCog,   color: 'text-apple-blue', bg: 'bg-blue-50 border-blue-200' },
-  client: { label: 'Client', icon: Building2, color: 'text-green-600',  bg: 'bg-green-50 border-green-200' },
+  admin:     { label: 'Admin',     icon: Shield,    color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },
+  team_lead: { label: 'Team Lead', icon: GitBranch, color: 'text-purple-600', bg: 'bg-purple-50 border-purple-200' },
+  rep:       { label: 'Rep',       icon: UserCog,   color: 'text-apple-blue', bg: 'bg-blue-50 border-blue-200' },
+  client:    { label: 'Client',    icon: Building2, color: 'text-green-600',  bg: 'bg-green-50 border-green-200' },
 };
 
 // Mock users for display — will be replaced by real API data
@@ -166,6 +167,7 @@ export default function UserManagement() {
                 className="w-full bg-apple-gray9 border border-apple-gray7 text-apple-gray1 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-apple-blue/30"
               >
                 <option value="rep">Rep — sees assigned clients only</option>
+                <option value="team_lead">Team Lead — sees their reps + clients</option>
                 <option value="admin">Admin — sees everything</option>
                 <option value="client">Client — sees own documents only</option>
               </select>
@@ -276,6 +278,60 @@ export default function UserManagement() {
             })}
           </tbody>
         </table>
+      </div>
+      {/* Hierarchy Tree */}
+      <div className="bg-white rounded-apple-lg shadow-apple border border-apple-gray7 overflow-hidden">
+        <div className="px-5 py-4 border-b border-apple-gray7 bg-apple-gray9 flex items-center gap-2">
+          <GitBranch size={15} className="text-purple-600" />
+          <h2 className="text-apple-gray1 font-semibold text-sm">Organization Hierarchy</h2>
+        </div>
+        <div className="p-5">
+          {(() => {
+            const admins = users.filter(u => u.role === 'admin' && u.is_active);
+            const leads = users.filter(u => u.role === 'team_lead' && u.is_active);
+            const reps = users.filter(u => u.role === 'rep' && u.is_active);
+            return (
+              <div className="space-y-1">
+                {admins.map(a => (
+                  <div key={a.id}>
+                    <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-indigo-50">
+                      <Shield size={14} className="text-indigo-600" />
+                      <span className="text-sm font-semibold text-gray-900">{a.full_name}</span>
+                      <span className="text-xs text-indigo-500">Admin</span>
+                    </div>
+                    <div className="ml-6 border-l-2 border-gray-200 pl-4 space-y-1 mt-1">
+                      {leads.map(l => (
+                        <div key={l.id}>
+                          <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-purple-50">
+                            <GitBranch size={13} className="text-purple-600" />
+                            <span className="text-sm font-medium text-gray-900">{l.full_name}</span>
+                            <span className="text-xs text-purple-500">Team Lead</span>
+                          </div>
+                          <div className="ml-6 border-l-2 border-gray-200 pl-4 space-y-1 mt-1">
+                            {reps.filter(r => r.reports_to === l.id || !r.reports_to).map(r => (
+                              <div key={r.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-gray-50">
+                                <UserCog size={12} className="text-blue-500" />
+                                <span className="text-sm text-gray-700">{r.full_name}</span>
+                                <span className="text-xs text-gray-400">Rep</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {leads.length === 0 && reps.map(r => (
+                        <div key={r.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-gray-50">
+                          <UserCog size={12} className="text-blue-500" />
+                          <span className="text-sm text-gray-700">{r.full_name}</span>
+                          <span className="text-xs text-gray-400">Rep</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );
