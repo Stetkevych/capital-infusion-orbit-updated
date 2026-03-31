@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
+const { extractBankStatement } = require('../services/textractService');
 const EventLogger = require('../services/eventLogger');
 const fs = require('fs');
 const path = require('path');
@@ -55,11 +56,27 @@ router.post('/confirm', async (req, res) => {
       visibility,
       tags: [],
       note: '',
+      extractedFinancials: null,
+      extractionStatus: category === 'bank_statements' ? 'pending' : 'n/a',
     };
 
     const docs = loadDocs();
     docs.push(doc);
     saveDocs(docs);
+
+    // Fire Textract async for bank statements — don't block the response
+    if (category === 'bank_statements') {
+      extractBankStatement(key).then(financials => {
+        const allDocs = loadDocs();
+        const idx = allDocs.findIndex(d => d.id === doc.id);
+        if (idx !== -1) {
+          allDocs[idx].extractedFinancials = financials;
+          allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
+          saveDocs(allDocs);
+          console.log(`[Textract] Extraction complete for ${fileName}:`, financials.success ? 'success' : financials.error);
+        }
+      }).catch(err => console.error('[Textract] Async error:', err.message));
+    }
 
     // Log to S3 for Athena analytics
     EventLogger.upload({
@@ -78,6 +95,46 @@ router.post('/confirm', async (req, res) => {
     console.error('[S3] Confirm error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── GET /api/documents/financials/:clientId ─────────────────────────────────
+// Returns aggregated extracted financials across all bank statements for a client
+router.get('/financials/:clientId', (req, res) => {
+  const docs = loadDocs().filter(
+    d => d.clientId === req.params.clientId &&
+    d.category === 'bank_statements' &&
+    d.extractedFinancials?.success
+  );
+
+  if (docs.length === 0) {
+    return res.json({ available: false, monthsCovered: 0, docs: [] });
+  }
+
+  // Aggregate across all bank statement docs
+  const allFinancials = docs.map(d => d.extractedFinancials);
+  const totalMonths = allFinancials.reduce((sum, f) => sum + (f.monthsCovered || 1), 0);
+  const totalDeposits = allFinancials.reduce((sum, f) => sum + (f.totalDeposits || 0), 0);
+  const totalDepositCount = allFinancials.reduce((sum, f) => sum + (f.numberOfDeposits || 0), 0);
+  const maxNegDays = Math.max(...allFinancials.map(f => f.negativeDays || 0));
+
+  const avgMonthlyRevenue = totalMonths > 0 ? Math.round(totalDeposits / totalMonths) : null;
+  const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
+
+  res.json({
+    available: true,
+    monthsCovered: totalMonths,
+    avgMonthlyRevenue,
+    estimatedAnnualRevenue,
+    numberOfDeposits: totalDepositCount,
+    negativeDays: maxNegDays,
+    totalDeposits,
+    docsProcessed: docs.length,
+    pendingDocs: loadDocs().filter(
+      d => d.clientId === req.params.clientId &&
+      d.category === 'bank_statements' &&
+      d.extractionStatus === 'pending'
+    ).length,
+  });
 });
 
 // ─── GET /api/documents/client/:clientId ─────────────────────────────────────

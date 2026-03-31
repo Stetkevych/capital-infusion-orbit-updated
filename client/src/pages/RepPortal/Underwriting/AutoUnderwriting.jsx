@@ -21,13 +21,13 @@ function deterministicSeed(clientId, totalDeposits, avgMonthly) {
 }
 
 // ─── Core underwriting engine ─────────────────────────────────────────────────
-function runUnderwriting({ client, docs, creditScore }) {
+function runUnderwriting({ client, docs, creditScore, financials }) {
   const bankDocs = docs.filter(d => d.category === 'bank_statements');
   const hasApp = docs.some(d => d.category === 'application');
   const hasId = docs.some(d => d.category === 'drivers_license');
   const hasVoided = docs.some(d => d.category === 'voided_check');
   const hasSigned = docs.some(d => d.category === 'signed_agreement');
-  const monthsCovered = bankDocs.length;
+  const monthsCovered = financials?.monthsCovered || bankDocs.length;
 
   // ── Insufficient data warning ──────────────────────────────────────────────
   if (monthsCovered < 2) {
@@ -40,31 +40,23 @@ function runUnderwriting({ client, docs, creditScore }) {
     };
   }
 
-  // ── Deterministic financials from bank doc count + requested amount ────────
-  const seed = deterministicSeed(client.id, bankDocs.length, client.requestedAmount);
-  const seedFrac = (seed % 1000) / 1000; // 0.000 – 0.999, always same for same inputs
-
-  const avgMonthlyRevenue = Math.round(client.requestedAmount * (1.8 + seedFrac * 0.8) / 100) * 100;
-  const estimatedAnnualRevenue = avgMonthlyRevenue * 12;
-  const numberOfDeposits = 18 + (seed % 30); // deterministic deposit count
-  const negativeDays = seed % 6; // 0–5, deterministic
+  const avgMonthlyRevenue = financials.avgMonthlyRevenue;
+  const estimatedAnnualRevenue = financials.estimatedAnnualRevenue;
+  const numberOfDeposits = financials.numberOfDeposits;
+  const negativeDays = financials.negativeDays;
 
   // ── Approval range: 80% – 120% of avg monthly revenue ─────────────────────
   const approvalMin = Math.round(avgMonthlyRevenue * 0.80 / 500) * 500;
   const approvalMax = Math.round(avgMonthlyRevenue * 1.20 / 500) * 500;
 
   // ── Credit score drives position in range and factor rate ─────────────────
-  // Credit 550–850 maps linearly to 0–1
   const creditValid = creditScore >= 550;
   const creditRatio = creditValid ? Math.min((creditScore - 550) / 300, 1) : 0;
 
-  // Offer amount: low credit = closer to 80%, high credit = closer to 120%
   const offerAmount = creditValid
     ? Math.round((approvalMin + creditRatio * (approvalMax - approvalMin)) / 500) * 500
     : 0;
 
-  // Factor rate: 1.15 (best credit) – 1.50 (worst passing credit)
-  // Higher credit = lower factor rate
   const factorRate = creditValid
     ? parseFloat((1.50 - creditRatio * 0.35).toFixed(2))
     : null;
@@ -95,39 +87,20 @@ function runUnderwriting({ client, docs, creditScore }) {
 
   let decision, color, bg;
   if (hardFails.some(Boolean)) {
-    decision = 'Decline';
-    color = 'text-red-600';
-    bg = 'bg-red-50 border-red-200';
+    decision = 'Decline'; color = 'text-red-600'; bg = 'bg-red-50 border-red-200';
   } else if (!hasApp || !hasId || negativeDays > 3 || creditScore < 600) {
-    decision = 'Review';
-    color = 'text-amber-600';
-    bg = 'bg-amber-50 border-amber-200';
+    decision = 'Review'; color = 'text-amber-600'; bg = 'bg-amber-50 border-amber-200';
   } else {
-    decision = 'Approve';
-    color = 'text-green-600';
-    bg = 'bg-green-50 border-green-200';
+    decision = 'Approve'; color = 'text-green-600'; bg = 'bg-green-50 border-green-200';
   }
 
   return {
     insufficient: false,
-    extracted: {
-      avgMonthlyRevenue,
-      estimatedAnnualRevenue,
-      numberOfDeposits,
-      negativeDays,
-      monthsCovered,
-    },
-    checklist,
-    decision,
-    color,
-    bg,
-    offerAmount,
-    approvalMin,
-    approvalMax,
-    factorRate,
-    paybackAmount,
-    creditScore,
-    creditRatio,
+    extracted: { avgMonthlyRevenue, estimatedAnnualRevenue, numberOfDeposits, negativeDays, monthsCovered },
+    fromTextract: financials.fromTextract,
+    checklist, decision, color, bg,
+    offerAmount, approvalMin, approvalMax,
+    factorRate, paybackAmount, creditScore, creditRatio,
   };
 }
 
@@ -146,7 +119,7 @@ export default function AutoUnderwriting() {
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
-  // Fetch real docs when client changes
+  // Fetch real docs + financials when client changes
   useEffect(() => {
     if (!selectedClientId) { setRealDocs([]); setResult(null); return; }
     fetch(`${API}/documents/client/${selectedClientId}`, { headers })
@@ -178,8 +151,45 @@ export default function AutoUnderwriting() {
       await new Promise(r => setTimeout(r, 500));
     }
 
-    const analysis = runUnderwriting({ client, docs: realDocs, creditScore: credit });
-    setResult(analysis);
+    // Fetch real extracted financials from server
+    let serverFinancials = null;
+    try {
+      const res = await fetch(`${API}/documents/financials/${selectedClientId}`, { headers });
+      if (res.ok) serverFinancials = await res.json();
+    } catch {}
+
+    // Use real financials if available, otherwise fall back to deterministic
+    const docsToUse = realDocs;
+    const bankDocs = docsToUse.filter(d => d.category === 'bank_statements');
+    const pendingExtraction = serverFinancials?.pendingDocs > 0;
+
+    let financialsToUse;
+    if (serverFinancials?.available && serverFinancials.avgMonthlyRevenue) {
+      financialsToUse = {
+        avgMonthlyRevenue: serverFinancials.avgMonthlyRevenue,
+        estimatedAnnualRevenue: serverFinancials.estimatedAnnualRevenue,
+        numberOfDeposits: serverFinancials.numberOfDeposits,
+        negativeDays: serverFinancials.negativeDays,
+        monthsCovered: serverFinancials.monthsCovered,
+        fromTextract: true,
+      };
+    } else {
+      // Deterministic fallback while Textract processes
+      const seed = deterministicSeed(client.id, bankDocs.length, client.requestedAmount);
+      const seedFrac = (seed % 1000) / 1000;
+      const avgMonthlyRevenue = Math.round(client.requestedAmount * (1.8 + seedFrac * 0.8) / 100) * 100;
+      financialsToUse = {
+        avgMonthlyRevenue,
+        estimatedAnnualRevenue: avgMonthlyRevenue * 12,
+        numberOfDeposits: 18 + (seed % 30),
+        negativeDays: seed % 6,
+        monthsCovered: bankDocs.length,
+        fromTextract: false,
+      };
+    }
+
+    const analysis = runUnderwriting({ client, docs: docsToUse, creditScore: credit, financials: financialsToUse });
+    setResult({ ...analysis, pendingExtraction });
     setLoading(false);
     setStep('');
   };
@@ -289,6 +299,17 @@ export default function AutoUnderwriting() {
       {result && !result.insufficient && !loading && (
         <div className="space-y-4">
 
+          {/* Textract source badge + pending warning */}
+          {result.pendingExtraction && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+              <AlertCircle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-700 font-semibold text-sm">Textract Still Processing</p>
+                <p className="text-amber-600 text-sm mt-0.5">Some bank statements are still being analyzed. Results shown use estimated data — re-run once processing completes.</p>
+              </div>
+            </div>
+          )}
+
           {/* Decision banner */}
           <div className={`rounded-2xl border p-5 ${result.bg}`}>
             <div className="flex items-start justify-between flex-wrap gap-4">
@@ -321,7 +342,9 @@ export default function AutoUnderwriting() {
               <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
                 <BarChart2 size={15} className="text-blue-600" />
                 <h2 className="text-gray-900 font-semibold text-sm">Extracted Financials</h2>
-                <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">via Textract</span>
+                <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">
+                  {result.fromTextract ? '✓ Live Textract' : 'Estimated'}
+                </span>
               </div>
               <div className="divide-y divide-gray-100">
                 {[
