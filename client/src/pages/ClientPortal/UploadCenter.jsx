@@ -5,12 +5,13 @@ import UploadZone from '../../components/shared/UploadZone';
 import { Bell } from 'lucide-react';
 
 export default function UploadCenter() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const client = getClientById(user.clientId);
+  const clientId = client?.id || user?.clientId || user?.id;
   const pendingRequests = client ? getRequestsByClient(client.id).filter(r => r.status === 'Pending') : [];
   const requestedCatIds = new Set(pendingRequests.map(r => r.category));
 
-  if (!client) return <div className="p-6 text-slate-400">Profile not found.</div>;
+  if (!clientId) return <div className="p-6 text-gray-400">Profile not found.</div>;
 
   const handleUpload = (category, files) => {
     console.log('Upload queued:', category, files.map(f => f.name));
@@ -40,7 +41,9 @@ export default function UploadCenter() {
                 <UploadZone
                   category={req.category}
                   categoryLabel={`Upload ${cat?.label}`}
-                  onUpload={handleUpload}
+                  clientId={clientId}
+                  uploadedBy={user?.id}
+                  token={token}
                   compact
                 />
               </div>
@@ -59,7 +62,9 @@ export default function UploadCenter() {
               <UploadZone
                 category={cat.id}
                 categoryLabel={`Upload ${cat.label}`}
-                onUpload={handleUpload}
+                clientId={clientId}
+                uploadedBy={user?.id}
+                token={token}
                 compact
               />
             </div>
