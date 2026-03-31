@@ -69,19 +69,15 @@ router.post('/webhook', express.json(), async (req, res) => {
     const merchantName = primarySigner.name;
     const subject = envelopeSummary?.emailSubject || 'Merchant Agreement';
 
-    // Extract rep ID from envelope custom fields (set when rep sends the envelope)
-    const customFields = envelopeSummary?.customFields?.textCustomFields || [];
-    const repIdField = customFields.find(f => f.name === 'repId');
-    const repNameField = customFields.find(f => f.name === 'repName');
-    const businessNameField = customFields.find(f => f.name === 'businessName');
+    // Identify rep by sender email — each rep uses their own DocuSign account
+    const senderEmail = envelopeSummary?.sender?.email || null;
+    const rep = senderEmail ? UserStore.findByEmail(senderEmail) : null;
+    let assignedRepId = rep?.id || null;
+    let assignedRepName = rep?.full_name || 'Unassigned';
 
-    // Resolve rep — fall back to admin if not found
-    let assignedRepId = repIdField?.value || null;
-    let assignedRepName = repNameField?.value || 'Unassigned';
-    if (assignedRepId) {
-      const rep = UserStore.findById(assignedRepId);
-      if (!rep) { assignedRepId = null; assignedRepName = 'Unassigned'; }
-    }
+    // Extract business name from custom fields if present
+    const customFields = envelopeSummary?.customFields?.textCustomFields || [];
+    const businessNameField = customFields.find(f => f.name === 'businessName');
 
     console.log(`[DocuSign] Completed for: ${merchantName} <${merchantEmail}> | Rep: ${assignedRepName}`);
 
