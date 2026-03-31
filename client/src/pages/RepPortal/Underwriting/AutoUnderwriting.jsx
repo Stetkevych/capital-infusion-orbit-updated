@@ -4,7 +4,7 @@ import { CLIENTS, getClientsByRep, getClientById } from '../../../data/mockData'
 import {
   Zap, ChevronDown, CheckCircle2, XCircle,
   AlertCircle, TrendingUp, DollarSign, BarChart2,
-  FileText, RefreshCw, FileSearch, Hash
+  FileText, RefreshCw, FileSearch, Hash, ChevronRight
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -96,7 +96,13 @@ function runUnderwriting({ client, docs, creditScore, financials }) {
 
   return {
     insufficient: false,
-    extracted: { avgMonthlyRevenue, estimatedAnnualRevenue, numberOfDeposits, negativeDays, monthsCovered },
+    extracted: {
+      avgMonthlyRevenue, estimatedAnnualRevenue, numberOfDeposits, negativeDays, monthsCovered,
+      positions: financials.positions || [],
+      positionCount: financials.positionCount || 0,
+      totalLenderPayments: financials.totalLenderPayments || 0,
+      withholdingRate: financials.withholdingRate || 0,
+    },
     fromTextract: financials.fromTextract,
     checklist, decision, color, bg,
     offerAmount, approvalMin, approvalMax,
@@ -113,6 +119,7 @@ export default function AutoUnderwriting() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState('');
   const [realDocs, setRealDocs] = useState([]);
+  const [positionsOpen, setPositionsOpen] = useState(false);
 
   const availableClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
   const client = getClientById(selectedClientId);
@@ -171,6 +178,10 @@ export default function AutoUnderwriting() {
         numberOfDeposits: serverFinancials.numberOfDeposits,
         negativeDays: serverFinancials.negativeDays,
         monthsCovered: serverFinancials.monthsCovered,
+        positions: serverFinancials.positions || [],
+        positionCount: serverFinancials.positionCount || 0,
+        totalLenderPayments: serverFinancials.totalLenderPayments || 0,
+        withholdingRate: serverFinancials.withholdingRate || 0,
         fromTextract: true,
       };
     } else {
@@ -362,6 +373,50 @@ export default function AutoUnderwriting() {
                     <span className="text-gray-900 text-sm font-semibold">{f.value}</span>
                   </div>
                 ))}
+
+                {/* Positions row with dropdown */}
+                <div>
+                  <button
+                    onClick={() => setPositionsOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={14} className={result.extracted.positionCount > 0 ? 'text-red-500' : 'text-gray-400'} />
+                      <span className="text-gray-500 text-sm">Positions</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-semibold ${result.extracted.positionCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        {result.extracted.positionCount}
+                      </span>
+                      {result.extracted.positionCount > 0 && (
+                        <ChevronRight size={13} className={`text-gray-400 transition-transform ${positionsOpen ? 'rotate-90' : ''}`} />
+                      )}
+                    </div>
+                  </button>
+                  {positionsOpen && result.extracted.positions.length > 0 && (
+                    <div className="bg-gray-50 border-t border-gray-100 divide-y divide-gray-100">
+                      {result.extracted.positions.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between px-7 py-2.5">
+                          <span className="text-gray-600 text-xs font-medium">{p.name}</span>
+                          <span className="text-gray-700 text-xs font-semibold">
+                            {p.totalPaid > 0 ? `$${Math.round(p.totalPaid).toLocaleString()}` : 'Detected'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Withholding rate */}
+                <div className="flex items-center justify-between px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 size={14} className={result.extracted.withholdingRate > 20 ? 'text-red-500' : 'text-gray-400'} />
+                    <span className="text-gray-500 text-sm">Withholding Rate</span>
+                  </div>
+                  <span className={`text-sm font-semibold ${result.extracted.withholdingRate > 20 ? 'text-red-600' : 'text-gray-900'}`}>
+                    {result.extracted.withholdingRate > 0 ? `${result.extracted.withholdingRate}%` : '—'}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -113,12 +113,32 @@ router.get('/financials/:clientId', (req, res) => {
   // Aggregate across all bank statement docs
   const allFinancials = docs.map(d => d.extractedFinancials);
   const totalMonths = allFinancials.reduce((sum, f) => sum + (f.monthsCovered || 1), 0);
-  const totalDeposits = allFinancials.reduce((sum, f) => sum + (f.totalDeposits || 0), 0);
+  const totalCredits = allFinancials.reduce((sum, f) => sum + (f.totalCredits || 0), 0);
   const totalDepositCount = allFinancials.reduce((sum, f) => sum + (f.numberOfDeposits || 0), 0);
   const maxNegDays = Math.max(...allFinancials.map(f => f.negativeDays || 0));
 
-  const avgMonthlyRevenue = totalMonths > 0 ? Math.round(totalDeposits / totalMonths) : null;
+  // Avg monthly revenue = total credits across all statements / total months
+  const avgMonthlyRevenue = totalMonths > 0 && totalCredits > 0
+    ? Math.round(totalCredits / totalMonths)
+    : null;
   const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
+
+  // Aggregate lender positions across all statements
+  const mergedPositions = {};
+  allFinancials.forEach(f => {
+    (f.positions || []).forEach(p => {
+      if (!mergedPositions[p.name]) {
+        mergedPositions[p.name] = { name: p.name, totalPaid: 0, occurrences: 0 };
+      }
+      mergedPositions[p.name].totalPaid += p.totalPaid || 0;
+      mergedPositions[p.name].occurrences += p.occurrences || 0;
+    });
+  });
+  const positions = Object.values(mergedPositions);
+  const totalLenderPayments = positions.reduce((sum, p) => sum + p.totalPaid, 0);
+  const withholdingRate = avgMonthlyRevenue && totalLenderPayments > 0
+    ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1))
+    : 0;
 
   res.json({
     available: true,
@@ -127,7 +147,11 @@ router.get('/financials/:clientId', (req, res) => {
     estimatedAnnualRevenue,
     numberOfDeposits: totalDepositCount,
     negativeDays: maxNegDays,
-    totalDeposits,
+    totalCredits,
+    positions,
+    positionCount: positions.length,
+    totalLenderPayments: Math.round(totalLenderPayments),
+    withholdingRate,
     docsProcessed: docs.length,
     pendingDocs: loadDocs().filter(
       d => d.clientId === req.params.clientId &&
