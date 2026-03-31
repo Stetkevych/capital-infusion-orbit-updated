@@ -11,8 +11,11 @@ export default function ClientDashboard() {
   const rep = client ? getRepById(client.assignedRepId) : null;
   const docs = client ? getDocumentsByClient(client.id) : [];
   const requests = client ? getRequestsByClient(client.id).filter(r => r.status === 'Pending') : [];
-  const missing = client ? getMissingCategories(client.id) : [];
-  const progress = client ? Math.round(((DOC_CATEGORIES.length - missing.length) / DOC_CATEGORIES.length) * 100) : 0;
+  const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => ['drivers_license', 'application', 'bank_statements', 'voided_check'].includes(c.id));
+  const missing = client ? CLIENT_DOC_CATEGORIES.filter(c => !getDocumentsByClient(client.id).some(d => d.category === c.id)) : [];
+  const baseProgress = 25;
+  const docProgress = CLIENT_DOC_CATEGORIES.length > 0 ? Math.round(((CLIENT_DOC_CATEGORIES.length - missing.length) / CLIENT_DOC_CATEGORIES.length) * 75) : 0;
+  const progress = Math.min(baseProgress + docProgress, 100);
 
   if (!client) return <div className="p-6 text-gray-400">Profile not found.</div>;
 
@@ -31,14 +34,14 @@ export default function ClientDashboard() {
         <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
           <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
-        <p className="text-gray-400 text-xs">{progress}% complete · {DOC_CATEGORIES.length - missing.length} of {DOC_CATEGORIES.length} categories submitted</p>
+        <p className="text-gray-400 text-xs">{progress}% complete · {CLIENT_DOC_CATEGORIES.length - missing.length} of {CLIENT_DOC_CATEGORIES.length} categories submitted</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         {[
           { icon: FileText, value: docs.length, label: 'Documents', color: 'text-blue-600', bg: 'bg-blue-50' },
           { icon: Bell, value: requests.length, label: 'Requests', color: 'text-amber-500', bg: 'bg-amber-50' },
-          { icon: AlertCircle, value: missing.length, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50', link: '/my-documents' },
+          { icon: AlertCircle, value: missing.length, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50', link: '/upload' },
         ].map(s => {
           const inner = (
             <div className={`bg-white border border-gray-100 rounded-2xl shadow-sm p-4 text-center ${s.link ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>

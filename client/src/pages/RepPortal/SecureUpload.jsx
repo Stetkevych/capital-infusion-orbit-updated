@@ -40,6 +40,9 @@ export default function SecureUpload() {
     setTimeout(() => fetchDocs(clientId), 1500);
   };
 
+  const REP_CATEGORIES = DOC_CATEGORIES.filter(c => !['signed_agreement', 'funding_docs', 'misc'].includes(c.id));
+  const visibleCategories = isRep ? REP_CATEGORIES : DOC_CATEGORIES;
+
   const catDocs = docs.filter(d =>
     d.category === activeCategory &&
     (!search || d.fileName?.toLowerCase().includes(search.toLowerCase()))
@@ -114,7 +117,7 @@ export default function SecureUpload() {
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-3">
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider px-2 mb-2">Categories</p>
             <nav className="space-y-0.5">
-              {DOC_CATEGORIES.map(cat => {
+              {visibleCategories.map(cat => {
                 const count = catCount(cat.id);
                 const active = activeCategory === cat.id;
                 return (

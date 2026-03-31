@@ -17,10 +17,8 @@ const REP_LINKS = [
   { path: '/underwriting', label: 'Underwriting', icon: Zap },
   { path: '/analytics', label: 'Analytics', icon: BarChart2 },
   { path: '/requests', label: 'Requests', icon: Bell },
-  { path: '/notes', label: 'Notes', icon: StickyNote },
   { path: '/activity', label: 'Activity', icon: Activity },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
-  { path: '/help', label: 'Help & Guide', icon: HelpCircle },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -29,7 +27,6 @@ const CLIENT_LINKS = [
   { path: '/my-documents', label: 'My Documents', icon: FileText },
   { path: '/upload', label: 'Upload Center', icon: Upload },
   { path: '/requests', label: 'Requests', icon: Bell },
-  { path: '/status', label: 'Status', icon: CheckSquare },
   { path: '/profile', label: 'Profile', icon: User },
 ];
 

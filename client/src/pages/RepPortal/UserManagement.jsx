@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Users, Plus, X, CheckCircle2, AlertCircle, Eye, EyeOff, Shield, UserCog, Building2, GitBranch } from 'lucide-react';
 
-const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 const ROLE_CONFIG = {
   admin:     { label: 'Admin',     icon: Shield,    color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },

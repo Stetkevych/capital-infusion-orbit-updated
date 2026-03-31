@@ -4,7 +4,7 @@ import { CLIENTS, DOC_CATEGORIES, getClientsByRep, getClientById } from '../../d
 import StatusBadge from '../../components/shared/StatusBadge';
 import { Clock, Plus, X, Send, Bell, CheckCircle2, Mail } from 'lucide-react';
 
-const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 function fmt(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

@@ -4,7 +4,7 @@ import { ROLES, CLIENTS, getUserByEmail } from '../data/mockData';
 export const AuthContext = createContext(null);
 export function useAuth() { return useContext(AuthContext); }
 
-const API = process.env.REACT_APP_API_URL || 'http://capital-infusion-api-prod.eba-wqytrheg.us-east-1.elasticbeanstalk.com/api';
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 const CAN_SWITCH_VIEW = [ROLES.ADMIN, ROLES.TEAM_LEAD, 'admin', 'team_lead'];
 
 export function AuthProvider({ children }) {
