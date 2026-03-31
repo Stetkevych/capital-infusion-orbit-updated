@@ -73,7 +73,7 @@ export default function Login() {
             </button>
           </div>
 
-          <p className="text-center text-gray-300 text-xs mt-8">Secure · Encrypted · AWS Infrastructure</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Capital Infusion · Inc 5000 Company · Encrypted Software</p>
         </div>
       </div>
     );
