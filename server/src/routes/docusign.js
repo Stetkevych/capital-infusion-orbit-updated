@@ -6,7 +6,8 @@ const fs = require('fs');
 
 const { sendWelcomeEmail } = require('../services/emailService');
 const { updateZohoDeal } = require('../services/zohoService');
-const { createPendingClient } = require('../services/clientService');
+const ClientStore = require('../services/clientStore');
+const UserStore = require('../services/userStore');
 const { getPresignedUploadUrl, fileExists } = require('../services/s3Service');
 
 const REGISTRY_PATH = path.join(__dirname, '../../data/documents.json');
@@ -68,30 +69,55 @@ router.post('/webhook', express.json(), async (req, res) => {
     const merchantName = primarySigner.name;
     const subject = envelopeSummary?.emailSubject || 'Merchant Agreement';
 
-    console.log(`[DocuSign] Completed for: ${merchantName} <${merchantEmail}>`);
+    // Extract rep ID from envelope custom fields (set when rep sends the envelope)
+    const customFields = envelopeSummary?.customFields?.textCustomFields || [];
+    const repIdField = customFields.find(f => f.name === 'repId');
+    const repNameField = customFields.find(f => f.name === 'repName');
+    const businessNameField = customFields.find(f => f.name === 'businessName');
 
-    // 1. Send welcome email — non-fatal
-    try {
-      await sendWelcomeEmail({ to: merchantEmail, name: merchantName, envelopeId, subject });
-    } catch (e) { console.error('[DocuSign] Email failed:', e.message); }
+    // Resolve rep — fall back to admin if not found
+    let assignedRepId = repIdField?.value || null;
+    let assignedRepName = repNameField?.value || 'Unassigned';
+    if (assignedRepId) {
+      const rep = UserStore.findById(assignedRepId);
+      if (!rep) { assignedRepId = null; assignedRepName = 'Unassigned'; }
+    }
 
-    // 2. Update Zoho — non-fatal
-    try {
-      await updateZohoDeal({ envelopeId, merchantEmail, merchantName, status: 'Agreement Signed' });
-    } catch (e) { console.error('[DocuSign] Zoho failed:', e.message); }
+    console.log(`[DocuSign] Completed for: ${merchantName} <${merchantEmail}> | Rep: ${assignedRepName}`);
 
-    // 3. Create pending client — non-fatal
-    let clientRecord = null;
-    try {
-      clientRecord = await createPendingClient({ email: merchantEmail, name: merchantName, envelopeId, source: 'docusign' });
-    } catch (e) { console.error('[DocuSign] Client create failed:', e.message); }
+    // 1. Create or retrieve real client file
+    let clientRecord = ClientStore.getByEmail(merchantEmail);
+    if (!clientRecord) {
+      try {
+        clientRecord = ClientStore.create({
+          businessName: businessNameField?.value || merchantName,
+          ownerName: merchantName,
+          email: merchantEmail,
+          assignedRepId,
+          assignedRepName,
+          status: 'Pending',
+          source: 'docusign',
+          envelopeId,
+        });
+        console.log(`[DocuSign] Client file created: ${clientRecord.id}`);
+      } catch (e) {
+        console.error('[DocuSign] Client create failed:', e.message);
+        // Last resort — use envelope ID as client ID so PDF still saves
+        clientRecord = { id: `docusign_${envelopeId}` };
+      }
+    } else {
+      // Update existing client with rep assignment if missing
+      if (!clientRecord.assignedRepId && assignedRepId) {
+        ClientStore.update(clientRecord.id, { assignedRepId, assignedRepName, envelopeId });
+      }
+      console.log(`[DocuSign] Existing client matched by email: ${clientRecord.id}`);
+    }
 
-    // 4. Download signed PDF from DocuSign and store in S3 — non-fatal
+    const clientId = clientRecord.id;
+
+    // 2. Download signed PDF and store in S3
     try {
       const docusignService = require('../services/docusignService');
-      const clientId = clientRecord?.id || clientRecord?.client_id || envelopeId;
-
-      // Get signed document bytes from DocuSign
       const pdfBuffer = await docusignService.downloadSignedDocument(envelopeId);
 
       if (pdfBuffer) {
@@ -105,15 +131,15 @@ router.post('/webhook', express.json(), async (req, res) => {
           Key: key,
           Body: pdfBuffer,
           ContentType: 'application/pdf',
-          Metadata: { envelopeId, clientEmail: merchantEmail, clientName: merchantName },
+          Metadata: { envelopeId, clientEmail: merchantEmail, clientName: merchantName, repId: assignedRepId || '' },
         }));
 
-        // Register in document store
         const docs = loadDocs();
         docs.push({
           id: `doc_docusign_${envelopeId}`,
           key,
           clientId,
+          assignedRepId,
           category: 'application',
           fileName: `Signed_Application_${merchantName.replace(/\s+/g, '_')}.pdf`,
           fileSize: `${(pdfBuffer.length / 1024).toFixed(0)} KB`,
@@ -131,10 +157,22 @@ router.post('/webhook', express.json(), async (req, res) => {
       }
     } catch (e) { console.error('[DocuSign] PDF store failed:', e.message); }
 
+    // 3. Send welcome email — non-fatal
+    try {
+      await sendWelcomeEmail({ to: merchantEmail, name: merchantName, envelopeId, subject });
+    } catch (e) { console.error('[DocuSign] Email failed:', e.message); }
+
+    // 4. Update Zoho — non-fatal
+    try {
+      await updateZohoDeal({ envelopeId, merchantEmail, merchantName, status: 'Agreement Signed' });
+    } catch (e) { console.error('[DocuSign] Zoho failed:', e.message); }
+
     return res.status(200).json({
       received: true,
       action: 'processed',
       merchant: merchantEmail,
+      clientId,
+      assignedRepId,
     });
 
   } catch (err) {

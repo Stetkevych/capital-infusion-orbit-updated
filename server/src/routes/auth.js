@@ -52,13 +52,24 @@ router.post('/register', (req, res) => {
   if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
 
   try {
+    // Link to existing client file if one was created by DocuSign webhook
+    const ClientStore = require('../services/clientStore');
+    const existingClient = ClientStore.getByEmail(email);
+    const client_id = existingClient ? existingClient.id : `client-${Date.now()}`;
+
     const user = UserStore.create({
       email,
       full_name,
       role: 'client',
       password,
-      client_id: `client-${Date.now()}`,
+      client_id,
     });
+
+    // Mark client file as having a portal login
+    if (existingClient) {
+      ClientStore.update(existingClient.id, { hasPortalLogin: true, portalUserId: user.id });
+    }
+
     const token = generateToken(user);
     res.status(201).json({ token, user });
   } catch (err) {
