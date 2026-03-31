@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, AlertCircle, Building2, UserCog } from 'lucide-react';
+import OrbitLogo from '../assets/OrbitLogo.png';
 
 export default function Login() {
   const [flow, setFlow] = useState(null);
@@ -43,7 +44,7 @@ export default function Login() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-lg">
           <div className="text-center mb-12">
-            <img src="/OrbitLogo.png" alt="Capital Infusion Orbit" className="h-16 w-auto mx-auto mb-3" />
+            <img src={OrbitLogo} alt="Capital Infusion Orbit" className="h-20 w-auto mx-auto mb-3 object-contain" />
             <p className="text-gray-400 mt-2 text-sm">Financial Technology System</p>
           </div>
 
