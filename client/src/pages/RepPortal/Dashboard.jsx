@@ -1,18 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { CLIENTS, DOCUMENTS, DOCUMENT_REQUESTS, ACTIVITY_LOG, getClientsByRep, getMissingCategories } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { Users, FileText, AlertCircle, Clock, ArrowRight } from 'lucide-react';
 
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+
 function fmt(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function RepDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const isAdmin = user.role === 'admin';
-  const myClients = isAdmin ? CLIENTS : getClientsByRep(user.repId);
+  const [realClients, setRealClients] = useState([]);
+
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  useEffect(() => {
+    fetch(`${API}/clients-api`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRealClients(data))
+      .catch(() => {});
+  }, []);
+
+  const mockClients = isAdmin ? CLIENTS : getClientsByRep(user.repId);
+  const myClients = [
+    ...realClients,
+    ...mockClients.filter(mc => !realClients.find(rc => rc.email === mc.email)),
+  ];
   const myClientIds = new Set(myClients.map(c => c.id));
   const pendingRequests = DOCUMENT_REQUESTS.filter(r => r.status === 'Pending' && myClientIds.has(r.clientId));
   const recentDocs = DOCUMENTS.filter(d => myClientIds.has(d.clientId)).sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).slice(0, 5);

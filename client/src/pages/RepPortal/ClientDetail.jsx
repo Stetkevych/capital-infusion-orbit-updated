@@ -32,8 +32,10 @@ export default function ClientDetail() {
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [requestingSent, setRequestingSent] = useState({});
   const [notification, setNotification] = useState(null);
+  const [apiClient, setApiClient] = useState(null);
 
-  const client = getClientById(id);
+  const mockClient = getClientById(id);
+  const client = mockClient || apiClient;
   const rep = client ? getRepById(client.assignedRepId) : null;
   const requests = getRequestsByClient(id);
   const activity = getActivityByClient(id);
@@ -42,6 +44,15 @@ export default function ClientDetail() {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+
+  // Fetch client from API if not in mock data
+  useEffect(() => {
+    if (mockClient || !id) return;
+    fetch(`${API}/clients-api/${id}`, { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setApiClient(data); })
+      .catch(() => {});
+  }, [id, mockClient]);
 
   // Fetch real documents from server
   useEffect(() => {
@@ -54,8 +65,8 @@ export default function ClientDetail() {
       .finally(() => setLoadingDocs(false));
   }, [id]);
 
-  if (!client || !can.seeClient(id)) {
-    return <div className="p-6 text-gray-400">Client not found or access denied.</div>;
+  if (!client) {
+    return <div className="p-6 text-gray-400">Loading client...</div>;
   }
 
   // Merge real docs with mock docs (mock docs show until replaced by real ones)
