@@ -19,7 +19,7 @@ const ClientStore = {
 
   create(data) {
     const clients = load();
-    if (clients.find(c => c.email?.toLowerCase() === data.email?.toLowerCase())) {
+    if (clients.find(c => c.email?.toLowerCase() === data.email?.toLowerCase() && !c.deleted)) {
       throw new Error('A client with this email already exists');
     }
     const client = {
@@ -33,7 +33,10 @@ const ClientStore = {
       requestedAmount: parseFloat(data.requestedAmount) || 0,
       assignedRepId: data.assignedRepId,
       assignedRepName: data.assignedRepName || '',
-      status: 'Pending',
+      status: data.status || 'Pending',
+      source: data.source || '',
+      envelopeId: data.envelopeId || null,
+      deleted: false,
       createdAt: new Date().toISOString(),
     };
     clients.push(client);
@@ -49,6 +52,41 @@ const ClientStore = {
     save(clients);
     return clients[idx];
   },
+
+  softDelete(id) {
+    const clients = load();
+    const idx = clients.findIndex(c => c.id === id);
+    if (idx === -1) throw new Error('Client not found');
+    clients[idx].deleted = true;
+    clients[idx].deletedAt = new Date().toISOString();
+    save(clients);
+    return clients[idx];
+  },
+
+  restore(id) {
+    const clients = load();
+    const idx = clients.findIndex(c => c.id === id);
+    if (idx === -1) throw new Error('Client not found');
+    clients[idx].deleted = false;
+    clients[idx].deletedAt = null;
+    save(clients);
+    return clients[idx];
+  },
+
+  permanentDelete(id) {
+    const clients = load();
+    const idx = clients.findIndex(c => c.id === id);
+    if (idx === -1) throw new Error('Client not found');
+    clients.splice(idx, 1);
+    save(clients);
+    return { deleted: true };
+  },
+
+  getAll() { return load().filter(c => !c.deleted); },
+  getDeleted() { return load().filter(c => c.deleted); },
+  getByRep(repId) { return load().filter(c => c.assignedRepId === repId && !c.deleted); },
+  getById(id) { return load().find(c => c.id === id) || null; },
+  getByEmail(email) { return load().find(c => c.email?.toLowerCase() === email?.toLowerCase()) || null; },
 };
 
 module.exports = ClientStore;

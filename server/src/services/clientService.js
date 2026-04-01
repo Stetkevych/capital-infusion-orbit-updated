@@ -1,37 +1,55 @@
-// In-memory store for now — replace with DB insert when backend is wired
-const pendingClients = [];
+const ClientStore = require('./clientStore');
 
-async function createPendingClient({ email, name, envelopeId, source }) {
-  const existing = pendingClients.find(c => c.email === email);
+// Map sender emails to rep IDs
+const REP_EMAIL_MAP = {
+  'alexs@capital-infusion.com': null, // admin — assign to self
+  'nikholas@capital-infusion.com': 'r-nik',
+  'anthonyd@capital-infusion.com': 'r-anthony',
+};
+
+async function createPendingClient({ email, name, envelopeId, source, senderEmail }) {
+  // Check if client already exists by email
+  const existing = ClientStore.getByEmail(email);
   if (existing) {
-    console.log(`[Client] Already exists: ${email}`);
+    // Update with envelope info if not already set
+    if (!existing.envelopeId) {
+      ClientStore.update(existing.id, { envelopeId, source: source || 'docusign' });
+    }
+    console.log(`[Client] Already exists: ${email} — linked envelope ${envelopeId}`);
     return existing;
   }
 
-  const client = {
-    id: `pending_${Date.now()}`,
+  // Determine which rep sent the DocuSign
+  let assignedRepId = null;
+  if (senderEmail) {
+    assignedRepId = REP_EMAIL_MAP[senderEmail.toLowerCase()] || null;
+  }
+
+  // Parse name into owner name and placeholder business name
+  const ownerName = name || 'Unknown';
+  const businessName = `${ownerName}'s Business`; // placeholder until client updates
+
+  const client = ClientStore.create({
+    businessName,
+    ownerName,
     email,
-    name,
+    phone: '',
+    industry: '',
+    state: '',
+    requestedAmount: 0,
+    assignedRepId,
+    assignedRepName: senderEmail || '',
+    status: 'Pending',
+    source: source || 'docusign',
     envelopeId,
-    source,
-    status: 'Pending Registration',
-    createdAt: new Date().toISOString(),
-  };
+  });
 
-  pendingClients.push(client);
-  console.log(`[Client] Created pending client: ${email}`);
-
-  // TODO: Replace with DB insert:
-  // await db.query(
-  //   'INSERT INTO pending_clients (email, name, envelope_id, source) VALUES ($1,$2,$3,$4)',
-  //   [email, name, envelopeId, source]
-  // );
-
+  console.log(`[Client] Created from DocuSign: ${email} → rep ${assignedRepId || 'unassigned'}`);
   return client;
 }
 
 async function getPendingClients() {
-  return pendingClients;
+  return ClientStore.getAll().filter(c => c.source === 'docusign');
 }
 
 module.exports = { createPendingClient, getPendingClients };

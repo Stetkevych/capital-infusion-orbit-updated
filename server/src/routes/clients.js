@@ -56,6 +56,45 @@ router.patch('/:id', (req, res) => {
   }
 });
 
+// DELETE /api/clients/:id (soft delete)
+router.delete('/:id', (req, res) => {
+  try {
+    const client = ClientStore.softDelete(req.params.id);
+    res.json({ message: 'Client moved to deleted', client });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/clients/:id/restore
+router.post('/:id/restore', (req, res) => {
+  try {
+    const client = ClientStore.restore(req.params.id);
+    res.json({ message: 'Client restored', client });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /api/clients/:id/permanent
+router.delete('/:id/permanent', (req, res) => {
+  try {
+    ClientStore.permanentDelete(req.params.id);
+    res.json({ message: 'Client permanently deleted' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/clients/deleted
+router.get('/deleted/all', (req, res) => {
+  try {
+    res.json(ClientStore.getDeleted());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/clients/:id/reminder — send document reminder email
 router.post('/:id/reminder', async (req, res) => {
   try {

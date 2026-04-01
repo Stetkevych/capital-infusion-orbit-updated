@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { CLIENTS, getClientsByRep, getMissingCategories, getDocumentsByClient, getRepById, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { Search, AlertCircle, FileText, ArrowRight, Plus, X, CheckCircle2, Send, Bell } from 'lucide-react';
+import { Search, AlertCircle, FileText, ArrowRight, Plus, X, CheckCircle2, Send, Bell, Trash2, RotateCcw } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -24,6 +24,10 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState(null);
   const [realClients, setRealClients] = useState([]);
+  const [deletedClients, setDeletedClients] = useState([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [permDeleteConfirm, setPermDeleteConfirm] = useState(null);
   const [reminderModal, setReminderModal] = useState(null); // { client, category }
   const [reminderMsg, setReminderMsg] = useState('');
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -35,6 +39,10 @@ export default function ClientsPage() {
     fetch(`${API}/clients-api`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setRealClients(data))
+      .catch(() => {});
+    fetch(`${API}/clients-api/deleted/all`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setDeletedClients(data))
       .catch(() => {});
   }, []);
 
@@ -108,6 +116,43 @@ export default function ClientsPage() {
       setReminderModal(null);
       setTimeout(() => setNotification(null), 4000);
     }
+  };
+
+  const handleSoftDelete = async (client) => {
+    try {
+      await fetch(`${API}/clients-api/${client.id}`, { method: 'DELETE', headers });
+      setRealClients(prev => prev.filter(c => c.id !== client.id));
+      setDeletedClients(prev => [{ ...client, deleted: true, deletedAt: new Date().toISOString() }, ...prev]);
+      setNotification({ type: 'success', msg: `${client.businessName} moved to deleted` });
+    } catch {
+      setNotification({ type: 'error', msg: 'Failed to delete client' });
+    }
+    setDeleteConfirm(null);
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleRestore = async (client) => {
+    try {
+      await fetch(`${API}/clients-api/${client.id}/restore`, { method: 'POST', headers });
+      setDeletedClients(prev => prev.filter(c => c.id !== client.id));
+      setRealClients(prev => [{ ...client, deleted: false }, ...prev]);
+      setNotification({ type: 'success', msg: `${client.businessName} restored` });
+    } catch {
+      setNotification({ type: 'error', msg: 'Failed to restore client' });
+    }
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handlePermanentDelete = async (client) => {
+    try {
+      await fetch(`${API}/clients-api/${client.id}/permanent`, { method: 'DELETE', headers });
+      setDeletedClients(prev => prev.filter(c => c.id !== client.id));
+      setNotification({ type: 'success', msg: `${client.businessName} permanently deleted` });
+    } catch {
+      setNotification({ type: 'error', msg: 'Failed to permanently delete' });
+    }
+    setPermDeleteConfirm(null);
+    setTimeout(() => setNotification(null), 4000);
   };
 
   return (
@@ -311,6 +356,13 @@ export default function ClientsPage() {
                       >
                         <Bell size={11} /> Remind
                       </button>
+                      <button
+                        onClick={() => setDeleteConfirm(c)}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2.5 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete client"
+                      >
+                        <Trash2 size={11} />
+                      </button>
                       <Link to={`/clients/${c.id}`} className="flex items-center gap-1 text-blue-600 text-xs font-medium hover:opacity-70">
                         Open <ArrowRight size={12} />
                       </Link>
@@ -328,6 +380,83 @@ export default function ClientsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm p-6">
+            <h2 className="text-gray-900 font-semibold text-base mb-2">Delete Client?</h2>
+            <p className="text-gray-500 text-sm mb-1">Are you sure you want to delete <span className="font-semibold text-gray-700">{deleteConfirm.businessName}</span>?</p>
+            <p className="text-gray-400 text-xs mb-5">This will move them to the Deleted Clients folder. You can restore them from there.</p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setDeleteConfirm(null)} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={() => handleSoftDelete(deleteConfirm)} className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-xl font-medium">
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent delete confirmation modal */}
+      {permDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-red-200 w-full max-w-sm p-6">
+            <h2 className="text-red-600 font-semibold text-base mb-2">Permanently Delete?</h2>
+            <p className="text-gray-500 text-sm mb-1">This will permanently remove <span className="font-semibold text-gray-700">{permDeleteConfirm.businessName}</span> and all associated data.</p>
+            <p className="text-red-400 text-xs mb-5">This action cannot be undone.</p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setPermDeleteConfirm(null)} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={() => handlePermanentDelete(permDeleteConfirm)} className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-xl font-medium">
+                <Trash2 size={13} /> Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deleted clients section */}
+      {deletedClients.length > 0 && (
+        <div className="mt-6">
+          <button onClick={() => setShowDeleted(v => !v)} className="flex items-center gap-2 text-gray-400 text-sm hover:text-gray-600 transition-colors mb-3">
+            <Trash2 size={14} />
+            Deleted Clients ({deletedClients.length})
+            <span className="text-xs">{showDeleted ? '▲' : '▼'}</span>
+          </button>
+          {showDeleted && (
+            <div className="bg-white border border-red-100 rounded-2xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-red-50 bg-red-50/30">
+                    {['Business', 'Owner', 'Deleted', ''].map(h => (
+                      <th key={h} className="text-left py-3 px-5 text-gray-400 font-medium text-xs uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deletedClients.map(c => (
+                    <tr key={c.id} className="border-b border-red-50 hover:bg-red-50/20 transition-colors">
+                      <td className="py-3.5 px-5 text-gray-500">{c.businessName}</td>
+                      <td className="py-3.5 px-5 text-gray-400 text-sm">{c.ownerName}</td>
+                      <td className="py-3.5 px-5 text-gray-400 text-xs">{c.deletedAt ? new Date(c.deletedAt).toLocaleDateString() : '—'}</td>
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleRestore(c)} className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 border border-green-200 hover:border-green-300 px-2.5 py-1.5 rounded-lg transition-colors">
+                            <RotateCcw size={11} /> Restore
+                          </button>
+                          <button onClick={() => setPermDeleteConfirm(c)} className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 border border-red-200 hover:border-red-300 px-2.5 py-1.5 rounded-lg transition-colors">
+                            <Trash2 size={11} /> Delete Forever
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
