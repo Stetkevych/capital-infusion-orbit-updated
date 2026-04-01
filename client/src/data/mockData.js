@@ -23,6 +23,7 @@ export const DOC_CATEGORIES = [
 export const USERS = [
   { id: 'u1', name: 'Alex Stetkevych', email: 'alexs@capital-infusion.com', password: 'CapitalAdmin2024!', role: ROLES.ADMIN, repId: null, clientId: null },
   { id: 'u-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', password: 'AppPullingBeast23', role: ROLES.REP, repId: 'r-nik', clientId: null },
+  { id: 'u-chris', name: 'Christopher Cranton', email: 'christopher.cranton@gmail.com', password: 'chrisbuildstech123', role: ROLES.REP, repId: 'r-chris', clientId: null },
   { id: 'u2', name: 'Sarah Mitchell', email: 'rep@demo.com', password: 'password', role: ROLES.REP, repId: 'r1', clientId: null },
   { id: 'u3', name: 'James Carter', email: 'rep2@demo.com', password: 'password', role: ROLES.REP, repId: 'r2', clientId: null },
   { id: 'u4', name: 'Darnell Williams', email: 'client@demo.com', password: 'password', role: ROLES.CLIENT, repId: null, clientId: 'c1' },
@@ -32,6 +33,7 @@ export const USERS = [
 
 export const REPS = [
   { id: 'r-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '' },
+  { id: 'r-chris', name: 'Christopher Cranton', email: 'christopher.cranton@gmail.com', team: 'Capital Infusion', active: true, phone: '' },
   { id: 'r1', name: 'Sarah Mitchell', email: 'rep@demo.com', team: 'East Coast', active: true, phone: '(212) 555-0101' },
   { id: 'r2', name: 'James Carter', email: 'rep2@demo.com', team: 'West Coast', active: true, phone: '(310) 555-0202' },
 ];
