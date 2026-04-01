@@ -22,8 +22,8 @@ export const DOC_CATEGORIES = [
 
 export const USERS = [
   { id: 'u1', name: 'Alex Stetkevych', email: 'alexs@capital-infusion.com', password: 'CapitalAdmin2024!', role: ROLES.ADMIN, repId: null, clientId: null },
-  { id: 'u-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', password: 'AppPullingBeast23', role: ROLES.REP, repId: 'r-nik', clientId: null },
-  { id: 'u-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', password: 'anthony$cool123!', role: ROLES.REP, repId: 'r-anthony', clientId: null },
+  { id: 'u-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', password: 'anthony$cool123!', role: ROLES.REP, repId: 'r-anthony', clientId: null, manages: ['r-nik'] },
+  { id: 'u-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', password: 'AppPullingBeast23', role: ROLES.REP, repId: 'r-nik', clientId: null, reportsTo: 'r-anthony' },
   { id: 'u-chris', name: 'Christopher Cranton', email: 'christopher.cranton@gmail.com', password: 'chrisbuildstech123', role: ROLES.CLIENT, repId: null, clientId: 'c-chris' },
   { id: 'u2', name: 'Sarah Mitchell', email: 'rep@demo.com', password: 'password', role: ROLES.REP, repId: 'r1', clientId: null },
   { id: 'u3', name: 'James Carter', email: 'rep2@demo.com', password: 'password', role: ROLES.REP, repId: 'r2', clientId: null },
@@ -33,8 +33,8 @@ export const USERS = [
 ];
 
 export const REPS = [
-  { id: 'r-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '' },
-  { id: 'r-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '' },
+  { id: 'r-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '', manages: ['r-nik'] },
+  { id: 'r-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '', reportsTo: 'r-anthony' },
   { id: 'r1', name: 'Sarah Mitchell', email: 'rep@demo.com', team: 'East Coast', active: true, phone: '(212) 555-0101' },
   { id: 'r2', name: 'James Carter', email: 'rep2@demo.com', team: 'West Coast', active: true, phone: '(310) 555-0202' },
 ];
@@ -53,7 +53,12 @@ export const DOCUMENT_REQUESTS = [];
 
 export const ACTIVITY_LOG = [];
 
-export const getClientsByRep = (repId) => CLIENTS.filter(c => c.assignedRepId === repId);
+export const getClientsByRep = (repId) => {
+  const rep = REPS.find(r => r.id === repId);
+  const repIds = [repId];
+  if (rep?.manages) repIds.push(...rep.manages);
+  return CLIENTS.filter(c => repIds.includes(c.assignedRepId));
+};
 export const getDocumentsByClient = (clientId) => DOCUMENTS.filter(d => d.clientId === clientId);
 export const getDocumentsByCategory = (clientId, category) => DOCUMENTS.filter(d => d.clientId === clientId && d.category === category);
 export const getRequestsByClient = (clientId) => DOCUMENT_REQUESTS.filter(r => r.clientId === clientId);

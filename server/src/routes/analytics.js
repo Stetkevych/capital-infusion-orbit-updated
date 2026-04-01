@@ -163,7 +163,7 @@ router.get('/summary', async (req, res) => {
 });
 
 // ── GET /api/analytics/underwriting ──────────────────────────────────────────
-router.get('/underwriting', (req, res) => {
+router.get('/underwriting', async (req, res) => {
   try {
     const user = req.user;
     if (!user || user.role === 'client') return res.status(403).json({ error: 'Access denied' });

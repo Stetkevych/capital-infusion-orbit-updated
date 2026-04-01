@@ -56,6 +56,44 @@ router.post('/webhook', express.json(), async (req, res) => {
     const merchantPhone = primarySigner.phoneNumber || primarySigner.phone || '';
     const subject = envelopeSummary?.emailSubject || envelopeSummary?.Subject || 'Application';
 
+    // ── Extract all tab values from signer (form fields they filled out) ──────
+    const tabs = primarySigner.tabs || primarySigner.Tabs || {};
+    const allTabs = [
+      ...(tabs.textTabs || tabs.TextTabs || []),
+      ...(tabs.numberTabs || tabs.NumberTabs || []),
+      ...(tabs.emailTabs || tabs.EmailTabs || []),
+      ...(tabs.ssnTabs || tabs.SSNTabs || []),
+      ...(tabs.zipTabs || tabs.ZipTabs || []),
+      ...(tabs.dateTabs || tabs.DateTabs || []),
+      ...(tabs.formulaTabs || tabs.FormulaTabs || []),
+    ];
+
+    // Build a map of tabLabel → value for easy lookup
+    const tabMap = {};
+    allTabs.forEach(t => {
+      const label = (t.tabLabel || t.TabLabel || t.name || t.Name || '').toLowerCase().trim();
+      const value = (t.value || t.Value || '').trim();
+      if (label && value) tabMap[label] = value;
+    });
+
+    console.log(`[DocuSign] Extracted ${Object.keys(tabMap).length} tab fields:`, Object.keys(tabMap).join(', '));
+
+    // Parse specific fields from tabs — try multiple common label names
+    const parsedPhone = tabMap['phone'] || tabMap['phonenumber'] || tabMap['phone number']
+      || tabMap['cell'] || tabMap['mobile'] || tabMap['telephone'] || merchantPhone;
+    const parsedEmail = tabMap['email'] || tabMap['emailaddress'] || tabMap['email address'] || merchantEmail;
+    const parsedBusinessName = tabMap['businessname'] || tabMap['business name'] || tabMap['business']
+      || tabMap['company'] || tabMap['companyname'] || tabMap['company name']
+      || tabMap['dba'] || tabMap['legal name'] || tabMap['legalname'] || '';
+    const parsedOwnerName = tabMap['ownername'] || tabMap['owner name'] || tabMap['owner']
+      || tabMap['name'] || tabMap['fullname'] || tabMap['full name'] || merchantName;
+    const parsedIndustry = tabMap['industry'] || tabMap['business type'] || tabMap['businesstype'] || '';
+    const parsedState = tabMap['state'] || tabMap['st'] || '';
+    const parsedAddress = tabMap['address'] || tabMap['businessaddress'] || tabMap['business address'] || '';
+    const parsedEin = tabMap['ein'] || tabMap['taxid'] || tabMap['tax id'] || tabMap['fein'] || '';
+    const parsedRequestedAmount = tabMap['requestedamount'] || tabMap['requested amount']
+      || tabMap['amount'] || tabMap['funding amount'] || tabMap['fundingamount'] || '';
+
     const senderEmail = envelopeSummary?.sender?.email || envelopeSummary?.Sender?.Email || event?.sender?.email || null;
     const rep = senderEmail ? await UserStore.findByEmail(senderEmail) : null;
     let assignedRepId = rep?.id || null;
@@ -69,13 +107,21 @@ router.post('/webhook', express.json(), async (req, res) => {
     console.log(`[DocuSign] Completed for: ${merchantName} <${merchantEmail}> | Rep: ${assignedRepName}`);
 
     // 1. Create or retrieve client file
-    let clientRecord = await ClientStore.getByEmail(merchantEmail);
+    let clientRecord = await ClientStore.getByEmail(parsedEmail);
     if (!clientRecord) {
       try {
         clientRecord = await ClientStore.create({
-          businessName: businessNameField?.value || merchantName,
-          ownerName: merchantName, email: merchantEmail, phone: merchantPhone,
+          businessName: parsedBusinessName || businessNameField?.value || merchantName,
+          ownerName: parsedOwnerName,
+          email: parsedEmail,
+          phone: parsedPhone,
+          industry: parsedIndustry,
+          state: parsedState,
+          address: parsedAddress,
+          ein: parsedEin,
+          requestedAmount: parseFloat(parsedRequestedAmount.replace(/[^0-9.]/g, '')) || 0,
           assignedRepId, assignedRepName, status: 'Pending', source: 'docusign', envelopeId,
+          tabData: tabMap,
         });
         console.log(`[DocuSign] Client file created: ${clientRecord.id}`);
       } catch (e) {
@@ -83,9 +129,20 @@ router.post('/webhook', express.json(), async (req, res) => {
         clientRecord = { id: `docusign_${envelopeId}` };
       }
     } else {
-      if (!clientRecord.assignedRepId && assignedRepId) {
-        await ClientStore.update(clientRecord.id, { assignedRepId, assignedRepName, envelopeId });
+      // Update existing client with any new info from tabs
+      const updates = {};
+      if (!clientRecord.phone && parsedPhone) updates.phone = parsedPhone;
+      if (!clientRecord.industry && parsedIndustry) updates.industry = parsedIndustry;
+      if (!clientRecord.state && parsedState) updates.state = parsedState;
+      if (!clientRecord.businessName || clientRecord.businessName === clientRecord.ownerName) {
+        if (parsedBusinessName) updates.businessName = parsedBusinessName;
       }
+      if (!clientRecord.assignedRepId && assignedRepId) {
+        updates.assignedRepId = assignedRepId;
+        updates.assignedRepName = assignedRepName;
+      }
+      updates.envelopeId = envelopeId;
+      if (Object.keys(updates).length > 0) await ClientStore.update(clientRecord.id, updates);
       console.log(`[DocuSign] Existing client matched: ${clientRecord.id}`);
     }
 
@@ -124,15 +181,16 @@ router.post('/webhook', express.json(), async (req, res) => {
 
     // 3. Auto-create client login
     try {
-      const existingUser = await UserStore.findByEmail(merchantEmail);
+      const existingUser = await UserStore.findByEmail(parsedEmail);
       if (!existingUser) {
         const tempPassword = crypto.randomBytes(5).toString('hex');
         await UserStore.create({
-          email: merchantEmail, full_name: merchantName, role: 'client',
+          email: parsedEmail, full_name: parsedOwnerName, role: 'client',
           password: tempPassword, client_id: clientId, source: 'docusign',
-          temp_password: tempPassword, business_name: businessNameField?.value || merchantName,
+          temp_password: tempPassword,
+          business_name: parsedBusinessName || businessNameField?.value || merchantName,
         });
-        console.log(`[DocuSign] Client account created: ${merchantEmail} / ${tempPassword}`);
+        console.log(`[DocuSign] Client account created: ${parsedEmail} / ${tempPassword}`);
       } else {
         if (!existingUser.client_id) await UserStore.update(existingUser.id, { client_id: clientId });
         console.log(`[DocuSign] Existing user found for ${merchantEmail}`);
