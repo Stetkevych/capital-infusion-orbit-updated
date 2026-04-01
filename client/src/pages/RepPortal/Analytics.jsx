@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import { TrendingUp, Users, FileText, DollarSign, BarChart2 } from 'lucide-react';
+import TrendSimulator from './Analytics/TrendSimulator';
 
 const COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#6366f1'];
 const EMPTY_COLOR = '#e5e7eb';
@@ -233,6 +234,9 @@ export default function Analytics() {
           </div>
         </Card>
       </div>
+
+      {/* Trend Simulator */}
+      <TrendSimulator />
 
       {/* Client status table */}
       <Card>
