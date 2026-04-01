@@ -147,6 +147,24 @@ router.post('/change-password', authMiddleware, (req, res) => {
   res.json({ message: 'Password changed successfully' });
 });
 
+// ─── GET /api/auth/client-credentials (rep/admin only) ────────────────────────
+router.get('/client-credentials', authMiddleware, (req, res) => {
+  if (req.user.role === 'client') return res.status(403).json({ message: 'Access denied' });
+  const allUsers = UserStore.findAll();
+  const clientCreds = allUsers
+    .filter(u => u.role === 'client' && u.source === 'docusign')
+    .map(u => ({
+      id: u.id,
+      email: u.email,
+      full_name: u.full_name,
+      business_name: u.business_name || '',
+      temp_password: u.temp_password || null,
+      has_logged_in: u.has_logged_in || false,
+      created_at: u.created_at,
+    }));
+  res.json(clientCreds);
+});
+
 // ─── Admin: GET /api/auth/users ───────────────────────────────────────────────
 router.get('/users', authMiddleware, adminOnly, (req, res) => {
   res.json(UserStore.findAll());

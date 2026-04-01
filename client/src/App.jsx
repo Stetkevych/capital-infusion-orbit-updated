@@ -32,6 +32,8 @@ import UploadCenter from './pages/ClientPortal/UploadCenter';
 import ClientRequests from './pages/ClientPortal/Requests';
 import ClientStatus from './pages/ClientPortal/Status';
 import ClientProfile from './pages/ClientPortal/Profile';
+import MyBusinesses from './pages/ClientPortal/MyBusinesses';
+import ClientCredentials from './pages/RepPortal/ClientCredentials';
 
 function AppShell() {
   const { user, viewMode } = useAuth();
@@ -77,6 +79,7 @@ function RepRoutes() {
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/users" element={<UserManagement />} />
+      <Route path="/client-credentials" element={<ClientCredentials />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -91,6 +94,7 @@ function ClientRoutes() {
       <Route path="/requests" element={<ClientRequests />} />
       <Route path="/status" element={<ClientStatus />} />
       <Route path="/profile" element={<ClientProfile />} />
+      <Route path="/businesses" element={<MyBusinesses />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

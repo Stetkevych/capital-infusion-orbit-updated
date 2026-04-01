@@ -63,7 +63,7 @@ const UserStore = {
     return load().filter(u => u.role === role).map(({ password_hash, ...u }) => u);
   },
 
-  create({ email, full_name, role, password, rep_id = null, client_id = null }) {
+  create({ email, full_name, role, password, rep_id = null, client_id = null, source = null, temp_password = null, business_name = null }) {
     const users = load();
     if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
       throw new Error('User already exists');
@@ -77,6 +77,10 @@ const UserStore = {
       is_active: true,
       rep_id,
       client_id,
+      source,
+      temp_password,
+      business_name,
+      has_logged_in: false,
       created_at: new Date().toISOString(),
     };
     users.push(user);

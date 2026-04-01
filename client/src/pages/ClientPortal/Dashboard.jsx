@@ -1,20 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getClientById, getRepById, getDocumentsByClient, getRequestsByClient, DOC_CATEGORIES, getMissingCategories } from '../../data/mockData';
+import { getClientById, getRepById, getRequestsByClient, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { FileText, Bell, AlertCircle, ArrowRight, Mail, Phone } from 'lucide-react';
 
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => ['drivers_license', 'application', 'bank_statements', 'voided_check'].includes(c.id));
+
 export default function ClientDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const client = getClientById(user.clientId);
+  const clientId = client?.id || user?.clientId || user?.id;
   const rep = client ? getRepById(client.assignedRepId) : null;
-  const docs = client ? getDocumentsByClient(client.id) : [];
   const requests = client ? getRequestsByClient(client.id).filter(r => r.status === 'Pending') : [];
-  const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => ['drivers_license', 'application', 'bank_statements', 'voided_check'].includes(c.id));
-  const missing = client ? CLIENT_DOC_CATEGORIES.filter(c => !getDocumentsByClient(client.id).some(d => d.category === c.id)) : [];
+  const [realDocs, setRealDocs] = useState([]);
+
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(`${API}/documents/client/${clientId}`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(docs => setRealDocs(docs))
+      .catch(() => {});
+  }, [clientId]);
+
+  // Calculate progress from real docs
+  const uploadedCategories = new Set(realDocs.map(d => d.category));
+  const submittedCount = CLIENT_DOC_CATEGORIES.filter(c => uploadedCategories.has(c.id)).length;
+  const missingCount = CLIENT_DOC_CATEGORIES.length - submittedCount;
   const baseProgress = 25;
-  const docProgress = CLIENT_DOC_CATEGORIES.length > 0 ? Math.round(((CLIENT_DOC_CATEGORIES.length - missing.length) / CLIENT_DOC_CATEGORIES.length) * 75) : 0;
+  const docProgress = CLIENT_DOC_CATEGORIES.length > 0 ? Math.round((submittedCount / CLIENT_DOC_CATEGORIES.length) * 75) : 0;
   const progress = Math.min(baseProgress + docProgress, 100);
 
   if (!client) return <div className="p-6 text-gray-400">Profile not found.</div>;
@@ -34,14 +51,14 @@ export default function ClientDashboard() {
         <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
           <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
-        <p className="text-gray-400 text-xs">{progress}% complete · {CLIENT_DOC_CATEGORIES.length - missing.length} of {CLIENT_DOC_CATEGORIES.length} categories submitted</p>
+        <p className="text-gray-400 text-xs">{progress}% complete · {submittedCount} of {CLIENT_DOC_CATEGORIES.length} categories submitted</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         {[
-          { icon: FileText, value: docs.length, label: 'Documents', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { icon: FileText, value: realDocs.length, label: 'Documents', color: 'text-blue-600', bg: 'bg-blue-50' },
           { icon: Bell, value: requests.length, label: 'Requests', color: 'text-amber-500', bg: 'bg-amber-50' },
-          { icon: AlertCircle, value: missing.length, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50', link: '/upload' },
+          { icon: AlertCircle, value: missingCount, label: 'Missing', color: 'text-red-500', bg: 'bg-red-50', link: '/upload' },
         ].map(s => {
           const inner = (
             <div className={`bg-white border border-gray-100 rounded-2xl shadow-sm p-4 text-center ${s.link ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>

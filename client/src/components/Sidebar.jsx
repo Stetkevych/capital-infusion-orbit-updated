@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2, TrendingUp, HelpCircle
+  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2
 } from 'lucide-react';
 
 const REP_LINKS = [
@@ -19,6 +19,7 @@ const REP_LINKS = [
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/activity', label: 'Activity', icon: Activity },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
+  { path: '/client-credentials', label: 'Client Credentials', icon: Key },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -27,6 +28,7 @@ const CLIENT_LINKS = [
   { path: '/my-documents', label: 'My Documents', icon: FileText },
   { path: '/upload', label: 'Upload Center', icon: Upload },
   { path: '/requests', label: 'Requests', icon: Bell },
+  { path: '/businesses', label: 'My Businesses', icon: Building2 },
   { path: '/profile', label: 'Profile', icon: User },
 ];
 

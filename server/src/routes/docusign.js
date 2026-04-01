@@ -155,12 +155,38 @@ router.post('/webhook', express.json(), async (req, res) => {
       }
     } catch (e) { console.error('[DocuSign] PDF store failed:', e.message); }
 
-    // 3. Send welcome email — non-fatal
+    // 3. Auto-create client login account with random password
+    try {
+      const existingUser = UserStore.findByEmail(merchantEmail);
+      if (!existingUser) {
+        const crypto = require('crypto');
+        const tempPassword = crypto.randomBytes(5).toString('hex'); // 10 char random
+        UserStore.create({
+          email: merchantEmail,
+          full_name: merchantName,
+          role: 'client',
+          password: tempPassword,
+          client_id: clientId,
+          source: 'docusign',
+          temp_password: tempPassword,
+          business_name: businessNameField?.value || merchantName,
+        });
+        console.log(`[DocuSign] Client account created: ${merchantEmail} / ${tempPassword}`);
+      } else {
+        // Link existing user to this client if not already linked
+        if (!existingUser.client_id) {
+          UserStore.update(existingUser.id, { client_id: clientId });
+        }
+        console.log(`[DocuSign] Existing user account found for ${merchantEmail}`);
+      }
+    } catch (e) { console.error('[DocuSign] User account create failed:', e.message); }
+
+    // 4. Send welcome email — non-fatal
     try {
       await sendWelcomeEmail({ to: merchantEmail, name: merchantName, envelopeId, subject });
     } catch (e) { console.error('[DocuSign] Email failed:', e.message); }
 
-    // 4. Update Zoho — non-fatal
+    // 5. Update Zoho — non-fatal
     try {
       await updateZohoDeal({ envelopeId, merchantEmail, merchantName, status: 'Agreement Signed' });
     } catch (e) { console.error('[DocuSign] Zoho failed:', e.message); }
