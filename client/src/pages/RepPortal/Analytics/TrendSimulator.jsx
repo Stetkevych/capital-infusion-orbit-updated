@@ -37,10 +37,11 @@ export default function TrendSimulator() {
     setData(d => ({ ...d, [name]: Number(value) || 0 }));
   };
 
-  // Core calculations
+  // Core calculations (21 business days/month, 4.3 weeks/month)
   const payback = data.advanceAmount * data.factor;
   const dailyPayment = data.termDays > 0 ? payback / data.termDays : 0;
-  const dailyRevenue = data.monthlyRevenue / 30;
+  const dailyRevenue = data.monthlyRevenue / 21;
+  const weeklyRevenue = data.monthlyRevenue / 4.3;
   const withholding = dailyRevenue > 0 ? (dailyPayment / dailyRevenue) * 100 : 0;
   const totalCost = payback - data.advanceAmount;
   const netDailyAfterPayment = dailyRevenue - dailyPayment - data.existingDebtPayment;
@@ -80,7 +81,7 @@ export default function TrendSimulator() {
         <h2 className="text-gray-900 font-semibold text-sm flex items-center gap-2">
           <TrendingUp size={16} className="text-blue-600" /> MCA Offer Trend Simulator
         </h2>
-        <p className="text-gray-400 text-xs mt-0.5">Compare bank statement earnings against potential offers — adjust inputs to model scenarios</p>
+        <p className="text-gray-400 text-xs mt-0.5">Compare bank statement earnings against potential offers — adjust inputs to model scenarios · Based on 21 business days per month</p>
       </div>
 
       <div className="p-6 space-y-6">
