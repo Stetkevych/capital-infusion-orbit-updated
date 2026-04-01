@@ -24,7 +24,7 @@ export default function Login() {
     ],
     rep: [
       { label: 'Alex Stetkevych', sub: 'Admin', email: 'alexs@capital-infusion.com', pw: 'CapitalAdmin2024!' },
-      { label: 'Chris', sub: 'Rep', email: 'chris@capital-infusion.com', pw: '' },
+      { label: 'Christopher Cranton', sub: 'Rep', email: 'christopher.cranton@gmail.com', pw: 'chrisbuildstech123' },
       { label: 'Sarah Mitchell', sub: 'Rep — Demo', email: 'rep@demo.com', pw: 'password' },
     ],
   };
