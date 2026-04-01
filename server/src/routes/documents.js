@@ -2,22 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
 const { extractBankStatement } = require('../services/textractService');
+const { loadFromS3, saveToS3 } = require('../services/s3Store');
 const EventLogger = require('../services/eventLogger');
-const fs = require('fs');
-const path = require('path');
 
-// File-based document registry (swap for DB later)
-const REGISTRY_PATH = path.join(__dirname, '../../data/documents.json');
-const dataDir = path.join(__dirname, '../../data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const DOC_FILE = 'documents.json';
+async function loadDocs() { return await loadFromS3(DOC_FILE); }
+async function saveDocs(docs) { await saveToS3(DOC_FILE, docs); }
 
-function loadDocs() {
-  try { return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { return []; }
-}
-function saveDocs(docs) { fs.writeFileSync(REGISTRY_PATH, JSON.stringify(docs, null, 2)); }
-
-// ─── GET /api/documents/presign ───────────────────────────────────────────────
-// Returns a presigned S3 URL for direct browser-to-S3 upload
+// ─── POST /api/documents/presign ──────────────────────────────────────────────
 router.post('/presign', async (req, res) => {
   try {
     const { clientId, category, fileName, contentType } = req.body;
@@ -32,62 +24,43 @@ router.post('/presign', async (req, res) => {
   }
 });
 
-// ─── POST /api/documents/confirm ─────────────────────────────────────────────
-// Called after successful S3 upload to register the document
+// ─── POST /api/documents/confirm ──────────────────────────────────────────────
 router.post('/confirm', async (req, res) => {
   try {
     const { key, clientId, repId, category, fileName, fileSize, uploadedBy, visibility = 'all' } = req.body;
-
-    // Verify file actually exists in S3
     const exists = await fileExists(key);
     if (!exists) return res.status(400).json({ error: 'File not found in S3' });
 
     const doc = {
       id: `doc_${Date.now()}`,
-      key,
-      clientId,
-      repId,
-      category,
-      fileName,
-      fileSize,
-      uploadedBy,
+      key, clientId, repId, category, fileName, fileSize, uploadedBy,
       uploadedAt: new Date().toISOString(),
-      status: 'Uploaded',
-      visibility,
-      tags: [],
-      note: '',
+      status: 'Uploaded', visibility, tags: [], note: '',
       extractedFinancials: null,
       extractionStatus: category === 'bank_statements' ? 'pending' : 'n/a',
     };
 
-    const docs = loadDocs();
+    const docs = await loadDocs();
     docs.push(doc);
-    saveDocs(docs);
+    await saveDocs(docs);
 
-    // Fire Textract async for bank statements — don't block the response
     if (category === 'bank_statements') {
-      extractBankStatement(key).then(financials => {
-        const allDocs = loadDocs();
+      extractBankStatement(key).then(async (financials) => {
+        const allDocs = await loadDocs();
         const idx = allDocs.findIndex(d => d.id === doc.id);
         if (idx !== -1) {
           allDocs[idx].extractedFinancials = financials;
           allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
-          saveDocs(allDocs);
+          await saveDocs(allDocs);
           console.log(`[Textract] Extraction complete for ${fileName}:`, financials.success ? 'success' : financials.error);
         }
       }).catch(err => console.error('[Textract] Async error:', err.message));
     }
 
-    // Log to S3 for Athena analytics
     EventLogger.upload({
-      upload_id: doc.id,
-      client_id: clientId,
-      rep_id: repId,
-      category,
-      file_name: fileName,
-      file_size_mb: parseFloat(fileSize) || 0,
-      status: 'Uploaded',
-      uploaded_at: doc.uploadedAt,
+      upload_id: doc.id, client_id: clientId, rep_id: repId, category,
+      file_name: fileName, file_size_mb: parseFloat(fileSize) || 0,
+      status: 'Uploaded', uploaded_at: doc.uploadedAt,
     });
 
     res.json({ doc });
@@ -97,118 +70,91 @@ router.post('/confirm', async (req, res) => {
   }
 });
 
-// ─── GET /api/documents/financials/:clientId ─────────────────────────────────
-// Returns aggregated extracted financials across all bank statements for a client
-router.get('/financials/:clientId', (req, res) => {
-  const docs = loadDocs().filter(
-    d => d.clientId === req.params.clientId &&
-    d.category === 'bank_statements' &&
-    d.extractedFinancials?.success
-  );
+// ─── GET /api/documents/financials/:clientId ──────────────────────────────────
+router.get('/financials/:clientId', async (req, res) => {
+  try {
+    const allDocs = await loadDocs();
+    const docs = allDocs.filter(
+      d => d.clientId === req.params.clientId && d.category === 'bank_statements' && d.extractedFinancials?.success
+    );
+    if (docs.length === 0) return res.json({ available: false, monthsCovered: 0, docs: [] });
 
-  if (docs.length === 0) {
-    return res.json({ available: false, monthsCovered: 0, docs: [] });
-  }
+    const allFinancials = docs.map(d => d.extractedFinancials);
+    const totalMonths = allFinancials.reduce((sum, f) => sum + (f.monthsCovered || 1), 0);
+    const totalCredits = allFinancials.reduce((sum, f) => sum + (f.totalCredits || 0), 0);
+    const totalDepositCount = allFinancials.reduce((sum, f) => sum + (f.numberOfDeposits || 0), 0);
+    const maxNegDays = Math.max(...allFinancials.map(f => f.negativeDays || 0));
+    const avgMonthlyRevenue = totalMonths > 0 && totalCredits > 0 ? Math.round(totalCredits / totalMonths) : null;
+    const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
 
-  // Aggregate across all bank statement docs
-  const allFinancials = docs.map(d => d.extractedFinancials);
-  const totalMonths = allFinancials.reduce((sum, f) => sum + (f.monthsCovered || 1), 0);
-  const totalCredits = allFinancials.reduce((sum, f) => sum + (f.totalCredits || 0), 0);
-  const totalDepositCount = allFinancials.reduce((sum, f) => sum + (f.numberOfDeposits || 0), 0);
-  const maxNegDays = Math.max(...allFinancials.map(f => f.negativeDays || 0));
-
-  // Avg monthly revenue = total credits across all statements / total months
-  const avgMonthlyRevenue = totalMonths > 0 && totalCredits > 0
-    ? Math.round(totalCredits / totalMonths)
-    : null;
-  const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
-
-  // Aggregate lender positions across all statements
-  const mergedPositions = {};
-  allFinancials.forEach(f => {
-    (f.positions || []).forEach(p => {
-      if (!mergedPositions[p.name]) {
-        mergedPositions[p.name] = { name: p.name, totalPaid: 0, occurrences: 0 };
-      }
-      mergedPositions[p.name].totalPaid += p.totalPaid || 0;
-      mergedPositions[p.name].occurrences += p.occurrences || 0;
+    const mergedPositions = {};
+    allFinancials.forEach(f => {
+      (f.positions || []).forEach(p => {
+        if (!mergedPositions[p.name]) mergedPositions[p.name] = { name: p.name, totalPaid: 0, occurrences: 0 };
+        mergedPositions[p.name].totalPaid += p.totalPaid || 0;
+        mergedPositions[p.name].occurrences += p.occurrences || 0;
+      });
     });
-  });
-  const positions = Object.values(mergedPositions);
-  const totalLenderPayments = positions.reduce((sum, p) => sum + p.totalPaid, 0);
-  const withholdingRate = avgMonthlyRevenue && totalLenderPayments > 0
-    ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1))
-    : 0;
+    const positions = Object.values(mergedPositions);
+    const totalLenderPayments = positions.reduce((sum, p) => sum + p.totalPaid, 0);
+    const withholdingRate = avgMonthlyRevenue && totalLenderPayments > 0
+      ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1)) : 0;
 
-  res.json({
-    available: true,
-    monthsCovered: totalMonths,
-    avgMonthlyRevenue,
-    estimatedAnnualRevenue,
-    numberOfDeposits: totalDepositCount,
-    negativeDays: maxNegDays,
-    totalCredits,
-    positions,
-    positionCount: positions.length,
-    totalLenderPayments: Math.round(totalLenderPayments),
-    withholdingRate,
-    docsProcessed: docs.length,
-    pendingDocs: loadDocs().filter(
-      d => d.clientId === req.params.clientId &&
-      d.category === 'bank_statements' &&
-      d.extractionStatus === 'pending'
-    ).length,
-  });
+    const pendingDocs = allDocs.filter(
+      d => d.clientId === req.params.clientId && d.category === 'bank_statements' && d.extractionStatus === 'pending'
+    ).length;
+
+    res.json({
+      available: true, monthsCovered: totalMonths, avgMonthlyRevenue, estimatedAnnualRevenue,
+      numberOfDeposits: totalDepositCount, negativeDays: maxNegDays, totalCredits,
+      positions, positionCount: positions.length, totalLenderPayments: Math.round(totalLenderPayments),
+      withholdingRate, docsProcessed: docs.length, pendingDocs,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── GET /api/documents/client/all ────────────────────────────────────────────
-router.get('/client/all', (req, res) => {
-  const docs = loadDocs();
-  res.json(docs);
+// ─── GET /api/documents/client/:clientId ──────────────────────────────────────
+router.get('/client/:clientId', async (req, res) => {
+  try {
+    const docs = (await loadDocs()).filter(d => d.clientId === req.params.clientId);
+    res.json(docs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── GET /api/documents/client/:clientId ─────────────────────────────────────
-router.get('/client/:clientId', (req, res) => {
-  const docs = loadDocs().filter(d => d.clientId === req.params.clientId);
-  res.json(docs);
-});
-
-// ─── GET /api/documents/download/:id ─────────────────────────────────────────
+// ─── GET /api/documents/download/:id ──────────────────────────────────────────
 router.get('/download/:id', async (req, res) => {
   try {
-    const docs = loadDocs();
+    const docs = await loadDocs();
     const doc = docs.find(d => d.id === req.params.id);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
     const url = await getPresignedDownloadUrl(doc.key);
     res.json({ url });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── PATCH /api/documents/:id/status ─────────────────────────────────────────
-router.patch('/:id/status', (req, res) => {
-  const docs = loadDocs();
-  const idx = docs.findIndex(d => d.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  docs[idx].status = req.body.status;
-  saveDocs(docs);
-  res.json(docs[idx]);
+// ─── PATCH /api/documents/:id/status ──────────────────────────────────────────
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const docs = await loadDocs();
+    const idx = docs.findIndex(d => d.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    docs[idx].status = req.body.status;
+    await saveDocs(docs);
+    res.json(docs[idx]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── DELETE /api/documents/:id ────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const docs = loadDocs();
+    const docs = await loadDocs();
     const idx = docs.findIndex(d => d.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Not found' });
     await deleteFile(docs[idx].key);
     docs.splice(idx, 1);
-    saveDocs(docs);
+    await saveDocs(docs);
     res.json({ deleted: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

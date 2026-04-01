@@ -131,7 +131,7 @@ router.get('/summary', async (req, res) => {
     const isAdmin = user.role === 'admin';
     const repId = isAdmin ? null : (user.rep_id || user.repId || user.id);
 
-    let deals = isAdmin ? DealStore.getAll() : DealStore.getByRep(repId);
+    let deals = isAdmin ? await DealStore.getAll() : await DealStore.getByRep(repId);
 
     // Apply filters from query params
     if (req.query.rep && isAdmin) deals = deals.filter(d => d.rep_id === req.query.rep);
@@ -143,7 +143,7 @@ router.get('/summary', async (req, res) => {
 
     // Rep comparison for admin
     if (isAdmin) {
-      const allDeals = DealStore.getAll();
+      const allDeals = await DealStore.getAll();
       const repMap = {};
       allDeals.forEach(d => {
         if (!repMap[d.rep_id]) repMap[d.rep_id] = { rep_id: d.rep_id, rep_name: d.rep_name, deals: [] };
@@ -171,7 +171,7 @@ router.get('/underwriting', (req, res) => {
     const DealStore = require('../services/dealStore');
     const isAdmin = user.role === 'admin';
     const repId = isAdmin ? null : (user.rep_id || user.repId || user.id);
-    const deals = isAdmin ? DealStore.getAll() : DealStore.getByRep(repId);
+    const deals = isAdmin ? await DealStore.getAll() : await DealStore.getByRep(repId);
 
     const withUW = deals.filter(d => d.avg_monthly_revenue || d.nsf_count !== undefined);
     res.json({

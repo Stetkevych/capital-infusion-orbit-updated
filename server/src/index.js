@@ -27,7 +27,7 @@ const NODE_ENV = config.get('NODE_ENV');
 console.log(`Starting Capital Infusion API`);
 console.log(`Environment: ${NODE_ENV} | Port: ${PORT}`);
 
-require('./services/userStore').init();
+require('./services/userStore').init().catch(err => console.warn('UserStore init:', err.message));
 
 initializeDb().catch(err => {
   console.warn('DB init warning:', err.message);

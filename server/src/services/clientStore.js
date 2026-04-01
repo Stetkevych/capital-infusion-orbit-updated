@@ -1,24 +1,20 @@
-const fs = require('fs');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { loadFromS3, saveToS3 } = require('./s3Store');
 
-const STORE_PATH = path.join(__dirname, '../../data/clients.json');
-const dataDir = path.join(__dirname, '../../data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const FILE = 'clients.json';
 
-function load() {
-  try { return JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')); } catch { return []; }
-}
-function save(clients) { fs.writeFileSync(STORE_PATH, JSON.stringify(clients, null, 2)); }
+async function load() { return await loadFromS3(FILE); }
+async function save(data) { await saveToS3(FILE, data); }
 
 const ClientStore = {
-  getAll() { return load(); },
-  getByRep(repId) { return load().filter(c => c.assignedRepId === repId); },
-  getById(id) { return load().find(c => c.id === id) || null; },
-  getByEmail(email) { return load().find(c => c.email?.toLowerCase() === email?.toLowerCase()) || null; },
+  async getAll() { return (await load()).filter(c => !c.deleted); },
+  async getDeleted() { return (await load()).filter(c => c.deleted); },
+  async getByRep(repId) { return (await load()).filter(c => c.assignedRepId === repId && !c.deleted); },
+  async getById(id) { return (await load()).find(c => c.id === id) || null; },
+  async getByEmail(email) { return (await load()).find(c => c.email?.toLowerCase() === email?.toLowerCase()) || null; },
 
-  create(data) {
-    const clients = load();
+  async create(data) {
+    const clients = await load();
     if (clients.find(c => c.email?.toLowerCase() === data.email?.toLowerCase() && !c.deleted)) {
       throw new Error('A client with this email already exists');
     }
@@ -40,53 +36,47 @@ const ClientStore = {
       createdAt: new Date().toISOString(),
     };
     clients.push(client);
-    save(clients);
+    await save(clients);
     return client;
   },
 
-  update(id, updates) {
-    const clients = load();
+  async update(id, updates) {
+    const clients = await load();
     const idx = clients.findIndex(c => c.id === id);
     if (idx === -1) throw new Error('Client not found');
     clients[idx] = { ...clients[idx], ...updates, updatedAt: new Date().toISOString() };
-    save(clients);
+    await save(clients);
     return clients[idx];
   },
 
-  softDelete(id) {
-    const clients = load();
+  async softDelete(id) {
+    const clients = await load();
     const idx = clients.findIndex(c => c.id === id);
     if (idx === -1) throw new Error('Client not found');
     clients[idx].deleted = true;
     clients[idx].deletedAt = new Date().toISOString();
-    save(clients);
+    await save(clients);
     return clients[idx];
   },
 
-  restore(id) {
-    const clients = load();
+  async restore(id) {
+    const clients = await load();
     const idx = clients.findIndex(c => c.id === id);
     if (idx === -1) throw new Error('Client not found');
     clients[idx].deleted = false;
     clients[idx].deletedAt = null;
-    save(clients);
+    await save(clients);
     return clients[idx];
   },
 
-  permanentDelete(id) {
-    const clients = load();
+  async permanentDelete(id) {
+    const clients = await load();
     const idx = clients.findIndex(c => c.id === id);
     if (idx === -1) throw new Error('Client not found');
     clients.splice(idx, 1);
-    save(clients);
+    await save(clients);
     return { deleted: true };
   },
-
-  getAll() { return load().filter(c => !c.deleted); },
-  getDeleted() { return load().filter(c => c.deleted); },
-  getByRep(repId) { return load().filter(c => c.assignedRepId === repId && !c.deleted); },
-  getById(id) { return load().find(c => c.id === id) || null; },
-  getByEmail(email) { return load().find(c => c.email?.toLowerCase() === email?.toLowerCase()) || null; },
 };
 
 module.exports = ClientStore;
