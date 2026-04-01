@@ -39,7 +39,7 @@ export default function MyDocuments() {
     <div className="p-6 space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">My Documents</h1>
-        <p className="text-gray-400 text-sm mt-0.5">{client.businessName}</p>
+        <p className="text-gray-400 text-sm mt-0.5">{client?.businessName || user?.name || 'Your Documents'}</p>
       </div>
 
       <div className="grid grid-cols-[200px_1fr] gap-5">

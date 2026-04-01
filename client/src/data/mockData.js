@@ -23,6 +23,7 @@ export const DOC_CATEGORIES = [
 export const USERS = [
   { id: 'u1', name: 'Alex Stetkevych', email: 'alexs@capital-infusion.com', password: 'CapitalAdmin2024!', role: ROLES.ADMIN, repId: null, clientId: null },
   { id: 'u-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', password: 'AppPullingBeast23', role: ROLES.REP, repId: 'r-nik', clientId: null },
+  { id: 'u-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', password: 'anthony$cool123!', role: ROLES.REP, repId: 'r-anthony', clientId: null },
   { id: 'u-chris', name: 'Christopher Cranton', email: 'christopher.cranton@gmail.com', password: 'chrisbuildstech123', role: ROLES.CLIENT, repId: null, clientId: 'c-chris' },
   { id: 'u2', name: 'Sarah Mitchell', email: 'rep@demo.com', password: 'password', role: ROLES.REP, repId: 'r1', clientId: null },
   { id: 'u3', name: 'James Carter', email: 'rep2@demo.com', password: 'password', role: ROLES.REP, repId: 'r2', clientId: null },
@@ -33,11 +34,13 @@ export const USERS = [
 
 export const REPS = [
   { id: 'r-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '' },
+  { id: 'r-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', team: 'Capital Infusion', active: true, phone: '' },
   { id: 'r1', name: 'Sarah Mitchell', email: 'rep@demo.com', team: 'East Coast', active: true, phone: '(212) 555-0101' },
   { id: 'r2', name: 'James Carter', email: 'rep2@demo.com', team: 'West Coast', active: true, phone: '(310) 555-0202' },
 ];
 
 export const CLIENTS = [
+  { id: 'c-chris', businessName: 'Cranton Consulting', ownerName: 'Christopher Cranton', assignedRepId: 'r-nik', status: 'Active', email: 'christopher.cranton@gmail.com', phone: '', industry: 'Technology', requestedAmount: 0, state: '' },
   { id: 'c1', businessName: 'Williams Auto Repair', ownerName: 'Darnell Williams', assignedRepId: 'r1', status: 'Active', email: 'client@demo.com', phone: '(404) 555-0301', industry: 'Automotive', requestedAmount: 75000, state: 'GA' },
   { id: 'c2', businessName: 'Gonzalez Catering Co.', ownerName: 'Maria Gonzalez', assignedRepId: 'r1', status: 'Pending', email: 'client2@demo.com', phone: '(305) 555-0302', industry: 'Food & Beverage', requestedAmount: 50000, state: 'FL' },
   { id: 'c3', businessName: 'Russo Plumbing LLC', ownerName: 'Tony Russo', assignedRepId: 'r2', status: 'Under Review', email: 'client3@demo.com', phone: '(718) 555-0303', industry: 'Construction', requestedAmount: 120000, state: 'NY' },
