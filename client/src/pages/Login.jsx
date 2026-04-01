@@ -19,12 +19,12 @@ export default function Login() {
 
   const DEMO = {
     client: [
+      { label: 'Christopher Cranton', sub: 'Client', email: 'christopher.cranton@gmail.com', pw: 'chrisbuildstech123' },
       { label: 'Darnell Williams', sub: 'Williams Auto Repair', email: 'client@demo.com', pw: 'password' },
       { label: 'Maria Gonzalez', sub: 'Gonzalez Catering', email: 'client2@demo.com', pw: 'password' },
     ],
     rep: [
       { label: 'Alex Stetkevych', sub: 'Admin', email: 'alexs@capital-infusion.com', pw: 'CapitalAdmin2024!' },
-      { label: 'Christopher Cranton', sub: 'Rep', email: 'christopher.cranton@gmail.com', pw: 'chrisbuildstech123' },
       { label: 'Sarah Mitchell', sub: 'Rep — Demo', email: 'rep@demo.com', pw: 'password' },
     ],
   };
