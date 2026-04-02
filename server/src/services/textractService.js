@@ -1,4 +1,4 @@
-const { TextractClient, StartDocumentTextDetectionCommand, GetDocumentTextDetectionCommand } = require('@aws-sdk/client-textract');
+const { TextractClient, StartDocumentTextDetectionCommand, GetDocumentTextDetectionCommand, StartDocumentAnalysisCommand, GetDocumentAnalysisCommand } = require('@aws-sdk/client-textract');
 
 const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
 const REGION = process.env.AWS_REGION || 'us-east-1';
@@ -7,24 +7,36 @@ const textract = new TextractClient({ region: REGION });
 // ─── BANK SUMMARY PATTERNS ───────────────────────────────────────────────────
 // Each pattern: regex to match the line, then extract the dollar amount from it.
 // Ordered by specificity — most specific first.
+// Dollar amount pattern — handles both English (1,234.56) and French (1234,56 or 1 234,56) formats
+const AMT = '\\$?\\s*([\\d][\\d\\s,\\.]*\\d)';
+
 const SUMMARY_PATTERNS = [
-  // Exact summary line matches (highest confidence)
-  /total\s+deposits?\s+and\s+(?:other\s+)?(?:additions?|credits?)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+deposits?\s+and\s+additions?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+credits?\s+this\s+period\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /credits?\s+(?:this|in\s+this)\s+period\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+credits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /deposits?\s+total\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+additions?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+incoming\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+money\s+in\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /deposits?\s+&\s+(?:other\s+)?credits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /credits?\s+&\s+deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+(?:electronic\s+)?deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  // Canadian banks
-  /total\s+credits?\s+\(CAD\)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  /total\s+des\s+cr[eé]dits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  // English patterns
+  new RegExp(`total\\s+deposits?\\s+and\\s+(?:other\\s+)?(?:additions?|credits?)\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+deposits?\\s+and\\s+additions?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+credits?\\s+this\\s+period\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`credits?\\s+(?:this|in\\s+this)\\s+period\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+credits?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+deposits?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`deposits?\\s+total\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+additions?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+incoming\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+money\\s+in\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`deposits?\\s+&\\s+(?:other\\s+)?credits?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`credits?\\s+&\\s+deposits?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+(?:electronic\\s+)?deposits?\\s*[:\\s]*${AMT}`, 'i'),
+  // Canadian English
+  new RegExp(`total\\s+credits?\\s+\\(CAD\\)\\s*[:\\s]*${AMT}`, 'i'),
+  // French / Canadian French
+  new RegExp(`total\\s+des\\s+(?:cr[eé]dits?|d[eé]p[oô]ts?)\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`d[eé]p[oô]ts?\\s*[:\\+\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+d[eé]p[oô]ts?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`cr[eé]dits?\\s*[:\\+\\s]*${AMT}`, 'i'),
+  // Spanish
+  new RegExp(`total\\s+(?:de\\s+)?dep[oó]sitos?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`total\\s+(?:de\\s+)?cr[eé]ditos?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`dep[oó]sitos?\\s+totales?\\s*[:\\s]*${AMT}`, 'i'),
+  new RegExp(`ingresos?\\s+totales?\\s*[:\\s]*${AMT}`, 'i'),
 ];
 
 // Lines to SKIP — these look like summary lines but aren't credits
@@ -45,6 +57,15 @@ const SKIP_PATTERNS = [
   /account\s+(?:number|summary)/i,
   /statement\s+period/i,
   /page\s+\d/i,
+  // French
+  /retraits?/i,
+  /solde\s+(?:d['’]ouverture|de\s+cl[oô]ture|reporté)/i,
+  /frais\s+(?:de\s+service|maximum)/i,
+  /int[eé]r[eê]t\s+sur/i,
+  /d[eé]couvert/i,
+  // Spanish
+  /saldo\s+(?:inicial|final|disponible)/i,
+  /total\s+(?:de\s+)?(?:retiros?|d[eé]bitos?|cargos?)/i,
 ];
 
 // ─── LENDER KEYWORDS ──────────────────────────────────────────────────────────
@@ -73,18 +94,33 @@ const ALL_LENDERS = [...SAFE_LENDERS, ...AMBIGUOUS_LENDERS].sort((a, b) => b.len
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function parseDollar(str) {
   if (!str) return null;
-  const cleaned = str.replace(/[$,\s]/g, '');
+  let cleaned = str.replace(/[$\s]/g, '');
+  // Detect French format: 27488,06 or 27 488,06 (comma as decimal, no period)
+  // vs English format: 27,488.06 (comma as thousands, period as decimal)
+  if (cleaned.includes(',') && !cleaned.includes('.')) {
+    // French: last comma is the decimal separator
+    const lastComma = cleaned.lastIndexOf(',');
+    const afterComma = cleaned.slice(lastComma + 1);
+    if (afterComma.length <= 2) {
+      cleaned = cleaned.slice(0, lastComma).replace(/,/g, '') + '.' + afterComma;
+    } else {
+      cleaned = cleaned.replace(/,/g, '');
+    }
+  } else {
+    cleaned = cleaned.replace(/,/g, '');
+  }
   const val = parseFloat(cleaned);
   return isNaN(val) || val <= 0 ? null : val;
 }
 
 function extractAllDollars(line) {
-  const re = /\$?([\d,]+\.\d{2})/g;
+  // Match English ($1,234.56) and French (1234,56 or 1 234,56 $) formats
+  const re = /\$?\s?([\d][\d\s,\.]*\d)\s?\$?/g;
   const results = [];
   let m;
   while ((m = re.exec(line)) !== null) {
     const val = parseDollar(m[1]);
-    if (val !== null) results.push(val);
+    if (val !== null && val >= 0.01) results.push(val);
   }
   return results;
 }
@@ -95,16 +131,18 @@ function shouldSkipLine(line) {
 
 // ─── TEXTRACT JOB MANAGEMENT ──────────────────────────────────────────────────
 async function startJob(s3Key) {
-  const res = await textract.send(new StartDocumentTextDetectionCommand({
+  // Use DocumentAnalysis (OCR) instead of TextDetection — handles scanned/image PDFs
+  const res = await textract.send(new StartDocumentAnalysisCommand({
     DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
+    FeatureTypes: ['TABLES'],
   }));
   return res.JobId;
 }
 
 async function waitForJob(jobId) {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
-    const res = await textract.send(new GetDocumentTextDetectionCommand({ JobId: jobId }));
+    const res = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId }));
     if (res.JobStatus === 'SUCCEEDED') return;
     if (res.JobStatus === 'FAILED') throw new Error('Textract job failed');
   }
@@ -117,7 +155,7 @@ async function getBlocks(jobId) {
   do {
     const params = { JobId: jobId };
     if (nextToken) params.NextToken = nextToken;
-    const res = await textract.send(new GetDocumentTextDetectionCommand(params));
+    const res = await textract.send(new GetDocumentAnalysisCommand(params));
     blocks = blocks.concat(res.Blocks || []);
     nextToken = res.NextToken;
   } while (nextToken);
@@ -131,14 +169,32 @@ function parseFinancials(blocks) {
     .map(b => (b.Text || '').trim())
     .filter(Boolean);
 
-  const fullLower = lines.join('\n').toLowerCase();
+  // Pre-process: join lines that are split across multiple Textract lines
+  // e.g. "Dépôts" + "+" + "27488,06" should become "Dépôts + 27488,06"
+  const joinedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    // If this line looks like a summary keyword but has no number, peek ahead
+    if (/(?:total|d[eé]p[oô]ts?|credits?|deposits?|cr[eé]dits?|incoming|money\s+in)/i.test(line) && !/\d{2,}/.test(line)) {
+      let combined = line;
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        combined += ' ' + lines[j];
+        if (/\d{3,}/.test(lines[j])) { i = j; break; }
+      }
+      joinedLines.push(combined);
+    } else {
+      joinedLines.push(line);
+    }
+  }
+
+  const fullLower = joinedLines.join('\n').toLowerCase();
 
   // ════════════════════════════════════════════════════════════════════════════
   // STEP 1: Try to find summary credit lines using bank-specific patterns
   // ════════════════════════════════════════════════════════════════════════════
   const summaryHits = [];
 
-  for (const line of lines) {
+  for (const line of joinedLines) {
     if (shouldSkipLine(line)) continue;
 
     for (const pattern of SUMMARY_PATTERNS) {
@@ -173,7 +229,7 @@ function parseFinancials(blocks) {
   if (filteredSummary.length === 0) {
     console.log('[Textract] No summary lines found, falling back to individual credit detection');
 
-    for (const line of lines) {
+    for (const line of joinedLines) {
       const lower = line.toLowerCase();
       if (shouldSkipLine(line)) continue;
 
@@ -259,7 +315,7 @@ function parseFinancials(blocks) {
   // STEP 6: Lender detection
   // ════════════════════════════════════════════════════════════════════════════
   const detectedLenders = {};
-  for (const line of lines) {
+  for (const line of joinedLines) {
     const lower = line.toLowerCase();
     const amounts = extractAllDollars(line);
     const hasDollar = amounts.length > 0;
@@ -313,4 +369,20 @@ async function extractBankStatement(s3Key) {
   }
 }
 
-module.exports = { extractBankStatement };
+// Debug: extract raw lines from a bank statement
+async function extractRawLines(s3Key) {
+  try {
+    const jobId = await startJob(s3Key);
+    await waitForJob(jobId);
+    const blocks = await getBlocks(jobId);
+    const lines = blocks
+      .filter(b => b.BlockType === 'LINE')
+      .map(b => (b.Text || '').trim())
+      .filter(Boolean);
+    return { success: true, lineCount: lines.length, lines };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { extractBankStatement, extractRawLines };

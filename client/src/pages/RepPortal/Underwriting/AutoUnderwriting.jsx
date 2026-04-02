@@ -111,8 +111,18 @@ export default function AutoUnderwriting() {
   const [realDocs, setRealDocs] = useState([]);
   const [positionsOpen, setPositionsOpen] = useState(false);
 
-  const availableClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
-  const client = getClientById(selectedClientId);
+  const [apiClients, setApiClients] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/clients-api`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setApiClients(Array.isArray(data) ? data : data.clients || []))
+      .catch(() => setApiClients([]));
+  }, []);
+
+  const allClients = [...CLIENTS, ...apiClients.filter(ac => !CLIENTS.some(mc => mc.id === ac.id))];
+  const availableClients = user.role === 'admin' ? allClients : allClients.filter(c => c.assignedRepId === user.repId || c.repId === user.repId);
+  const client = allClients.find(c => c.id === selectedClientId) || getClientById(selectedClientId);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
@@ -126,7 +136,7 @@ export default function AutoUnderwriting() {
   }, [selectedClientId]);
 
   const runAnalysis = async () => {
-    if (!selectedClientId || !client) return;
+    if (!selectedClientId) return;
     const credit = parseInt(creditScore);
     if (!creditScore || isNaN(credit) || credit < 300 || credit > 850) {
       alert('Please enter a valid credit score (300–850)');
@@ -221,7 +231,7 @@ export default function AutoUnderwriting() {
               >
                 <option value="">Choose a client...</option>
                 {availableClients.map(c => (
-                  <option key={c.id} value={c.id}>{c.businessName} — {c.ownerName}</option>
+                  <option key={c.id} value={c.id}>{c.businessName || c.business_name || 'Unknown'} — {c.ownerName || c.owner_name || c.name || ''}</option>
                 ))}
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -247,9 +257,9 @@ export default function AutoUnderwriting() {
         {client && (
           <div className="pt-3 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Business', value: client.businessName },
-              { label: 'Industry', value: client.industry },
-              { label: 'Requested', value: fmt$(client.requestedAmount) },
+              { label: 'Business', value: client.businessName || client.business_name || '—' },
+              { label: 'Industry', value: client.industry || '—' },
+              { label: 'Requested', value: client.requestedAmount ? fmt$(client.requestedAmount) : '—' },
               { label: 'Docs on File', value: `${realDocs.length} document${realDocs.length !== 1 ? 's' : ''}` },
             ].map(f => (
               <div key={f.label}>

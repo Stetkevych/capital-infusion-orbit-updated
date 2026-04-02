@@ -4,7 +4,7 @@ const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
-const { extractBankStatement } = require('../services/textractService');
+const { extractBankStatement, extractRawLines } = require('../services/textractService');
 const { loadFromS3, saveToS3 } = require('../services/s3Store');
 const EventLogger = require('../services/eventLogger');
 
@@ -237,6 +237,17 @@ router.delete('/:id', async (req, res) => {
     docs.splice(idx, 1);
     await saveDocs(docs);
     res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/documents/debug-textract/:docId ────────────────────────────────
+router.get('/debug-textract/:docId', async (req, res) => {
+  try {
+    const docs = await loadDocs();
+    const doc = docs.find(d => d.id === req.params.docId);
+    if (!doc) return res.status(404).json({ error: 'Doc not found' });
+    const result = await extractRawLines(doc.key);
+    res.json(result);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
