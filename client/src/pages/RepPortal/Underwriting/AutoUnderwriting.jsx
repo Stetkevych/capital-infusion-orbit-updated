@@ -9,16 +9,6 @@ import {
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
-// ─── Deterministic hash so same data = same result ───────────────────────────
-function deterministicSeed(clientId, totalDeposits, avgMonthly) {
-  const str = `${clientId}-${totalDeposits}-${Math.round(avgMonthly)}`;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
 
 // ─── Core underwriting engine ─────────────────────────────────────────────────
 function runUnderwriting({ client, docs, creditScore, financials }) {
@@ -185,25 +175,13 @@ export default function AutoUnderwriting() {
         fromTextract: true,
       };
     } else {
-      // Deterministic fallback while Textract processes
-      // Use requested amount as the avg monthly revenue proxy (most accurate without real data)
-      const seed = deterministicSeed(client.id, bankDocs.length, client.requestedAmount);
-      const avgMonthlyRevenue = client.requestedAmount > 0 ? client.requestedAmount : null;
-      if (!avgMonthlyRevenue) {
-        // No Textract data and no requested amount — can't estimate
-        setResult({ insufficient: true, monthsCovered: bankDocs.length, message: 'Textract is still processing bank statements. Please re-run in 1-2 minutes.' });
-        setLoading(false);
-        setStep('');
-        return;
-      }
-      financialsToUse = {
-        avgMonthlyRevenue,
-        estimatedAnnualRevenue: avgMonthlyRevenue * 12,
-        numberOfDeposits: 18 + (seed % 30),
-        negativeDays: seed % 4,
-        monthsCovered: bankDocs.length,
-        fromTextract: false,
-      };
+      // No Textract data yet — do NOT guess from requestedAmount
+      setResult({ insufficient: true, monthsCovered: bankDocs.length, message: bankDocs.length === 0
+        ? 'No bank statements on file. Upload bank statements to run underwriting.'
+        : 'Textract is still processing bank statements. Please re-run in 1-2 minutes.' });
+      setLoading(false);
+      setStep('');
+      return;
     }
 
     const analysis = runUnderwriting({ client, docs: docsToUse, creditScore: credit, financials: financialsToUse });
