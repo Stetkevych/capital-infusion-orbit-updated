@@ -144,6 +144,25 @@ async function pollCompletedEnvelopes() {
             });
             await saveToS3('documents.json', docs);
             console.log(`[DocuSign Poll] PDF stored: ${key}`);
+
+            // Run Textract on the application to extract additional fields
+            try {
+              const { extractBankStatement } = require('./textractService');
+              const extraction = await extractBankStatement(key);
+              if (extraction.success) {
+                // Parse application-specific fields from the text
+                const lines = (extraction.lines || []).join('\n').toLowerCase();
+                const phoneMatch = lines.match(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
+                const stateMatch = lines.match(/\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b/i);
+                const updates = {};
+                if (phoneMatch && !clientRecord.phone) updates.phone = phoneMatch[1];
+                if (stateMatch && !clientRecord.state) updates.state = stateMatch[1].toUpperCase();
+                if (Object.keys(updates).length > 0) {
+                  await ClientStore.update(clientId, updates);
+                  console.log(`[DocuSign Poll] Textract updated client with:`, updates);
+                }
+              }
+            } catch (te) { console.log(`[DocuSign Poll] Textract on app skipped: ${te.message}`); }
           }
         } catch (e) { console.error(`[DocuSign Poll] PDF failed: ${e.message}`); }
 

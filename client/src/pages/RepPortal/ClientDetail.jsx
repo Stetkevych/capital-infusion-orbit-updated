@@ -150,10 +150,10 @@ export default function ClientDetail() {
       {/* Info strip */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: Mail, value: client.email },
-          { icon: Phone, value: client.phone },
-          { icon: MapPin, value: client.state },
-          { icon: Building2, value: `Rep: ${rep?.name || '—'}` },
+          { icon: Mail, value: client.email || '—' },
+          { icon: Phone, value: client.phone || client.tabData?.phone || client.tabData?.phonenumber || client.tabData?.['phone number'] || '—' },
+          { icon: MapPin, value: client.state || client.tabData?.state || client.address || client.tabData?.address || '—' },
+          { icon: Building2, value: `Rep: ${client.assignedRepName || rep?.name || '—'}` },
         ].map((f, i) => (
           <div key={i} className="flex items-center gap-2 text-gray-600 text-sm">
             <f.icon size={13} className="text-gray-400 shrink-0" /> {f.value}
@@ -171,33 +171,15 @@ export default function ClientDetail() {
             </p>
           </div>
           <div className="divide-y divide-gray-50">
-            {missingCategories.map(cat => {
-              const state = requestingSent[cat.id];
-              return (
-                <div key={cat.id} className="flex items-center justify-between px-5 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base">{cat.icon}</span>
-                    <span className="text-gray-700 text-sm font-medium">{cat.label}</span>
-                  </div>
-                  {can.requestDocs && (
-                    state === 'sent' ? (
-                      <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-                        <CheckCircle2 size={13} /> Requested
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => sendDocRequest(cat.id)}
-                        disabled={state === 'sending'}
-                        className="flex items-center gap-1.5 text-xs bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
-                      >
-                        <Send size={11} />
-                        {state === 'sending' ? 'Sending...' : 'Request via Email'}
-                      </button>
-                    )
-                  )}
+            {missingCategories.map(cat => (
+              <div key={cat.id} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">{cat.icon}</span>
+                  <span className="text-gray-700 text-sm font-medium">{cat.label}</span>
                 </div>
-              );
-            })}
+                <span className="text-xs text-red-400 font-medium">Missing</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -262,17 +244,6 @@ export default function ClientDetail() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {/* Quick request button for this category if missing */}
-                {can.requestDocs && !uploadedCategories.has(selectedCategory) && (
-                  <button
-                    onClick={() => sendDocRequest(selectedCategory)}
-                    disabled={requestingSent[selectedCategory] === 'sending' || requestingSent[selectedCategory] === 'sent'}
-                    className="flex items-center gap-1.5 text-xs border border-gray-200 hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Send size={12} />
-                    {requestingSent[selectedCategory] === 'sent' ? 'Requested' : 'Request'}
-                  </button>
-                )}
                 {can.uploadForClient && (
                   <button
                     onClick={() => setShowUpload(v => !v)}
