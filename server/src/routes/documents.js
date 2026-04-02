@@ -64,6 +64,12 @@ router.post('/confirm', async (req, res) => {
     });
 
     res.json({ doc });
+
+    // Log to activity feed
+    try {
+      const { logActivity } = require('./activity');
+      await logActivity({ eventType: 'upload', clientId, fileName, category, uploadedBy, description: `Document uploaded: ${fileName} (${category})` });
+    } catch {}
   } catch (err) {
     console.error('[S3] Confirm error:', err.message);
     res.status(500).json({ error: err.message });
@@ -110,6 +116,14 @@ router.get('/financials/:clientId', async (req, res) => {
       positions, positionCount: positions.length, totalLenderPayments: Math.round(totalLenderPayments),
       withholdingRate, docsProcessed: docs.length, pendingDocs,
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/documents/client/all ────────────────────────────────────────
+router.get('/client/all', async (req, res) => {
+  try {
+    const docs = await loadDocs();
+    res.json(docs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

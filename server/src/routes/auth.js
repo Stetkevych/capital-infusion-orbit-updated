@@ -42,6 +42,13 @@ router.post('/login', async (req, res) => {
   const { password_hash, ...safe } = user;
   const token = generateToken(safe);
   EventLogger.login({ user_id: safe.id, email: safe.email, role: safe.role });
+
+  // Log to activity feed
+  try {
+    const { logActivity } = require('./activity');
+    await logActivity({ eventType: 'login', userId: safe.id, userName: safe.full_name, userEmail: safe.email, userRole: safe.role, description: `${safe.full_name} logged in` });
+  } catch {}
+
   res.json({ token, user: safe });
 });
 

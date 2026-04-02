@@ -78,6 +78,10 @@ app.use('/api/backfill', backfillRoutes);
 const commissionRoutes = require('./routes/commissions');
 app.use('/api/commissions', commissionRoutes);
 
+// Activity log
+const activityRoutes = require('./routes/activity');
+app.use('/api/activity', activityRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
