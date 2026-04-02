@@ -20,6 +20,7 @@ export const DOC_CATEGORIES = [
 
 export const USERS = [
   { id: 'u1', name: 'Alex Stetkevych', email: 'alexs@capital-infusion.com', password: 'CapitalAdmin2024!', role: ROLES.ADMIN, repId: null, clientId: null },
+  { id: 'u-careem', name: 'Careem Roberts', email: 'careem@capital-infusion.com', password: 'Careem1', role: ROLES.ADMIN, repId: null, clientId: null },
   { id: 'u-anthony', name: 'Anthony Diaz', email: 'anthonyd@capital-infusion.com', password: 'anthony$cool123!', role: ROLES.REP, repId: 'r-anthony', clientId: null, manages: ['r-nik'] },
   { id: 'u-nik', name: 'Nikholas Lazo', email: 'nikholas@capital-infusion.com', password: 'AppPullingBeast23', role: ROLES.REP, repId: 'r-nik', clientId: null, reportsTo: 'r-anthony' },
   { id: 'u-chris', name: 'Christopher Cranton', email: 'christopher.cranton@gmail.com', password: 'chrisbuildstech123', role: ROLES.CLIENT, repId: null, clientId: 'c-chris' },
