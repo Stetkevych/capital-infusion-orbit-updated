@@ -15,9 +15,6 @@ export const DOC_CATEGORIES = [
   { id: 'application', label: 'Application', icon: '📋' },
   { id: 'bank_statements', label: 'Bank Statements', icon: '🏦' },
   { id: 'voided_check', label: 'Voided Check', icon: '✅' },
-  { id: 'signed_agreement', label: 'Signed Agreement', icon: '✍️' },
-  { id: 'funding_docs', label: 'Funding Documents', icon: '💰' },
-  { id: 'misc', label: 'Miscellaneous', icon: '📁' },
 ];
 
 export const USERS = [
