@@ -23,11 +23,12 @@ async function downloadDoc(doc) {
 
 export default function DocumentTable({ documents, onStatusChange, canChangeStatus = false, onDelete }) {
   const [deletedDocs, setDeletedDocs] = useState([]);
+  const [permDeletedIds, setPermDeletedIds] = useState(new Set());
   const [showDeleted, setShowDeleted] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [permDeleteConfirm, setPermDeleteConfirm] = useState(null);
 
-  const activeDocs = documents.filter(d => !deletedDocs.find(dd => dd.id === d.id));
+  const activeDocs = documents.filter(d => !deletedDocs.find(dd => dd.id === d.id) && !permDeletedIds.has(d.id));
 
   const handleSoftDelete = (doc) => {
     setDeletedDocs(prev => [...prev, doc]);
@@ -44,6 +45,7 @@ export default function DocumentTable({ documents, onStatusChange, canChangeStat
       await fetch(`${API}/documents/${doc.id}`, { method: 'DELETE' });
     } catch {}
     setDeletedDocs(prev => prev.filter(d => d.id !== doc.id));
+    setPermDeletedIds(prev => new Set([...prev, doc.id]));
     if (onDelete) onDelete(doc.id, 'permanent');
     setPermDeleteConfirm(null);
   };
