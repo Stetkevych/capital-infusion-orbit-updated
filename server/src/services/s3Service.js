@@ -14,7 +14,6 @@ async function getPresignedUploadUrl({ clientId, category, fileName, contentType
     Bucket: BUCKET,
     Key: key,
     ContentType: contentType || 'application/octet-stream',
-    Metadata: { clientId, category, originalName: fileName },
   });
 
   const url = await getSignedUrl(s3, command, { expiresIn: 300 });

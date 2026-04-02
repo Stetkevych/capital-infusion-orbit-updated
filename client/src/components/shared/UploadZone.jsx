@@ -7,60 +7,28 @@ const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.docx,.doc,.xlsx,.xls,.csv';
 const MAX_SIZE_MB = 50;
 
 async function uploadToS3(file, category, clientId, uploadedBy, token) {
-  // Step 1 — get presigned URL
-  const headers = { 'Content-Type': 'application/json' };
+  const formData = new FormData();
+  formData.append('files', file);
+  formData.append('clientId', clientId);
+  formData.append('category', category);
+  formData.append('uploadedBy', uploadedBy || 'unknown');
+
+  const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const presignRes = await fetch(`${API}/documents/presign`, {
+  const res = await fetch(`${API}/documents/upload`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      clientId,
-      category,
-      fileName: file.name,
-      contentType: file.type || 'application/octet-stream',
-    }),
+    body: formData,
   });
 
-  if (!presignRes.ok) {
-    const err = await presignRes.json().catch(() => ({}));
-    throw new Error(err.error || `Presign failed (${presignRes.status})`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Upload failed (${res.status})`);
   }
 
-  const { url, key } = await presignRes.json();
-
-  // Step 2 — PUT directly to S3
-  const uploadRes = await fetch(url, {
-    method: 'PUT',
-    body: file,
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-    },
-  });
-
-  if (!uploadRes.ok) {
-    throw new Error(`S3 upload failed (${uploadRes.status}) — check bucket CORS policy`);
-  }
-
-  // Step 3 — confirm with server to register document
-  const confirmRes = await fetch(`${API}/documents/confirm`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      key,
-      clientId,
-      category,
-      fileName: file.name,
-      fileSize: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-      uploadedBy: uploadedBy || 'unknown',
-    }),
-  });
-
-  if (!confirmRes.ok) {
-    console.warn('[Upload] Confirm failed but file is in S3:', key);
-  }
-
-  return key;
+  const data = await res.json();
+  return data.docs?.[0]?.key || 'uploaded';
 }
 
 export default function UploadZone({

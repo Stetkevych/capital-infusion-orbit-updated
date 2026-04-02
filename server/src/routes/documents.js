@@ -1,9 +1,16 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { v4: uuidv4 } = require('uuid');
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
 const { extractBankStatement } = require('../services/textractService');
 const { loadFromS3, saveToS3 } = require('../services/s3Store');
 const EventLogger = require('../services/eventLogger');
+
+const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const DOC_FILE = 'documents.json';
 async function loadDocs() { return await loadFromS3(DOC_FILE); }
@@ -20,6 +27,68 @@ router.post('/presign', async (req, res) => {
     res.json({ url, key });
   } catch (err) {
     console.error('[S3] Presign error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/documents/upload ───────────────────────────────────────────────
+// Direct server-side upload — no presigned URL needed
+router.post('/upload', upload.array('files', 20), async (req, res) => {
+  try {
+    const { clientId, category, uploadedBy } = req.body;
+    if (!clientId || !category || !req.files?.length) {
+      return res.status(400).json({ error: 'clientId, category, and files required' });
+    }
+
+    const docs = await loadDocs();
+    const results = [];
+
+    for (const file of req.files) {
+      const key = `clients/${clientId}/${category}/${uuidv4()}_${file.originalname}`;
+
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype || 'application/octet-stream',
+      }));
+
+      const doc = {
+        id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        key, clientId, category,
+        fileName: file.originalname,
+        fileSize: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+        uploadedBy: uploadedBy || 'unknown',
+        uploadedAt: new Date().toISOString(),
+        status: 'Uploaded', visibility: 'all', tags: [], note: '',
+        extractedFinancials: null,
+        extractionStatus: category === 'bank_statements' ? 'pending' : 'n/a',
+      };
+
+      docs.push(doc);
+      results.push(doc);
+
+      if (category === 'bank_statements') {
+        const docId = doc.id;
+        extractBankStatement(key).then(async (financials) => {
+          const allDocs = await loadDocs();
+          const idx = allDocs.findIndex(d => d.id === docId);
+          if (idx !== -1) {
+            allDocs[idx].extractedFinancials = financials;
+            allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
+            await saveDocs(allDocs);
+            console.log(`[Textract] Extraction complete for ${file.originalname}:`, financials.success ? 'success' : financials.error);
+          }
+        }).catch(err => console.error('[Textract] Async error:', err.message));
+      }
+
+      console.log(`[Upload] ${file.originalname} → ${key} (${doc.fileSize})`);
+    }
+
+    await saveDocs(docs);
+    res.json({ uploaded: results.length, docs: results });
+  } catch (err) {
+    console.error('[Upload] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
