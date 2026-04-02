@@ -5,63 +5,63 @@ const REGION = process.env.AWS_REGION || 'us-east-1';
 
 const textract = new TextractClient({ region: REGION });
 
-// ─── Known MCA/lender keywords to detect positions ───────────────────────────
-const LENDER_KEYWORDS = [
-  'idea', 'channel', 'can', 'wall', 'fund so fast', 'fundsofast',
-  'lg', 'legend', 'pinnacle', 'specialty', 'britecap', 'fox',
-  'rtmi', 'family funding', 'afb', 'dexly', 'credibly', 'ondeck', 'on deck',
-  'libertas', 'kapitus', 'pirs', 'afg', 'mulligan', 'byzfunder', 'fintap',
-  'fundworks', 'forward', 'headway', 'cedar', 'hunter caroline',
-  'newco', 'smarter merchant', 'spartan', 'luminar', 'everest', 'bitty',
-  'arsenal', 'pearl', 'cfg', 'gfe', 'mayfair', 'iruka', 'cobalt', 'lily',
-  'jw capital', 'amerifi', 'lendini', 'nexi', 'fundfi', 'throttle', 'velocity',
-  'smart step', 'garden', 'vader', 'rapid', 'greenbox',
-  'backd', 'journey', '2m7', 'merchant growth', 'canacap', 'icapital',
-  'sheaves', 'ontap', 'km capital', 'lexio', 'expansion', 'payroc',
+// ─── Lender keywords split into safe (unique) and ambiguous (need $ on same line) ─
+const SAFE_KEYWORDS = [
+  'fund so fast', 'fundsofast', 'britecap', 'credibly', 'ondeck', 'on deck',
+  'libertas', 'kapitus', 'byzfunder', 'fintap', 'fundworks', 'greenbox',
+  'canacap', 'icapital', 'km capital', 'expansion capital', 'payroc',
   'drip capital', 'jrw capital', 'east harbor', 'merit equipment', 'slim capital',
-  'smartbiz', 'loanbud', 'indvance', 'inadvance',
-  'mca servicing', 'global merchant', 'fundry', 'enova', 'mrbizcap', 'sbfs',
-  'ufce', 'united first', 'global funding', 'dbf servicing', 'strategic funding',
-  'funding metrics', '3201961', 'ontario inc', '11302078', 'canada ltd',
-  'retail capital', 'fund cap', 'merchant opportunities', 'advance service',
-  'ecg', 'j&g', 'icg', 'jr capital', 'lending services', 'ural link',
-  'ascentra', 'delta', 'delta bridge', 'house', 'fundamental',
-  'channel partners',
+  'smartbiz', 'loanbud', 'indvance', 'hunter caroline', 'smarter merchant',
+  'merchant growth', 'family funding', 'channel partners', 'smart step',
+  'jw capital', 'mca servicing', 'global merchant', 'strategic funding',
+  'funding metrics', 'retail capital', 'merchant opportunities',
+  'delta bridge', 'lending services', 'fund cap', 'advance service',
+  'dbf servicing', 'united first', 'global funding',
+  'amerifi', 'lendini', 'fundfi', 'throttle', 'velocity', 'dexly',
+  'mulligan', 'spartan', 'luminar', 'everest', 'mayfair', 'iruka',
+  'cobalt', 'sheaves', 'ontap', 'lexio', 'backd', 'pinnacle',
+  'specialty', 'rtmi', 'afb', 'afg', 'pirs', 'cfg', 'gfe', 'nexi',
+  '2m7', 'legend', 'headway', 'newco', 'vader', 'rapid finance',
+  'arsenal', 'bitty', 'fundry', 'enova', 'mrbizcap',
 ];
 
-// Sort longest-first so "channel partners" matches before "channel"
-const SORTED_KEYWORDS = [...LENDER_KEYWORDS].sort((a, b) => b.length - a.length);
+// These common words only count as lender matches if a dollar amount is on the same line
+const AMBIGUOUS_KEYWORDS = [
+  'idea', 'channel', 'can', 'wall', 'lg', 'fox', 'pearl', 'lily',
+  'garden', 'journey', 'cedar', 'forward', 'house', 'delta', 'rapid',
+  'fundamental', 'ascentra',
+];
 
-// Match lender keywords in a line of text — returns array of matched keywords
-// e.g. "GREENBOX CAPITA" matches "greenbox", "SHEAVES CAPITAL" matches "sheaves"
-function matchLender(lineText) {
+const ALL_KEYWORDS = [...SAFE_KEYWORDS, ...AMBIGUOUS_KEYWORDS].sort((a, b) => b.length - a.length);
+
+function matchLender(lineText, hasDollar) {
   const lower = lineText.toLowerCase();
   const matches = [];
   const used = new Set();
-  for (const keyword of SORTED_KEYWORDS) {
-    if (lower.includes(keyword) && !used.has(keyword)) {
-      matches.push(keyword);
-      used.add(keyword);
-      // If a longer keyword contains a shorter one, skip the shorter
-      // e.g. "channel partners" found → skip "channel"
-      for (const other of SORTED_KEYWORDS) {
-        if (other !== keyword && keyword.includes(other)) used.add(other);
-      }
+  for (const keyword of ALL_KEYWORDS) {
+    if (used.has(keyword)) continue;
+    if (!lower.includes(keyword)) continue;
+
+    // Ambiguous keywords require a dollar amount on the same line
+    if (AMBIGUOUS_KEYWORDS.includes(keyword) && !hasDollar) continue;
+
+    matches.push(keyword);
+    used.add(keyword);
+    for (const other of ALL_KEYWORDS) {
+      if (other !== keyword && keyword.includes(other)) used.add(other);
     }
   }
   return matches;
 }
 
-// ─── Start async Textract job ─────────────────────────────────────────────────
+// ─── Textract job management ──────────────────────────────────────────────────
 async function startTextractJob(s3Key) {
-  const cmd = new StartDocumentTextDetectionCommand({
+  const res = await textract.send(new StartDocumentTextDetectionCommand({
     DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
-  });
-  const res = await textract.send(cmd);
+  }));
   return res.JobId;
 }
 
-// ─── Poll until job completes (max 90s) ───────────────────────────────────────
 async function waitForJob(jobId) {
   for (let i = 0; i < 30; i++) {
     await new Promise(r => setTimeout(r, 3000));
@@ -72,7 +72,6 @@ async function waitForJob(jobId) {
   throw new Error('Textract job timed out');
 }
 
-// ─── Collect all pages of results ────────────────────────────────────────────
 async function getAllBlocks(jobId) {
   let blocks = [];
   let nextToken;
@@ -86,11 +85,22 @@ async function getAllBlocks(jobId) {
   return blocks;
 }
 
-// ─── Parse a dollar string to float ──────────────────────────────────────────
 function parseDollar(str) {
   const cleaned = str.replace(/[$,\s]/g, '');
   const val = parseFloat(cleaned);
   return isNaN(val) ? null : val;
+}
+
+// Helper: extract all dollar amounts from a line (fresh regex each time — fix #1)
+function extractAmounts(line, min = 1, max = 9999999) {
+  const re = /\$?([\d,]+\.\d{2})/g;
+  const amounts = [];
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    const val = parseDollar(m[1]);
+    if (val !== null && val >= min && val <= max) amounts.push(val);
+  }
+  return amounts;
 }
 
 // ─── Main parser ──────────────────────────────────────────────────────────────
@@ -102,50 +112,74 @@ function parseFinancials(blocks) {
 
   const fullText = lines.join('\n').toLowerCase();
 
-  const creditLines = [];
-  const debitLines = [];
-
-  const dollarRe = /\$?([\d,]+\.\d{2})/g;
-
+  // ── Step 1: Look for summary credit lines FIRST (most accurate) ───────────
+  const summaryCredits = [];
   lines.forEach(line => {
     const lower = line.toLowerCase();
-    const amounts = [];
-    let m;
-    while ((m = dollarRe.exec(line)) !== null) {
-      const val = parseDollar(m[1]);
-      if (val !== null && val >= 1 && val <= 9999999) amounts.push(val);
-    }
-    if (!amounts.length) return;
-
-    const isCredit =
-      /\b(cr|credit|deposit|dep|incoming|received|transfer in|direct dep|payroll|ach credit|wire in)\b/.test(lower) ||
-      /\+\s*\$/.test(line);
-
-    const isDebit =
-      /\b(dr|debit|withdrawal|withdraw|payment|purchase|pos |ach debit|wire out|check|fee|charge)\b/.test(lower) ||
-      /-\s*\$/.test(line);
-
-    if (isCredit && !isDebit) {
-      amounts.forEach(v => creditLines.push({ amount: v, line }));
-    } else if (isDebit && !isCredit) {
-      amounts.forEach(v => debitLines.push({ amount: v, line }));
+    const isSummaryLine = /\b(total credits|total deposits|credits this period|credits in this period|total credit|deposits total|total dep)\b/.test(lower);
+    if (isSummaryLine) {
+      const amounts = extractAmounts(line, 100, 99999999);
+      if (amounts.length > 0) {
+        const best = Math.max(...amounts);
+        summaryCredits.push(best);
+        console.log(`[Textract] Summary line: "${line.trim()}" → $${best.toLocaleString()}`);
+      }
     }
   });
 
-  // ── Determine months covered ──────────────────────────────────────────────
-  const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
-  const foundMonths = new Set();
-  let mm;
-  while ((mm = monthRe.exec(fullText)) !== null) {
-    foundMonths.add(mm[1].toLowerCase().slice(0, 3));
+  // ── Step 2: If no summary lines, sum individual credits ───────────────────
+  const creditLines = [];
+
+  if (summaryCredits.length === 0) {
+    lines.forEach(line => {
+      const lower = line.toLowerCase();
+      const amounts = extractAmounts(line);
+      if (!amounts.length) return;
+
+      const isCredit =
+        /\b(cr|credit|deposit|dep|incoming|received|transfer in|direct dep|payroll|ach credit|wire in)\b/.test(lower) ||
+        /\+\s*\$/.test(line);
+
+      const isDebit =
+        /\b(dr|debit|withdrawal|withdraw|payment|purchase|pos |ach debit|wire out|check|fee|charge)\b/.test(lower) ||
+        /-\s*\$/.test(line);
+
+      if (isCredit && !isDebit) {
+        amounts.forEach(v => creditLines.push({ amount: v, line }));
+      }
+    });
   }
-  const monthsCovered = Math.max(foundMonths.size, 1);
 
-  // ── Avg monthly revenue ───────────────────────────────────────────────────
-  const totalCredits = creditLines.reduce((sum, c) => sum + c.amount, 0);
-  const numberOfDeposits = creditLines.length;
+  // ── Months covered — use summary line count if available (fix #2) ─────────
+  // If we found summary lines, each one = 1 month. More reliable than counting month names.
+  let monthsCovered;
+  if (summaryCredits.length > 0) {
+    monthsCovered = summaryCredits.length;
+  } else {
+    const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
+    const foundMonths = new Set();
+    let mm;
+    while ((mm = monthRe.exec(fullText)) !== null) {
+      foundMonths.add(mm[1].toLowerCase().slice(0, 3));
+    }
+    monthsCovered = Math.max(foundMonths.size, 1);
+  }
 
-  const avgMonthlyRevenue = numberOfDeposits > 0 && totalCredits > 0
+  // ── Calculate revenue ─────────────────────────────────────────────────────
+  let totalCredits;
+  let numberOfDeposits;
+
+  if (summaryCredits.length > 0) {
+    totalCredits = summaryCredits.reduce((sum, v) => sum + v, 0);
+    numberOfDeposits = summaryCredits.length;
+    console.log(`[Textract] Using ${summaryCredits.length} summary line(s), total: $${totalCredits.toLocaleString()}`);
+  } else {
+    totalCredits = creditLines.reduce((sum, c) => sum + c.amount, 0);
+    numberOfDeposits = creditLines.length;
+    console.log(`[Textract] Summed ${numberOfDeposits} individual credits: $${totalCredits.toLocaleString()}`);
+  }
+
+  const avgMonthlyRevenue = totalCredits > 0
     ? Math.round(totalCredits / monthsCovered)
     : null;
 
@@ -156,26 +190,21 @@ function parseFinancials(blocks) {
   const negMatches = fullText.match(negRe) || [];
   const negativeDays = negMatches.length;
 
-  // ── Lender position detection (keyword-based, fuzzy) ──────────────────────
+  // ── Lender position detection (fix #4 — ambiguous words need $ context) ───
   const detectedLenders = {};
 
   lines.forEach(line => {
-    const matched = matchLender(line);
-    matched.forEach(keyword => {
-      const amounts = [];
-      let m2;
-      const re = /\$?([\d,]+\.\d{2})/g;
-      while ((m2 = re.exec(line)) !== null) {
-        const val = parseDollar(m2[1]);
-        if (val !== null && val >= 100 && val <= 500000) amounts.push(val);
-      }
+    const amounts = extractAmounts(line, 100, 500000);
+    const hasDollar = amounts.length > 0;
+    const matched = matchLender(line, hasDollar);
 
+    matched.forEach(keyword => {
       const normalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
       if (!detectedLenders[normalized]) {
         detectedLenders[normalized] = { name: normalized, totalPaid: 0, occurrences: 0 };
       }
       detectedLenders[normalized].occurrences += 1;
-      if (amounts.length) {
+      if (hasDollar) {
         detectedLenders[normalized].totalPaid += amounts.reduce((a, b) => a + b, 0);
       }
     });
@@ -200,10 +229,10 @@ function parseFinancials(blocks) {
     withholdingRate,
     extractedAt: new Date().toISOString(),
     confidence: avgMonthlyRevenue ? 'high' : 'low',
+    lines, // include raw lines for debugging
   };
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
 async function extractBankStatement(s3Key) {
   try {
     const jobId = await startTextractJob(s3Key);

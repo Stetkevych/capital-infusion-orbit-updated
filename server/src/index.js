@@ -70,6 +70,10 @@ app.use('/api/offers', offersRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/metrics', metricsRoutes);
 
+// One-time backfill route
+const backfillRoutes = require('./routes/backfill');
+app.use('/api/backfill', backfillRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

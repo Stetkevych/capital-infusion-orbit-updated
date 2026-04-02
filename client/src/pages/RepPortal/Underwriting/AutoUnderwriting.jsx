@@ -188,7 +188,14 @@ export default function AutoUnderwriting() {
       // Deterministic fallback while Textract processes
       // Use requested amount as the avg monthly revenue proxy (most accurate without real data)
       const seed = deterministicSeed(client.id, bankDocs.length, client.requestedAmount);
-      const avgMonthlyRevenue = client.requestedAmount; // requested = what they think they make monthly
+      const avgMonthlyRevenue = client.requestedAmount > 0 ? client.requestedAmount : null;
+      if (!avgMonthlyRevenue) {
+        // No Textract data and no requested amount — can't estimate
+        setResult({ insufficient: true, monthsCovered: bankDocs.length, message: 'Textract is still processing bank statements. Please re-run in 1-2 minutes.' });
+        setLoading(false);
+        setStep('');
+        return;
+      }
       financialsToUse = {
         avgMonthlyRevenue,
         estimatedAnnualRevenue: avgMonthlyRevenue * 12,
