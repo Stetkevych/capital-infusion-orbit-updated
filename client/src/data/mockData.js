@@ -11,10 +11,11 @@ export const DOC_STATUS = {
 };
 
 export const DOC_CATEGORIES = [
-  { id: 'drivers_license', label: "Driver's License / ID", icon: '🪪' },
-  { id: 'application', label: 'Application', icon: '📋' },
-  { id: 'bank_statements', label: 'Bank Statements', icon: '🏦' },
-  { id: 'voided_check', label: 'Voided Check', icon: '✅' },
+  { id: 'drivers_license', label: "Driver's License / ID", icon: '🪪', required: true },
+  { id: 'application', label: 'Application', icon: '📋', required: true },
+  { id: 'bank_statements', label: 'Bank Statements', icon: '🏦', required: true },
+  { id: 'voided_check', label: 'Voided Check', icon: '✅', required: true },
+  { id: 'funding_docs', label: 'Funding Documents', icon: '💰', required: false },
 ];
 
 export const USERS = [
@@ -62,7 +63,7 @@ export const getRequestsByClient = (clientId) => DOCUMENT_REQUESTS.filter(r => r
 export const getActivityByClient = (clientId) => ACTIVITY_LOG.filter(a => a.clientId === clientId).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 export const getMissingCategories = (clientId) => {
   const uploaded = new Set(getDocumentsByClient(clientId).map(d => d.category));
-  return DOC_CATEGORIES.filter(c => !uploaded.has(c.id));
+  return DOC_CATEGORIES.filter(c => c.required && !uploaded.has(c.id));
 };
 export const getUserByEmail = (email) => USERS.find(u => u.email === email) || null;
 export const getRepById = (repId) => REPS.find(r => r.id === repId) || null;

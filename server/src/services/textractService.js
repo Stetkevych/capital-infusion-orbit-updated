@@ -5,7 +5,7 @@ const REGION = process.env.AWS_REGION || 'us-east-1';
 
 const textract = new TextractClient({ region: REGION });
 
-// ─── Lender keywords split into safe (unique) and ambiguous (need $ on same line) ─
+// ─── Lender keywords: safe ones always match, ambiguous ones need $ on same line
 const SAFE_KEYWORDS = [
   'fund so fast', 'fundsofast', 'britecap', 'credibly', 'ondeck', 'on deck',
   'libertas', 'kapitus', 'byzfunder', 'fintap', 'fundworks', 'greenbox',
@@ -25,7 +25,6 @@ const SAFE_KEYWORDS = [
   'arsenal', 'bitty', 'fundry', 'enova', 'mrbizcap',
 ];
 
-// These common words only count as lender matches if a dollar amount is on the same line
 const AMBIGUOUS_KEYWORDS = [
   'idea', 'channel', 'can', 'wall', 'lg', 'fox', 'pearl', 'lily',
   'garden', 'journey', 'cedar', 'forward', 'house', 'delta', 'rapid',
@@ -38,23 +37,19 @@ function matchLender(lineText, hasDollar) {
   const lower = lineText.toLowerCase();
   const matches = [];
   const used = new Set();
-  for (const keyword of ALL_KEYWORDS) {
-    if (used.has(keyword)) continue;
-    if (!lower.includes(keyword)) continue;
-
-    // Ambiguous keywords require a dollar amount on the same line
-    if (AMBIGUOUS_KEYWORDS.includes(keyword) && !hasDollar) continue;
-
-    matches.push(keyword);
-    used.add(keyword);
+  for (const kw of ALL_KEYWORDS) {
+    if (used.has(kw) || !lower.includes(kw)) continue;
+    if (AMBIGUOUS_KEYWORDS.includes(kw) && !hasDollar) continue;
+    matches.push(kw);
+    used.add(kw);
     for (const other of ALL_KEYWORDS) {
-      if (other !== keyword && keyword.includes(other)) used.add(other);
+      if (other !== kw && kw.includes(other)) used.add(other);
     }
   }
   return matches;
 }
 
-// ─── Textract job management ──────────────────────────────────────────────────
+// ─── Textract job helpers ─────────────────────────────────────────────────────
 async function startTextractJob(s3Key) {
   const res = await textract.send(new StartDocumentTextDetectionCommand({
     DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
@@ -91,8 +86,7 @@ function parseDollar(str) {
   return isNaN(val) ? null : val;
 }
 
-// Helper: extract all dollar amounts from a line (fresh regex each time — fix #1)
-function extractAmounts(line, min = 1, max = 9999999) {
+function extractAmounts(line, min = 1, max = 99999999) {
   const re = /\$?([\d,]+\.\d{2})/g;
   const amounts = [];
   let m;
@@ -110,74 +104,121 @@ function parseFinancials(blocks) {
     .map(b => (b.Text || '').trim())
     .filter(Boolean);
 
-  const fullText = lines.join('\n').toLowerCase();
+  const fullText = lines.join('\n');
+  const fullLower = fullText.toLowerCase();
 
-  // ── Step 1: Look for summary credit lines FIRST (most accurate) ───────────
+  // ── Method A: Find summary credit lines ───────────────────────────────────
   const summaryCredits = [];
+  const summaryPatterns = /\b(total credits|total deposits|credits this period|credits in this period|total credit|deposits total|total dep|credits|total incoming)\b/i;
+
   lines.forEach(line => {
-    const lower = line.toLowerCase();
-    const isSummaryLine = /\b(total credits|total deposits|credits this period|credits in this period|total credit|deposits total|total dep)\b/.test(lower);
-    if (isSummaryLine) {
-      const amounts = extractAmounts(line, 100, 99999999);
+    if (summaryPatterns.test(line.toLowerCase())) {
+      const amounts = extractAmounts(line, 1000, 99999999);
       if (amounts.length > 0) {
-        const best = Math.max(...amounts);
-        summaryCredits.push(best);
-        console.log(`[Textract] Summary line: "${line.trim()}" → $${best.toLocaleString()}`);
+        summaryCredits.push(Math.max(...amounts));
       }
     }
   });
 
-  // ── Step 2: If no summary lines, sum individual credits ───────────────────
-  const creditLines = [];
+  // ── Method B: Sum all individual credit transactions ──────────────────────
+  let individualCreditTotal = 0;
+  let individualCreditCount = 0;
 
-  if (summaryCredits.length === 0) {
-    lines.forEach(line => {
-      const lower = line.toLowerCase();
-      const amounts = extractAmounts(line);
-      if (!amounts.length) return;
+  lines.forEach(line => {
+    const lower = line.toLowerCase();
+    const amounts = extractAmounts(line);
+    if (!amounts.length) return;
 
-      const isCredit =
-        /\b(cr|credit|deposit|dep|incoming|received|transfer in|direct dep|payroll|ach credit|wire in)\b/.test(lower) ||
-        /\+\s*\$/.test(line);
+    const isCredit =
+      /\b(cr|credit|deposit|dep\b|incoming|received|transfer in|direct dep|payroll|ach credit|wire in)\b/.test(lower) ||
+      /\+\s*\$/.test(line);
 
-      const isDebit =
-        /\b(dr|debit|withdrawal|withdraw|payment|purchase|pos |ach debit|wire out|check|fee|charge)\b/.test(lower) ||
-        /-\s*\$/.test(line);
+    const isDebit =
+      /\b(dr|debit|withdrawal|withdraw|payment|purchase|pos\b|ach debit|wire out|check\b|fee\b|charge)\b/.test(lower) ||
+      /-\s*\$/.test(line);
 
-      if (isCredit && !isDebit) {
-        amounts.forEach(v => creditLines.push({ amount: v, line }));
-      }
-    });
-  }
+    // Skip summary lines from individual count to avoid double counting
+    const isSummary = summaryPatterns.test(lower);
 
-  // ── Months covered — use summary line count if available (fix #2) ─────────
-  // If we found summary lines, each one = 1 month. More reliable than counting month names.
-  let monthsCovered;
-  if (summaryCredits.length > 0) {
-    monthsCovered = summaryCredits.length;
-  } else {
-    const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
-    const foundMonths = new Set();
-    let mm;
-    while ((mm = monthRe.exec(fullText)) !== null) {
-      foundMonths.add(mm[1].toLowerCase().slice(0, 3));
+    if (isCredit && !isDebit && !isSummary) {
+      amounts.forEach(v => { individualCreditTotal += v; individualCreditCount++; });
     }
-    monthsCovered = Math.max(foundMonths.size, 1);
-  }
+  });
 
-  // ── Calculate revenue ─────────────────────────────────────────────────────
+  // ── Months covered ────────────────────────────────────────────────────────
+  const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
+  const foundMonths = new Set();
+  let mm;
+  while ((mm = monthRe.exec(fullLower)) !== null) {
+    foundMonths.add(mm[1].slice(0, 3));
+  }
+  const monthsCovered = Math.max(foundMonths.size, 1);
+
+  // ── Pick the best revenue number ──────────────────────────────────────────
+  // Strategy: use summary if found, otherwise use individual sum.
+  // If both exist, use whichever is larger (summary should be >= individual sum)
+  // IMPORTANT: If multiple summary lines exist for the same document and one is
+  // zero (e.g. savings $0 + checking $97k), discard the zero — it's a null account.
+  // Only keep zero if it's the ONLY account for that period.
   let totalCredits;
   let numberOfDeposits;
+  let method;
 
-  if (summaryCredits.length > 0) {
-    totalCredits = summaryCredits.reduce((sum, v) => sum + v, 0);
-    numberOfDeposits = summaryCredits.length;
-    console.log(`[Textract] Using ${summaryCredits.length} summary line(s), total: $${totalCredits.toLocaleString()}`);
-  } else {
-    totalCredits = creditLines.reduce((sum, c) => sum + c.amount, 0);
-    numberOfDeposits = creditLines.length;
-    console.log(`[Textract] Summed ${numberOfDeposits} individual credits: $${totalCredits.toLocaleString()}`);
+  // Filter out zero summary lines IF there are non-zero ones in the same document
+  let filteredSummary = summaryCredits;
+  if (summaryCredits.length > 1) {
+    const nonZero = summaryCredits.filter(v => v > 0);
+    if (nonZero.length > 0) {
+      filteredSummary = nonZero;
+    }
   }
+
+  const summaryTotal = filteredSummary.reduce((s, v) => s + v, 0);
+
+  if (summaryTotal > 0 && individualCreditTotal > 0) {
+    // Both methods produced results — use the larger one
+    if (summaryTotal >= individualCreditTotal) {
+      totalCredits = summaryTotal;
+      numberOfDeposits = filteredSummary.length;
+      method = 'summary';
+    } else {
+      totalCredits = individualCreditTotal;
+      numberOfDeposits = individualCreditCount;
+      method = 'individual';
+    }
+  } else if (summaryTotal > 0) {
+    totalCredits = summaryTotal;
+    numberOfDeposits = filteredSummary.length;
+    method = 'summary';
+  } else if (individualCreditTotal > 0) {
+    totalCredits = individualCreditTotal;
+    numberOfDeposits = individualCreditCount;
+    method = 'individual';
+  } else {
+    // Last resort: find the largest dollar amounts that could be monthly totals
+    const allAmounts = [];
+    lines.forEach(line => {
+      extractAmounts(line, 5000, 99999999).forEach(v => allAmounts.push(v));
+    });
+    // Sort descending, take top values that could be monthly credit totals
+    allAmounts.sort((a, b) => b - a);
+    if (allAmounts.length >= 1) {
+      // Take amounts that are in a reasonable range of each other (within 3x)
+      const candidates = [allAmounts[0]];
+      for (let i = 1; i < Math.min(allAmounts.length, 6); i++) {
+        if (allAmounts[i] >= allAmounts[0] * 0.2) candidates.push(allAmounts[i]);
+      }
+      totalCredits = candidates.reduce((s, v) => s + v, 0);
+      numberOfDeposits = candidates.length;
+      method = 'heuristic';
+    } else {
+      totalCredits = 0;
+      numberOfDeposits = 0;
+      method = 'none';
+    }
+  }
+
+  console.log(`[Textract] Method: ${method} | Total credits: $${totalCredits.toLocaleString()} | Months: ${monthsCovered} | Summary found: ${summaryCredits.length} | Individual credits: ${individualCreditCount}`);
 
   const avgMonthlyRevenue = totalCredits > 0
     ? Math.round(totalCredits / monthsCovered)
@@ -187,34 +228,27 @@ function parseFinancials(blocks) {
 
   // ── Negative days ─────────────────────────────────────────────────────────
   const negRe = /(-\$[\d,]+\.?\d{0,2}|\bOD\b|overdraft|nsf|insufficient funds|negative balance)/gi;
-  const negMatches = fullText.match(negRe) || [];
+  const negMatches = fullLower.match(negRe) || [];
   const negativeDays = negMatches.length;
 
-  // ── Lender position detection (fix #4 — ambiguous words need $ context) ───
+  // ── Lender detection ──────────────────────────────────────────────────────
   const detectedLenders = {};
-
   lines.forEach(line => {
     const amounts = extractAmounts(line, 100, 500000);
     const hasDollar = amounts.length > 0;
     const matched = matchLender(line, hasDollar);
-
-    matched.forEach(keyword => {
-      const normalized = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-      if (!detectedLenders[normalized]) {
-        detectedLenders[normalized] = { name: normalized, totalPaid: 0, occurrences: 0 };
-      }
+    matched.forEach(kw => {
+      const normalized = kw.charAt(0).toUpperCase() + kw.slice(1);
+      if (!detectedLenders[normalized]) detectedLenders[normalized] = { name: normalized, totalPaid: 0, occurrences: 0 };
       detectedLenders[normalized].occurrences += 1;
-      if (hasDollar) {
-        detectedLenders[normalized].totalPaid += amounts.reduce((a, b) => a + b, 0);
-      }
+      if (hasDollar) detectedLenders[normalized].totalPaid += amounts.reduce((a, b) => a + b, 0);
     });
   });
 
   const positions = Object.values(detectedLenders).filter(l => l.occurrences > 0);
   const totalLenderPayments = positions.reduce((sum, l) => sum + l.totalPaid, 0);
   const withholdingRate = avgMonthlyRevenue && totalLenderPayments > 0
-    ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1))
-    : 0;
+    ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1)) : 0;
 
   return {
     avgMonthlyRevenue,
@@ -227,9 +261,11 @@ function parseFinancials(blocks) {
     positionCount: positions.length,
     totalLenderPayments: Math.round(totalLenderPayments),
     withholdingRate,
+    method,
+    summaryCreditsFound: summaryCredits.length,
+    individualCreditsFound: individualCreditCount,
     extractedAt: new Date().toISOString(),
-    confidence: avgMonthlyRevenue ? 'high' : 'low',
-    lines, // include raw lines for debugging
+    confidence: avgMonthlyRevenue ? (method === 'summary' ? 'high' : method === 'individual' ? 'medium' : 'low') : 'none',
   };
 }
 

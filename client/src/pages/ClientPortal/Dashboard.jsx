@@ -6,7 +6,7 @@ import StatusBadge from '../../components/shared/StatusBadge';
 import { FileText, Bell, AlertCircle, ArrowRight, Mail, Phone } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
-const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => ['drivers_license', 'application', 'bank_statements', 'voided_check'].includes(c.id));
+const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => c.required);
 
 export default function ClientDashboard() {
   const { user, token } = useAuth();

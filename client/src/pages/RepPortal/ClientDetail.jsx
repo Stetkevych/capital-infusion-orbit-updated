@@ -226,7 +226,7 @@ export default function ClientDetail() {
                   >
                     <span className="text-xs font-medium truncate">{cat.icon} {cat.label}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                      count > 0 ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-400'
+                      count > 0 ? 'bg-gray-100 text-gray-500' : cat.required ? 'bg-red-50 text-red-400' : 'bg-gray-50 text-gray-300'
                     }`}>{count}</span>
                   </button>
                 );
