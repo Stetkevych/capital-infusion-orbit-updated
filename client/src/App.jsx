@@ -25,6 +25,7 @@ import Analytics from './pages/RepPortal/Analytics';
 import RequestsPage from './pages/RepPortal/Requests';
 import NotesPage from './pages/RepPortal/Notes';
 import ActivityPage from './pages/RepPortal/Activity';
+import Training from './pages/RepPortal/Training';
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -79,6 +80,7 @@ function RepRoutes() {
       <Route path="/requests" element={<RequestsPage />} />
       <Route path="/notes" element={<NotesPage />} />
       <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/training" element={<Training />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator
+  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap
 } from 'lucide-react';
 
 const REP_LINKS = [
@@ -19,6 +19,7 @@ const REP_LINKS = [
   { path: '/commissions', label: 'Commissions', icon: Calculator },
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/activity', label: 'Activity', icon: Activity },
+  { path: '/training', label: 'Training', icon: GraduationCap },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/client-credentials', label: 'Client Credentials', icon: Key },
   { path: '/settings', label: 'Settings', icon: Settings },
