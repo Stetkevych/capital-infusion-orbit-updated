@@ -18,14 +18,26 @@ const MOCK_USERS = [
 ];
 
 export default function UserManagement() {
-  const { user } = useAuth();
-  const [users, setUsers] = useState(MOCK_USERS);
+  const { user, token } = useAuth();
+  const [users, setUsers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ email: '', full_name: '', role: 'rep', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  // Fetch real users from server
+  React.useEffect(() => {
+    fetch(`${API}/auth/users`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setUsers(data))
+      .catch(() => {})
+      .finally(() => setFetching(false));
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -36,16 +48,9 @@ export default function UserManagement() {
     setError('');
 
     try {
-      // Get token from localStorage
-      const stored = localStorage.getItem('mca_user');
-      const sessionUser = stored ? JSON.parse(stored) : null;
-
       const res = await fetch(`${API}/auth/users`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionUser?.token || ''}`,
-        },
+        headers,
         body: JSON.stringify({
           email: form.email,
           full_name: form.full_name,

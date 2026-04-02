@@ -75,6 +75,12 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Start DocuSign envelope polling
+  try {
+    const { startPolling } = require('./services/docusignPoller');
+    startPolling();
+  } catch (e) { console.warn('[DocuSign Poll] Could not start:', e.message); }
 });
 
 module.exports = app;
