@@ -19,6 +19,7 @@ import SecureUpload from './pages/RepPortal/SecureUpload';
 import DocumentCenter from './pages/RepPortal/DocumentCenter';
 import AutoUnderwriting from './pages/RepPortal/Underwriting/AutoUnderwriting';
 import DealLog from './pages/RepPortal/DealLog';
+import CommissionCalculator from './pages/RepPortal/CommissionCalculator';
 import HelpPage from './pages/RepPortal/Help';
 import Analytics from './pages/RepPortal/Analytics';
 import RequestsPage from './pages/RepPortal/Requests';
@@ -72,6 +73,7 @@ function RepRoutes() {
       <Route path="/documents" element={<DocumentCenter />} />
       <Route path="/underwriting" element={<AutoUnderwriting />} />
       <Route path="/deals" element={<DealLog />} />
+      <Route path="/commissions" element={<CommissionCalculator />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/analytics" element={<Analytics />} />
       <Route path="/requests" element={<RequestsPage />} />

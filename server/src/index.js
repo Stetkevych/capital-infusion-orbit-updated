@@ -74,6 +74,10 @@ app.use('/api/metrics', metricsRoutes);
 const backfillRoutes = require('./routes/backfill');
 app.use('/api/backfill', backfillRoutes);
 
+// Commission calculator
+const commissionRoutes = require('./routes/commissions');
+app.use('/api/commissions', commissionRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
