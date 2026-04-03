@@ -251,4 +251,39 @@ router.get('/debug-textract/:docId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── POST /api/documents/reprocess/:clientId ─────────────────────────────────
+// Re-run Textract on all bank statements for a client (clears old bad data)
+router.post('/reprocess/:clientId', async (req, res) => {
+  try {
+    const docs = await loadDocs();
+    const bankDocs = docs.filter(d => d.clientId === req.params.clientId && d.category === 'bank_statements');
+    if (bankDocs.length === 0) return res.json({ reprocessed: 0, message: 'No bank statements found' });
+
+    let count = 0;
+    for (const doc of bankDocs) {
+      const idx = docs.findIndex(d => d.id === doc.id);
+      if (idx === -1) continue;
+      docs[idx].extractedFinancials = null;
+      docs[idx].extractionStatus = 'pending';
+      count++;
+
+      const docId = doc.id;
+      const key = doc.key;
+      extractBankStatement(key).then(async (financials) => {
+        const allDocs = await loadDocs();
+        const i = allDocs.findIndex(d => d.id === docId);
+        if (i !== -1) {
+          allDocs[i].extractedFinancials = financials;
+          allDocs[i].extractionStatus = financials.success ? 'complete' : 'failed';
+          await saveDocs(allDocs);
+          console.log(`[Reprocess] ${doc.fileName}: ${financials.success ? 'success' : financials.error}`);
+        }
+      }).catch(err => console.error(`[Reprocess] Error: ${err.message}`));
+    }
+
+    await saveDocs(docs);
+    res.json({ reprocessed: count, message: `Re-extracting ${count} bank statements. Check back in 30-60 seconds.` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

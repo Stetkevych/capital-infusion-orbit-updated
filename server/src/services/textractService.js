@@ -5,44 +5,41 @@ const REGION = process.env.AWS_REGION || 'us-east-1';
 const textract = new TextractClient({ region: REGION });
 
 // ─── BANK SUMMARY PATTERNS ───────────────────────────────────────────────────
-// Each pattern: regex to match the line, then extract the dollar amount from it.
-// Ordered by specificity — most specific first.
-// Dollar amount pattern — handles both English (1,234.56) and French (1234,56 or 1 234,56) formats
-const AMT = '\\$?\\s*([\\d][\\d\\s,\\.]*\\d)';
-
 const SUMMARY_PATTERNS = [
+  // Credit union: "19 Credit(s) This Period $98,189.01"
+  /\d+\s+credit.?s.?\s+this\s+period\s*.?([\d,]+\.\d{2})/i,
   // English patterns
-  new RegExp(`total\\s+deposits?\\s+and\\s+(?:other\\s+)?(?:additions?|credits?)\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+deposits?\\s+and\\s+additions?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+credits?\\s+this\\s+period\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`credits?\\s+(?:this|in\\s+this)\\s+period\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+credits?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+deposits?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`deposits?\\s+total\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+additions?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+incoming\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+money\\s+in\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`deposits?\\s+&\\s+(?:other\\s+)?credits?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`credits?\\s+&\\s+deposits?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+(?:electronic\\s+)?deposits?\\s*[:\\s]*${AMT}`, 'i'),
+  /total\s+deposits?\s+and\s+(?:other\s+)?(?:additions?|credits?)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+deposits?\s+and\s+additions?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+credits?\s+this\s+period\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /credits?\s+(?:this|in\s+this)\s+period\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+credits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /deposits?\s+total\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+additions?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+incoming\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+money\s+in\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /deposits?\s+&\s+(?:other\s+)?credits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /credits?\s+&\s+deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+(?:electronic\s+)?deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   // Canadian English
-  new RegExp(`total\\s+credits?\\s+\\(CAD\\)\\s*[:\\s]*${AMT}`, 'i'),
-  // French / Canadian French
-  new RegExp(`total\\s+des\\s+(?:cr[eé]dits?|d[eé]p[oô]ts?)\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`d[eé]p[oô]ts?\\s*[:\\+\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+d[eé]p[oô]ts?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`cr[eé]dits?\\s*[:\\+\\s]*${AMT}`, 'i'),
+  /total\s+credits?\s+\(CAD\)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  // French / Canadian French (comma as decimal: 27488,06)
+  /total\s+des\s+cr[e\u00e9]dits?\s*[:\s]*\$?([\d][\d\s]*,\d{2})/i,
+  /total\s+des\s+d[e\u00e9]p[o\u00f4]ts?\s*[:\s]*\$?([\d][\d\s]*,\d{2})/i,
+  /d[e\u00e9]p[o\u00f4]ts?\s*[:\+\s]*\$?([\d][\d\s]*,\d{2})/i,
   // Spanish
-  new RegExp(`total\\s+(?:de\\s+)?dep[oó]sitos?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`total\\s+(?:de\\s+)?cr[eé]ditos?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`dep[oó]sitos?\\s+totales?\\s*[:\\s]*${AMT}`, 'i'),
-  new RegExp(`ingresos?\\s+totales?\\s*[:\\s]*${AMT}`, 'i'),
+  /total\s+(?:de\s+)?dep[o\u00f3]sitos?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /total\s+(?:de\s+)?cr[e\u00e9]ditos?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /dep[o\u00f3]sitos?\s+totales?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
+  /ingresos?\s+totales?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
 ];
 
-// Lines to SKIP — these look like summary lines but aren't credits
+// Lines to SKIP
 const SKIP_PATTERNS = [
   /total\s+(?:debits?|withdrawals?|checks?|fees?|charges?|payments?)/i,
   /total\s+(?:money\s+out|outgoing)/i,
+  /\d+\s+debit.?s.?\s+this\s+period/i,
   /ending\s+balance/i,
   /beginning\s+balance/i,
   /opening\s+balance/i,
@@ -50,22 +47,28 @@ const SKIP_PATTERNS = [
   /available\s+balance/i,
   /current\s+balance/i,
   /minimum\s+balance/i,
-  /average\s+(?:daily\s+)?balance/i,
+  /average\s+(?:daily\s+)?(?:ledger\s+)?balance/i,
   /overdraft/i,
-  /interest\s+(?:earned|paid|charged)/i,
+  /interest\s+(?:earned|paid|charged|days)/i,
+  /annual\s+percentage/i,
   /service\s+(?:charge|fee)/i,
-  /account\s+(?:number|summary)/i,
-  /statement\s+period/i,
+  /account\s+(?:number|summary|type)/i,
+  /member\s+number/i,
+  /phone\s+number/i,
+  /statement\s+(?:period|ending)/i,
   /page\s+\d/i,
+  /total\s+current\s+value/i,
+  /total\s+(?:for\s+this|year)/i,
+  /total\s+(?:overdraft|returned)/i,
   // French
-  /retraits?/i,
-  /solde\s+(?:d['’]ouverture|de\s+cl[oô]ture|reporté)/i,
+  /retraits?\s/i,
+  /solde\s+(?:d['\u2019]ouverture|de\s+cl[o\u00f4]ture|report\u00e9)/i,
   /frais\s+(?:de\s+service|maximum)/i,
-  /int[eé]r[eê]t\s+sur/i,
-  /d[eé]couvert/i,
+  /int[e\u00e9]r[e\u00ea]t\s+sur/i,
+  /d[e\u00e9]couvert/i,
   // Spanish
   /saldo\s+(?:inicial|final|disponible)/i,
-  /total\s+(?:de\s+)?(?:retiros?|d[eé]bitos?|cargos?)/i,
+  /total\s+(?:de\s+)?(?:retiros?|d[e\u00e9]bitos?|cargos?)/i,
 ];
 
 // ─── LENDER KEYWORDS ──────────────────────────────────────────────────────────
@@ -79,9 +82,10 @@ const SAFE_LENDERS = [
   'jw capital', 'amerifi', 'lendini', 'fundfi', 'throttle', 'velocity', 'dexly',
   'mulligan', 'spartan', 'luminar', 'everest', 'mayfair', 'iruka',
   'cobalt', 'sheaves', 'ontap', 'lexio', 'backd', 'pinnacle',
-  'specialty', 'rtmi', 'afb', 'afg', 'pirs', 'cfg', 'gfe', 'nexi',
+  'specialty', 'rtmi', 'afb', 'afg', 'pirs', 'gfe', 'nexi',
   '2m7', 'legend', 'headway', 'newco', 'vader', 'rapid finance',
   'arsenal', 'bitty', 'mca servicing', 'strategic funding',
+  'cfgms', 'eminent funding', 'ebf holdings',
 ];
 
 const AMBIGUOUS_LENDERS = [
@@ -95,10 +99,8 @@ const ALL_LENDERS = [...SAFE_LENDERS, ...AMBIGUOUS_LENDERS].sort((a, b) => b.len
 function parseDollar(str) {
   if (!str) return null;
   let cleaned = str.replace(/[$\s]/g, '');
-  // Detect French format: 27488,06 or 27 488,06 (comma as decimal, no period)
-  // vs English format: 27,488.06 (comma as thousands, period as decimal)
+  // French format: comma as decimal (27488,06)
   if (cleaned.includes(',') && !cleaned.includes('.')) {
-    // French: last comma is the decimal separator
     const lastComma = cleaned.lastIndexOf(',');
     const afterComma = cleaned.slice(lastComma + 1);
     if (afterComma.length <= 2) {
@@ -114,13 +116,33 @@ function parseDollar(str) {
 }
 
 function extractAllDollars(line) {
-  // Match English ($1,234.56) and French (1234,56 or 1 234,56 $) formats
-  const re = /\$?\s?([\d][\d\s,\.]*\d)\s?\$?/g;
   const results = [];
+  // STRICT: only match proper dollar amounts — $1,234.56 or standalone 1,234.56
+  // Must have $ sign OR be a number with exactly 2 decimal places
+  const re = /\$([\d,]+\.\d{2})\b/g;
   let m;
   while ((m = re.exec(line)) !== null) {
     const val = parseDollar(m[1]);
-    if (val !== null && val >= 0.01) results.push(val);
+    if (val !== null) results.push(val);
+  }
+  // If no $ signs found, try bare amounts with .XX decimal (but NOT phone numbers like 800.411.7590)
+  if (results.length === 0) {
+    const bareRe = /(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g;
+    while ((m = bareRe.exec(line)) !== null) {
+      const raw = m[1];
+      // Skip if it looks like a phone number (has multiple dots) or too many digits without commas
+      if ((raw.match(/\./g) || []).length > 1) continue;
+      const val = parseDollar(raw);
+      if (val !== null) results.push(val);
+    }
+  }
+  // French format: 27488,06 $
+  if (results.length === 0) {
+    const frRe = /([\d][\d\s]*,\d{2})\s*\$/g;
+    while ((m = frRe.exec(line)) !== null) {
+      const val = parseDollar(m[1]);
+      if (val !== null) results.push(val);
+    }
   }
   return results;
 }
@@ -131,7 +153,6 @@ function shouldSkipLine(line) {
 
 // ─── TEXTRACT JOB MANAGEMENT ──────────────────────────────────────────────────
 async function startJob(s3Key) {
-  // Use DocumentAnalysis (OCR) instead of TextDetection — handles scanned/image PDFs
   const res = await textract.send(new StartDocumentAnalysisCommand({
     DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
     FeatureTypes: ['TABLES'],
@@ -169,17 +190,15 @@ function parseFinancials(blocks) {
     .map(b => (b.Text || '').trim())
     .filter(Boolean);
 
-  // Pre-process: join lines that are split across multiple Textract lines
-  // e.g. "Dépôts" + "+" + "27488,06" should become "Dépôts + 27488,06"
+  // Pre-process: join lines split across Textract lines
   const joinedLines = [];
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
-    // If this line looks like a summary keyword but has no number, peek ahead
-    if (/(?:total|d[eé]p[oô]ts?|credits?|deposits?|cr[eé]dits?|incoming|money\s+in)/i.test(line) && !/\d{2,}/.test(line)) {
+    if (/(?:total|d[e\u00e9]p[o\u00f4]ts?|credit|deposit|cr[e\u00e9]dits?|incoming|money\s+in|this\s+period)/i.test(line) && !/\$[\d,]+\.\d{2}/.test(line) && !/[\d][\d\s]*,\d{2}\s*\$/.test(line)) {
       let combined = line;
       for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
         combined += ' ' + lines[j];
-        if (/\d{3,}/.test(lines[j])) { i = j; break; }
+        if (/\$[\d,]+\.\d{2}/.test(lines[j]) || /[\d][\d\s]*,\d{2}\s*\$/.test(lines[j])) { i = j; break; }
       }
       joinedLines.push(combined);
     } else {
@@ -189,46 +208,38 @@ function parseFinancials(blocks) {
 
   const fullLower = joinedLines.join('\n').toLowerCase();
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // STEP 1: Try to find summary credit lines using bank-specific patterns
-  // ════════════════════════════════════════════════════════════════════════════
+  // STEP 1: Summary credit lines
   const summaryHits = [];
-
   for (const line of joinedLines) {
     if (shouldSkipLine(line)) continue;
-
     for (const pattern of SUMMARY_PATTERNS) {
       const match = line.match(pattern);
       if (match) {
         const val = parseDollar(match[1]);
         if (val && val >= 100) {
           summaryHits.push({ value: val, line: line.trim(), pattern: pattern.source });
-          console.log(`[Textract] ✓ Summary match: "${line.trim()}" → $${val.toLocaleString()}`);
+          console.log(`[Textract] \u2713 Summary match: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
         }
-        break; // one pattern match per line is enough
+        break;
       }
     }
   }
 
-  // Filter out zero/null accounts if multiple summary lines found
-  // If one account has $82k and another has $500, the $500 is a dormant savings — discard it
+  // Filter dormant accounts (10% threshold)
   let filteredSummary = summaryHits.map(h => h.value);
   if (filteredSummary.length > 1) {
     const maxVal = Math.max(...filteredSummary);
-    const threshold = maxVal * 0.10; // anything less than 10% of the largest is a dormant account
+    const threshold = maxVal * 0.10;
     const significant = filteredSummary.filter(v => v >= threshold);
     if (significant.length > 0) filteredSummary = significant;
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // STEP 2: If no summary found, sum individual deposit transactions
-  // ════════════════════════════════════════════════════════════════════════════
+  // STEP 2: Individual deposit fallback
   let individualTotal = 0;
   let individualCount = 0;
 
   if (filteredSummary.length === 0) {
     console.log('[Textract] No summary lines found, falling back to individual credit detection');
-
     for (const line of joinedLines) {
       const lower = line.toLowerCase();
       if (shouldSkipLine(line)) continue;
@@ -236,12 +247,9 @@ function parseFinancials(blocks) {
       const amounts = extractAllDollars(line);
       if (!amounts.length) continue;
 
-      // Only count lines that are clearly credits/deposits
-      const isCredit = /\b(deposit|credit|cr\b|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in|mobile\s+deposit|atm\s+deposit|direct\s+deposit)\b/i.test(lower);
+      const isCredit = /\b(deposit|credit|cr\b|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in|wire\s+deposit|mobile\s+deposit|atm\s+deposit|direct\s+deposit)\b/i.test(lower);
       const isDebit = /\b(debit|dr\b|withdrawal|withdraw|payment|purchase|pos\b|ach\s+debit|wire\s+out|check\b|fee\b|charge|transfer\s+out)\b/i.test(lower);
 
-      // Must be explicitly a credit, not ambiguous
-      // If both credit and debit keywords found, check which appears first
       if (isCredit) {
         if (isDebit) {
           const creditPos = lower.search(/\b(deposit|credit|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in)\b/i);
@@ -258,17 +266,13 @@ function parseFinancials(blocks) {
     console.log(`[Textract] Individual credits: ${individualCount} transactions, total: $${individualTotal.toLocaleString()}`);
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // STEP 3: Determine months covered
-  // ════════════════════════════════════════════════════════════════════════════
+  // STEP 3: Months covered
   const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
   const foundMonths = new Set();
   let mm;
   while ((mm = monthRe.exec(fullLower)) !== null) {
     foundMonths.add(mm[1].slice(0, 3));
   }
-
-  // If we found summary lines, use their count as months (more reliable)
   let monthsCovered;
   if (filteredSummary.length > 0) {
     monthsCovered = filteredSummary.length;
@@ -276,13 +280,8 @@ function parseFinancials(blocks) {
     monthsCovered = Math.max(foundMonths.size, 1);
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
   // STEP 4: Calculate revenue
-  // ════════════════════════════════════════════════════════════════════════════
-  let totalCredits;
-  let numberOfDeposits;
-  let method;
-
+  let totalCredits, numberOfDeposits, method;
   const summaryTotal = filteredSummary.reduce((s, v) => s + v, 0);
 
   if (summaryTotal > 0) {
@@ -304,16 +303,12 @@ function parseFinancials(blocks) {
 
   console.log(`[Textract] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()}`);
 
-  // ════════════════════════════════════════════════════════════════════════════
   // STEP 5: Negative days
-  // ════════════════════════════════════════════════════════════════════════════
   const negRe = /(-\$[\d,]+\.?\d{0,2}|\bOD\b|overdraft|nsf|insufficient\s+funds|negative\s+balance)/gi;
   const negMatches = fullLower.match(negRe) || [];
   const negativeDays = negMatches.length;
 
-  // ════════════════════════════════════════════════════════════════════════════
   // STEP 6: Lender detection
-  // ════════════════════════════════════════════════════════════════════════════
   const detectedLenders = {};
   for (const line of joinedLines) {
     const lower = line.toLowerCase();
@@ -323,12 +318,15 @@ function parseFinancials(blocks) {
     for (const kw of ALL_LENDERS) {
       if (!lower.includes(kw)) continue;
       if (AMBIGUOUS_LENDERS.includes(kw) && !hasDollar) continue;
+      // Skip if the keyword is part of a longer word (e.g. "can" in "scanning")
+      const kwRe = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (!kwRe.test(lower)) continue;
 
-      const name = kw.charAt(0).toUpperCase() + kw.slice(1);
+      const name = kw.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       if (!detectedLenders[name]) detectedLenders[name] = { name, totalPaid: 0, occurrences: 0 };
       detectedLenders[name].occurrences++;
       if (hasDollar) detectedLenders[name].totalPaid += amounts.reduce((a, b) => a + b, 0);
-      break; // one lender match per line
+      break;
     }
   }
 
@@ -369,7 +367,6 @@ async function extractBankStatement(s3Key) {
   }
 }
 
-// Debug: extract raw lines from a bank statement
 async function extractRawLines(s3Key) {
   try {
     const jobId = await startJob(s3Key);

@@ -121,7 +121,7 @@ export default function AutoUnderwriting() {
   }, []);
 
   const allClients = [...CLIENTS, ...apiClients.filter(ac => !CLIENTS.some(mc => mc.id === ac.id))];
-  const availableClients = user.role === 'admin' ? allClients : allClients.filter(c => c.assignedRepId === user.repId || c.repId === user.repId);
+  const availableClients = user.role === 'admin' ? allClients : allClients.filter(c => c.assignedRepId === user.repId || c.assignedRepId === user.id || c.repId === user.repId || c.repId === user.id);
   const client = allClients.find(c => c.id === selectedClientId) || getClientById(selectedClientId);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
