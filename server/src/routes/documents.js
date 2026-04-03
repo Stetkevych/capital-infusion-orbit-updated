@@ -87,6 +87,42 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
 
     await saveDocs(docs);
     res.json({ uploaded: results.length, docs: results });
+
+    // Log activity + notify rep (only for client uploads)
+    try {
+      const UserStore = require('../services/userStore');
+      const ClientStore = require('../services/clientStore');
+      const uploader = uploadedBy ? await UserStore.findById(uploadedBy) : null;
+      if (uploader && uploader.role === 'client') {
+        const { logActivity } = require('./activity');
+        for (const doc of results) {
+          await logActivity({ eventType: 'upload', clientId, fileName: doc.fileName, category, uploadedBy, description: `Client uploaded: ${doc.fileName} (${category})` });
+        }
+        // Email the assigned rep
+        const client = await ClientStore.getById(clientId);
+        if (client && client.assignedRepId) {
+          const rep = await UserStore.findById(client.assignedRepId);
+          if (rep && rep.email) {
+            const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+            const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+            const FROM = process.env.FROM_EMAIL || 'noreply@orbit-technology.com';
+            const fileNames = results.map(d => d.fileName).join(', ');
+            await ses.send(new SendEmailCommand({
+              Source: `Capital Infusion <${FROM}>`,
+              Destination: { ToAddresses: [rep.email] },
+              Message: {
+                Subject: { Data: `Document Uploaded: ${client.businessName || client.ownerName}` },
+                Body: {
+                  Html: { Data: `<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:20px"><h2 style="color:#1d1d1f">New Document Upload</h2><p style="color:#424245"><strong>${client.ownerName || client.businessName}</strong> just uploaded:</p><div style="background:#f5f5f7;border-radius:12px;padding:16px;margin:16px 0"><p style="margin:4px 0;color:#424245"><strong>Files:</strong> ${fileNames}</p><p style="margin:4px 0;color:#424245"><strong>Category:</strong> ${category}</p></div><p style="color:#424245"><a href="https://orbit-technology.com/clients/${clientId}">View in Orbit →</a></p><p style="color:#86868b;font-size:12px;margin-top:24px">Capital Infusion · Orbit Platform</p></div>` },
+                  Text: { Data: `${client.ownerName} uploaded ${fileNames} (${category}). View: https://orbit-technology.com/clients/${clientId}` },
+                },
+              },
+            })).catch(e => console.log('[Email] Rep notify failed:', e.message));
+            console.log(`[Upload] Rep ${rep.email} notified about upload from ${client.ownerName}`);
+          }
+        }
+      }
+    } catch (e) { console.log('[Upload] Activity/notify error:', e.message); }
   } catch (err) {
     console.error('[Upload] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -134,10 +170,14 @@ router.post('/confirm', async (req, res) => {
 
     res.json({ doc });
 
-    // Log to activity feed
+    // Log activity only for client uploads
     try {
-      const { logActivity } = require('./activity');
-      await logActivity({ eventType: 'upload', clientId, fileName, category, uploadedBy, description: `Document uploaded: ${fileName} (${category})` });
+      const UserStore = require('../services/userStore');
+      const uploader = uploadedBy ? await UserStore.findById(uploadedBy) : null;
+      if (uploader && uploader.role === 'client') {
+        const { logActivity } = require('./activity');
+        await logActivity({ eventType: 'upload', clientId, fileName, category, uploadedBy, description: `Client uploaded: ${fileName} (${category})` });
+      }
     } catch {}
   } catch (err) {
     console.error('[S3] Confirm error:', err.message);
