@@ -57,7 +57,7 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
         id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         key, clientId, category,
         fileName: file.originalname,
-        fileSize: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+        fileSize: file.size >= 102400 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${Math.round(file.size / 1024)} KB`,
         uploadedBy: uploadedBy || 'unknown',
         uploadedAt: new Date().toISOString(),
         status: 'Uploaded', visibility: 'all', tags: [], note: '',

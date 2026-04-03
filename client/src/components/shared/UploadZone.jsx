@@ -171,7 +171,7 @@ export default function UploadZone({
             )}
 
             {u.status === 'done' && (
-              <p className="text-green-500 text-xs mt-0.5">✓ Saved to S3 · {u.size ? `${(u.size/1024/1024).toFixed(1)} MB` : ''}</p>
+              <p className="text-green-500 text-xs mt-0.5">✓ Saved to S3 · {u.size ? (u.size < 102400 ? `${Math.round(u.size/1024)} KB` : `${(u.size/1024/1024).toFixed(1)} MB`) : ''}</p>
             )}
 
             {u.status === 'error' && (
