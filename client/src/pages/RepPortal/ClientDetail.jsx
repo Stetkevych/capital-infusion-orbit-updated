@@ -89,25 +89,21 @@ export default function ClientDetail() {
     const cat = DOC_CATEGORIES.find(c => c.id === category);
     setRequestingSent(prev => ({ ...prev, [category]: 'sending' }));
     try {
-      await fetch(`${API}/docusign/request-document`, {
+      await fetch(`${API}/clients-api/${id}/reminder`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          clientEmail: client.email,
-          clientName: client.ownerName,
-          businessName: client.businessName,
-          category: cat.label,
+          category: cat.id,
+          categoryLabel: cat.label,
           instructions: `Please upload your ${cat.label} at your earliest convenience.`,
-          repName: user?.name,
-          portalUrl: window.location.origin,
         }),
       });
       setRequestingSent(prev => ({ ...prev, [category]: 'sent' }));
-      setNotification(`Request sent to ${client.email} for ${cat.label}`);
+      setNotification(`✈️ Request sent to ${client.email} for ${cat.label}`);
       setTimeout(() => setNotification(null), 4000);
     } catch {
       setRequestingSent(prev => ({ ...prev, [category]: 'sent' }));
-      setNotification(`Request queued for ${cat.label} — will send when server is reachable`);
+      setNotification(`Request queued for ${cat.label}`);
       setTimeout(() => setNotification(null), 4000);
     }
   };
@@ -151,12 +147,13 @@ export default function ClientDetail() {
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: Mail, value: client.email || '—' },
-          { icon: Phone, value: client.phone || client.tabData?.phone || client.tabData?.phonenumber || client.tabData?.['phone number'] || '—' },
-          { icon: MapPin, value: client.state || client.tabData?.state || client.address || client.tabData?.address || '—' },
+          { icon: Phone, value: client.phone || client.tabData?.phone || client.tabData?.phonenumber || client.tabData?.['phone number'] || client.tabData?.['phone_number'] || '—' },
+          { icon: MapPin, value: client.state || client.tabData?.state || client.tabData?.st || client.address || client.tabData?.address || client.tabData?.city || '—' },
           { icon: Building2, value: `Rep: ${client.assignedRepName || rep?.name || '—'}` },
         ].map((f, i) => (
           <div key={i} className="flex items-center gap-2 text-gray-600 text-sm">
-            <f.icon size={13} className="text-gray-400 shrink-0" /> {f.value}
+            <f.icon size={13} className="text-gray-400 shrink-0" />
+            <span className="truncate">{f.value}</span>
           </div>
         ))}
       </div>
@@ -171,15 +168,34 @@ export default function ClientDetail() {
             </p>
           </div>
           <div className="divide-y divide-gray-50">
-            {missingCategories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">{cat.icon}</span>
-                  <span className="text-gray-700 text-sm font-medium">{cat.label}</span>
+            {missingCategories.map(cat => {
+              const reqState = requestingSent[cat.id];
+              return (
+                <div key={cat.id} className="flex items-center justify-between px-5 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">{cat.icon}</span>
+                    <span className="text-gray-700 text-sm font-medium">{cat.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-red-400 font-medium">Missing</span>
+                    {client.email && reqState !== 'sent' && (
+                      <button
+                        onClick={() => sendDocRequest(cat.id)}
+                        disabled={reqState === 'sending'}
+                        className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                      >
+                        <Send size={11} /> {reqState === 'sending' ? 'Sending...' : 'Request'}
+                      </button>
+                    )}
+                    {reqState === 'sent' && (
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle2 size={11} /> Sent
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-red-400 font-medium">Missing</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
