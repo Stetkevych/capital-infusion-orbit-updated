@@ -37,10 +37,10 @@ export default function RepDashboard() {
   const recentActivity = ACTIVITY_LOG.filter(a => myClientIds.has(a.clientId)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
 
   const stats = [
-    { label: 'Clients', value: myClients.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Pending Requests', value: pendingRequests.length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' },
-    { label: 'Missing Docs', value: clientsMissingDocs.length, icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50' },
-    { label: 'Total Documents', value: DOCUMENTS.filter(d => myClientIds.has(d.clientId)).length, icon: FileText, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Clients', value: myClients.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', link: '/clients' },
+    { label: 'Pending Requests', value: pendingRequests.length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50', link: '/requests' },
+    { label: 'Missing Docs', value: clientsMissingDocs.length, icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', link: '/clients' },
+    { label: 'Total Documents', value: DOCUMENTS.filter(d => myClientIds.has(d.clientId)).length, icon: FileText, color: 'text-green-600', bg: 'bg-green-50', link: '/documents' },
   ];
 
   return (
@@ -52,13 +52,13 @@ export default function RepDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
-          <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <Link key={s.label} to={s.link} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:border-gray-200 hover:shadow-md transition-all cursor-pointer">
             <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-4`}>
               <s.icon size={17} className={s.color} />
             </div>
             <p className={`text-2xl font-bold tracking-tight ${s.color}`}>{s.value}</p>
             <p className="text-gray-400 text-xs mt-1">{s.label}</p>
-          </div>
+          </Link>
         ))}
       </div>
 

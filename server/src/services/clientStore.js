@@ -9,7 +9,10 @@ async function save(data) { await saveToS3(FILE, data); }
 const ClientStore = {
   async getAll() { return (await load()).filter(c => !c.deleted); },
   async getDeleted() { return (await load()).filter(c => c.deleted); },
-  async getByRep(repId) { return (await load()).filter(c => c.assignedRepId === repId && !c.deleted); },
+  async getByRep(repIds) {
+    const ids = Array.isArray(repIds) ? repIds : [repIds];
+    return (await load()).filter(c => ids.includes(c.assignedRepId) && !c.deleted);
+  },
   async getById(id) { return (await load()).find(c => c.id === id) || null; },
   async getByEmail(email) { return (await load()).find(c => c.email?.toLowerCase() === email?.toLowerCase()) || null; },
 

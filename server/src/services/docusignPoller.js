@@ -177,6 +177,29 @@ async function pollCompletedEnvelopes() {
               temp_password: tempPassword, business_name: parsedBusinessName || merchantName,
             });
             console.log(`[DocuSign Poll] Account created: ${merchantEmail} / ${tempPassword}`);
+
+            // Auto-email login credentials to client
+            try {
+              const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+              const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+              const FROM = process.env.FROM_EMAIL || 'noreply@orbit-technology.com';
+              const PORTAL = process.env.FRONTEND_URL || 'https://orbit-technology.com';
+              const firstName = merchantName.split(' ')[0];
+              await ses.send(new SendEmailCommand({
+                Source: `Capital Infusion <${FROM}>`,
+                Destination: { ToAddresses: [merchantEmail] },
+                Message: {
+                  Subject: { Data: 'Your Capital Infusion Portal Login' },
+                  Body: {
+                    Html: { Data: `<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:20px"><h2 style="color:#1d1d1f">Welcome, ${firstName}!</h2><p style="color:#424245">Your application has been received. Here are your login credentials for the Capital Infusion portal:</p><div style="background:#f5f5f7;border-radius:12px;padding:20px;margin:20px 0"><p style="margin:4px 0;color:#424245"><strong>Portal:</strong> <a href="${PORTAL}">${PORTAL}</a></p><p style="margin:4px 0;color:#424245"><strong>Email:</strong> ${merchantEmail}</p><p style="margin:4px 0;color:#424245"><strong>Password:</strong> ${tempPassword}</p></div><p style="color:#424245">Log in to upload documents, track your application status, and communicate with your representative.</p><p style="color:#86868b;font-size:12px;margin-top:24px">Capital Infusion &middot; Merchant Cash Advance Platform</p></div>` },
+                    Text: { Data: `Welcome ${firstName}! Your portal login: ${PORTAL} | Email: ${merchantEmail} | Password: ${tempPassword}` },
+                  },
+                },
+              }));
+              console.log(`[DocuSign Poll] Login credentials emailed to ${merchantEmail}`);
+            } catch (emailErr) {
+              console.log(`[DocuSign Poll] Credential email failed: ${emailErr.message}`);
+            }
           }
         } catch (e) { console.error(`[DocuSign Poll] User create failed: ${e.message}`); }
 

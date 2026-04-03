@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     const user = req.user;
     const clients = user.role === 'admin'
       ? await ClientStore.getAll()
-      : await ClientStore.getByRep(user.rep_id || user.repId || user.id);
+      : await ClientStore.getByRep([user.rep_id, user.repId, user.id].filter(Boolean));
     res.json(clients);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

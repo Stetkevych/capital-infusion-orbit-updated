@@ -310,15 +310,19 @@ function parseFinancials(blocks) {
 
   // STEP 6: Lender detection
   const detectedLenders = {};
-  for (const line of joinedLines) {
+  for (let li = 0; li < joinedLines.length; li++) {
+    const line = joinedLines[li];
     const lower = line.toLowerCase();
-    const amounts = extractAllDollars(line);
+    let amounts = extractAllDollars(line);
+    // If no dollar amount on this line, peek at next line
+    if (amounts.length === 0 && li + 1 < joinedLines.length) {
+      amounts = extractAllDollars(joinedLines[li + 1]);
+    }
     const hasDollar = amounts.length > 0;
 
     for (const kw of ALL_LENDERS) {
       if (!lower.includes(kw)) continue;
       if (AMBIGUOUS_LENDERS.includes(kw) && !hasDollar) continue;
-      // Skip if the keyword is part of a longer word (e.g. "can" in "scanning")
       const kwRe = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (!kwRe.test(lower)) continue;
 
