@@ -112,19 +112,28 @@ export default function AutoUnderwriting() {
   const [positionsOpen, setPositionsOpen] = useState(false);
 
   const [apiClients, setApiClients] = useState([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
   useEffect(() => {
-    fetch(`${API}/clients-api`, { headers })
+    fetch(`${API}/clients-api`, { headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
       .then(r => r.ok ? r.json() : [])
       .then(data => setApiClients(Array.isArray(data) ? data : data.clients || []))
       .catch(() => setApiClients([]));
-  }, []);
+  }, [token]);
 
   const allClients = [...CLIENTS, ...apiClients.filter(ac => !CLIENTS.some(mc => mc.id === ac.id))];
   const availableClients = user.role === 'admin' ? allClients : allClients.filter(c => c.assignedRepId === user.repId || c.assignedRepId === user.id || c.repId === user.repId || c.repId === user.id);
   const client = allClients.find(c => c.id === selectedClientId) || getClientById(selectedClientId);
 
-  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  const filteredClients = clientSearch
+    ? availableClients.filter(c => {
+        const name = (c.businessName || c.business_name || c.ownerName || c.owner_name || '').toLowerCase();
+        return name.includes(clientSearch.toLowerCase());
+      })
+    : availableClients;
 
   // Fetch real docs + financials when client changes
   useEffect(() => {
@@ -224,31 +233,54 @@ export default function AutoUnderwriting() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Client</label>
             <div className="relative">
-              <select
-                value={selectedClientId}
-                onChange={e => { setSelectedClientId(e.target.value); setResult(null); }}
-                className="w-full appearance-none bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 pr-9 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              >
-                <option value="">Choose a client...</option>
-                {availableClients.map(c => (
-                  <option key={c.id} value={c.id}>{c.businessName || c.business_name || 'Unknown'} — {c.ownerName || c.owner_name || c.name || ''}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={selectedClientId ? (client ? (client.businessName || client.business_name || client.ownerName || '') : selectedClientId) : clientSearch}
+                onChange={e => {
+                  if (selectedClientId) { setSelectedClientId(''); setResult(null); }
+                  setClientSearch(e.target.value);
+                  setDropdownOpen(true);
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                placeholder="Search clients..."
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              />
+              {dropdownOpen && filteredClients.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                  {filteredClients.map(c => (
+                    <button
+                      key={c.id}
+                      onMouseDown={() => {
+                        setSelectedClientId(c.id);
+                        setClientSearch('');
+                        setDropdownOpen(false);
+                        setResult(null);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    >
+                      {c.businessName || c.business_name || 'Unknown'} — {c.ownerName || c.owner_name || c.name || ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {dropdownOpen && clientSearch && filteredClients.length === 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm text-gray-400">
+                  No clients found
+                </div>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">
-              Credit Score <span className="text-gray-300 normal-case">(300–850, min 550 to approve)</span>
-            </label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Credit Score</label>
             <input
               type="number"
               min="300"
               max="850"
               value={creditScore}
               onChange={e => { setCreditScore(e.target.value); setResult(null); }}
-              placeholder="e.g. 680"
+              placeholder="e.g. 690"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
             />
           </div>
