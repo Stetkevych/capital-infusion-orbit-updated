@@ -225,8 +225,8 @@ function parseFinancials(blocks) {
     }
   }
 
-  // Filter dormant accounts (10% threshold)
-  let filteredSummary = summaryHits.map(h => h.value);
+  // Filter dormant accounts (10% threshold) and deduplicate same-value hits
+  let filteredSummary = [...new Set(summaryHits.map(h => h.value))];
   if (filteredSummary.length > 1) {
     const maxVal = Math.max(...filteredSummary);
     const threshold = maxVal * 0.10;
@@ -303,8 +303,8 @@ function parseFinancials(blocks) {
 
   console.log(`[Textract] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()}`);
 
-  // STEP 5: Negative days
-  const negRe = /(-\$[\d,]+\.?\d{0,2}|\bOD\b|overdraft|nsf|insufficient\s+funds|negative\s+balance)/gi;
+  // STEP 5: Negative days — only count actual negative balances, not boilerplate text
+  const negRe = /-\$[\d,]+\.?\d{0,2}/g;
   const negMatches = fullLower.match(negRe) || [];
   const negativeDays = negMatches.length;
 

@@ -32,5 +32,15 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/activity/cleanup — remove non-client activity
+router.post('/cleanup', async (req, res) => {
+  try {
+    const logs = await loadFromS3(FILE);
+    const cleaned = logs.filter(a => !a.userRole || a.userRole === 'client');
+    await saveToS3(FILE, cleaned);
+    res.json({ before: logs.length, after: cleaned.length, removed: logs.length - cleaned.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
 module.exports.logActivity = logActivity;
