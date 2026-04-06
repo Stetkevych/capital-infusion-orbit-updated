@@ -102,9 +102,9 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
         }
       }
 
-      // Email rep on ANY upload to their client (skip if rep is the uploader)
+      // Email rep when stipulations uploaded (skip applications - DocuSign handles those)
       const client = await ClientStore.getById(clientId);
-      if (client && client.assignedRepId) {
+      if (client && client.assignedRepId && category !== 'application') {
         const rep = await UserStore.findById(client.assignedRepId);
         if (rep && rep.email) {
           const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
