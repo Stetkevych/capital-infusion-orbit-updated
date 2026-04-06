@@ -82,6 +82,11 @@ app.use('/api/commissions', commissionRoutes);
 const activityRoutes = require('./routes/activity');
 app.use('/api/activity', activityRoutes);
 
+// Actum ACH / LOC payments
+const actumRoutes = require('./routes/actum');
+app.use('/api/actum', actumRoutes);
+app.use('/api/loc', actumRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
