@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, DollarSign, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, DollarSign, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -44,6 +44,9 @@ export default function PaymentModal({ locId, onClose, onSuccess, token }) {
       } else if (data.errors) {
         setError(data.errors.join(' '));
         setSubmitted(false);
+      } else if (data.pendingApproval) {
+        setSuccess({ ...data.transaction, approvalMessage: data.message });
+        if (onSuccess) onSuccess(data.transaction);
       } else if (data.success) {
         setSuccess(data.transaction);
         if (onSuccess) onSuccess(data.transaction);
@@ -67,8 +70,8 @@ export default function PaymentModal({ locId, onClose, onSuccess, token }) {
           <h2 className="text-gray-900 font-semibold text-lg mb-2">Payment Submitted</h2>
           <p className="text-gray-500 text-sm mb-1">Amount: <span className="font-bold text-gray-900">${Number(success.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></p>
           <p className="text-gray-400 text-xs mb-4">Reference: {success.merOrderNumber}</p>
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6">
-            <p className="text-green-700 text-sm font-medium">Status: {success.status.charAt(0).toUpperCase() + success.status.slice(1)}</p>
+          <div className={`${success.approvalMessage ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'} border rounded-xl px-4 py-3 mb-6`}>
+            <p className={`${success.approvalMessage ? 'text-amber-700' : 'text-green-700'} text-sm font-medium`}>{success.approvalMessage || ('Status: ' + success.status.charAt(0).toUpperCase() + success.status.slice(1))}</p>
           </div>
           <button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-2.5 rounded-xl transition-colors">Done</button>
         </div>
@@ -88,6 +91,10 @@ export default function PaymentModal({ locId, onClose, onSuccess, token }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <Clock size={14} className="text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-blue-700 text-xs">Requests must be submitted before <strong>3:30 PM ET</strong>. All requests require approval from Matthew Schweri before ACH processing.</p>
+          </div>
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />

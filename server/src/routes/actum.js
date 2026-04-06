@@ -16,11 +16,51 @@ const ACTUM_CONFIG = {
   subId: process.env.ACTUM_SUB_ID || '',
 };
 
+const LOC_APPROVER_EMAIL = 'matthews@capital-infusion.com';
+const CUTOFF_HOUR = 15; // 3:30 PM ET
+const CUTOFF_MINUTE = 30;
+
+function isPastCutoff() {
+  const now = new Date();
+  // Convert to ET (UTC-4 or UTC-5 depending on DST)
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return et.getHours() > CUTOFF_HOUR || (et.getHours() === CUTOFF_HOUR && et.getMinutes() >= CUTOFF_MINUTE);
+}
+
+function getETTime() {
+  return new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+async function notifyApprover(txn) {
+  try {
+    const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+    const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    const FROM = process.env.FROM_EMAIL || 'noreply@orbit-technology.com';
+    await ses.send(new SendEmailCommand({
+      Source: `Capital Infusion <${FROM}>`,
+      Destination: { ToAddresses: [LOC_APPROVER_EMAIL] },
+      Message: {
+        Subject: { Data: `LOC Pull Request: $${Number(txn.amount).toLocaleString(undefined, {minimumFractionDigits:2})} - Pending Approval` },
+        Body: {
+          Html: { Data: '<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;padding:20px"><h2 style="color:#1d1d1f">LOC Pull Request</h2><p style="color:#424245">A new line of credit pull request has been submitted and requires your approval.</p><div style="background:#f5f5f7;border-radius:12px;padding:16px;margin:16px 0"><p style="margin:4px 0;color:#424245"><strong>Amount:</strong> $' + Number(txn.amount).toLocaleString(undefined, {minimumFractionDigits:2}) + '</p><p style="margin:4px 0;color:#424245"><strong>Reference:</strong> ' + txn.merOrderNumber + '</p><p style="margin:4px 0;color:#424245"><strong>Submitted:</strong> ' + new Date(txn.createdAt).toLocaleString('en-US', {timeZone:'America/New_York'}) + ' ET</p><p style="margin:4px 0;color:#424245"><strong>Account:</strong> ' + (txn.maskedAccount || 'N/A') + '</p>' + (txn.memo ? '<p style="margin:4px 0;color:#424245"><strong>Memo:</strong> ' + txn.memo + '</p>' : '') + '</div><p style="color:#424245"><a href="https://orbit-technology.com/ci-loc">Review in Orbit</a></p><p style="color:#86868b;font-size:12px;margin-top:24px">Capital Infusion - Orbit Platform<br>Daily cutoff: 3:30 PM ET</p></div>' },
+          Text: { Data: 'LOC Pull Request: $' + txn.amount + ' | Ref: ' + txn.merOrderNumber + ' | Review at https://orbit-technology.com/ci-loc' },
+        },
+      },
+    }));
+    console.log('[LOC] Approval notification sent to', LOC_APPROVER_EMAIL);
+  } catch (e) { console.log('[LOC] Approval email failed:', e.message); }
+}
+
 // ─── POST /api/actum/transactions ─────────────────────────────────────────────
 // Create a one-time debit or credit ACH transaction
 router.post('/transactions', async (req, res) => {
   try {
     const orbit = req.body;
+
+    // Check 3:30 PM ET cutoff
+    if (isPastCutoff()) {
+      return res.status(400).json({ error: 'Daily cutoff has passed. LOC pull requests must be submitted before 3:30 PM ET. Current time: ' + getETTime() + ' ET.' });
+    }
 
     // Validate
     const validation = validatePaymentRequest(orbit);
@@ -30,70 +70,51 @@ router.post('/transactions', async (req, res) => {
     const idempKey = orbit.idempotenceKey || generateIdempotenceKey(orbit.locId, orbit.amount);
     const existing = await TransactionStore.getByIdempotenceKey(idempKey);
     if (existing) {
-      console.log('[Actum] Duplicate request blocked by idempotency:', idempKey);
       return res.json({ duplicate: true, transaction: existing });
     }
 
-    // Map to Actum fields
     const merOrderNumber = generateMerOrderNumber(orbit.locId);
-    const actumFields = mapOrbitToActum({ ...orbit, merOrderNumber, idempotenceKey: idempKey }, ACTUM_CONFIG);
 
-    // Send to Actum
-    const actumResponse = await sendToActum(actumFields);
-
-    // Create transaction record
+    // Create transaction in PENDING APPROVAL status (does NOT send to Actum yet)
     const txn = await TransactionStore.create({
       locId: orbit.locId,
       borrowerId: orbit.borrowerId,
       merOrderNumber,
-      actumOrderId: actumResponse.orderId,
-      actumHistoryId: actumResponse.historyId,
-      consumerUnique: actumResponse.consumerUnique,
+      actumOrderId: null,
+      actumHistoryId: null,
+      consumerUnique: null,
       requestType: orbit.paymentType === 'credit' ? 'credit' : 'debit',
       amount: Number(orbit.amount),
       billingCycle: orbit.billingCycle || 'once',
-      status: actumResponse.status,
-      declineReason: actumResponse.status === 'declined' ? actumResponse.reason : null,
-      authCode: actumResponse.authCode,
+      status: 'pending_approval',
       maskedAccount: maskAccount(orbit.accountNumber),
       maskedRouting: maskRouting(orbit.routingNumber),
       accountType: orbit.accountType,
       idempotenceKey: idempKey,
-      rawResponse: actumResponse.rawText,
-      duplicateTrans: actumResponse.duplicateTrans,
-      testTrans: actumResponse.testTrans,
       memo: orbit.memo,
       ipAddress: orbit.ipAddress || req.ip,
+      // Store encrypted bank details for when approved (in production, encrypt these)
+      _bankDetails: {
+        borrowerName: orbit.borrowerName,
+        businessName: orbit.businessName,
+        email: orbit.email,
+        phone: orbit.phone,
+        address1: orbit.address1,
+        city: orbit.city,
+        state: orbit.state,
+        zip: orbit.zip,
+        accountType: orbit.accountType,
+        routingNumber: orbit.routingNumber,
+        accountNumber: orbit.accountNumber,
+      },
     });
 
-    // Log event
-    await EventStore.log({
-      transactionId: txn.id,
-      actumOrderId: actumResponse.orderId,
-      eventType: actumResponse.status === 'accepted' ? 'accepted' : actumResponse.status === 'declined' ? 'declined' : 'created',
-      status: actumResponse.status,
-      detail: actumResponse.reason,
-    });
+    await EventStore.log({ transactionId: txn.id, eventType: 'submitted', status: 'pending_approval', detail: 'LOC pull request submitted for approval' });
 
-    // Store payment profile for repeat-consumer if accepted
-    if (actumResponse.status === 'accepted' && actumResponse.consumerUnique) {
-      try {
-        const existingProfile = await PaymentProfileStore.getByConsumerUnique(actumResponse.consumerUnique);
-        if (!existingProfile) {
-          await PaymentProfileStore.create({
-            locId: orbit.locId,
-            borrowerId: orbit.borrowerId,
-            consumerUnique: actumResponse.consumerUnique,
-            accountNumber: orbit.accountNumber,
-            routingNumber: orbit.routingNumber,
-            accountType: orbit.accountType,
-            holderName: orbit.borrowerName,
-          });
-        }
-      } catch (e) { console.log('[Actum] Profile store error:', e.message); }
-    }
+    // Notify Matthew Schweri
+    await notifyApprover(txn);
 
-    res.json({ success: actumResponse.status === 'accepted', transaction: txn, actumResponse: { status: actumResponse.status, reason: actumResponse.reason, orderId: actumResponse.orderId, duplicate: actumResponse.duplicateTrans } });
+    res.json({ success: true, pendingApproval: true, transaction: txn, message: 'Your LOC pull request has been submitted for approval. Matthew Schweri will review before 3:30 PM ET.' });
   } catch (err) {
     console.error('[Actum] Transaction error:', err.message);
     res.status(500).json({ error: err.message });
@@ -101,6 +122,47 @@ router.post('/transactions', async (req, res) => {
 });
 
 // ─── POST /api/actum/transactions/repeat ──────────────────────────────────────
+// Approve a pending LOC pull - sends to Actum
+router.post('/transactions/approve', async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+    const txn = await TransactionStore.getById(transactionId);
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+    if (txn.status !== 'pending_approval') return res.status(400).json({ error: 'Not pending approval. Status: ' + txn.status });
+    const bd = txn._bankDetails || {};
+    const actumFields = mapOrbitToActum({ ...bd, locId: txn.locId, amount: txn.amount, merOrderNumber: txn.merOrderNumber, idempotenceKey: txn.idempotenceKey, paymentType: txn.requestType, memo: txn.memo }, ACTUM_CONFIG);
+    const ar = await sendToActum(actumFields);
+    await TransactionStore.update(transactionId, { status: ar.status, actumOrderId: ar.orderId, actumHistoryId: ar.historyId, consumerUnique: ar.consumerUnique, authCode: ar.authCode, declineReason: ar.status === 'declined' ? ar.reason : null, rawResponse: ar.rawText, _bankDetails: null });
+    await EventStore.log({ transactionId, actumOrderId: ar.orderId, eventType: 'approved_and_sent', status: ar.status, detail: 'Approved by Schweri' });
+    if (ar.status === 'accepted' && ar.consumerUnique && bd.accountNumber) {
+      try { const ep = await PaymentProfileStore.getByConsumerUnique(ar.consumerUnique); if (!ep) await PaymentProfileStore.create({ locId: txn.locId, consumerUnique: ar.consumerUnique, accountNumber: bd.accountNumber, routingNumber: bd.routingNumber, accountType: bd.accountType, holderName: bd.borrowerName }); } catch (e) { console.log('[Actum] Profile error:', e.message); }
+    }
+    res.json({ success: ar.status === 'accepted', transaction: await TransactionStore.getById(transactionId), actumStatus: ar.status });
+  } catch (err) { console.error('[Actum] Approve error:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Deny a pending LOC pull
+router.post('/transactions/deny', async (req, res) => {
+  try {
+    const { transactionId, reason } = req.body;
+    const txn = await TransactionStore.getById(transactionId);
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+    if (txn.status !== 'pending_approval') return res.status(400).json({ error: 'Not pending approval.' });
+    await TransactionStore.update(transactionId, { status: 'denied', declineReason: reason || 'Denied by approver', _bankDetails: null });
+    await EventStore.log({ transactionId, eventType: 'denied', status: 'denied', detail: reason || 'Denied by Schweri' });
+    res.json({ success: true, message: 'LOC pull request denied.' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get all pending approval requests
+router.get('/transactions/pending', async (req, res) => {
+  try {
+    const all = await TransactionStore.getAll();
+    const pending = all.filter(t => t.status === 'pending_approval').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ count: pending.length, totalAmount: Math.round(pending.reduce((s, t) => s + t.amount, 0) * 100) / 100, transactions: pending });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Repeat-consumer transaction using stored consumer_unique
 router.post('/transactions/repeat', async (req, res) => {
   try {

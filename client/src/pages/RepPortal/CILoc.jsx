@@ -69,6 +69,15 @@ export default function CILocDetails() {
         </div>
       </div>
 
+      {/* Cutoff Notice */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
+        <Clock size={16} className="text-blue-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-blue-700 text-sm font-medium">Daily LOC Pull Cutoff: 3:30 PM ET</p>
+          <p className="text-blue-600 text-xs mt-0.5">All pull requests must be submitted before 3:30 PM ET. Requests are reviewed and approved by Matthew Schweri before processing via Actum ACH.</p>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryStatCard icon={DollarSign} label="Principal Balance" value={fmt$(loan.principalBalance)} accent="text-blue-600" bg="bg-blue-50" />
