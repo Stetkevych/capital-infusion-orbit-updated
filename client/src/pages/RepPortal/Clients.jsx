@@ -26,6 +26,7 @@ export default function ClientsPage() {
   const [realClients, setRealClients] = useState([]);
   const [deletedClients, setDeletedClients] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
+  const [allDocs, setAllDocs] = useState([]);
   const [showDeleted, setShowDeleted] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [permDeleteConfirm, setPermDeleteConfirm] = useState(null);
@@ -48,6 +49,10 @@ export default function ClientsPage() {
     fetch(`${API}/activity`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setActivityLog(data))
+      .catch(() => {});
+    fetch(`${API}/documents/client/all`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAllDocs(data))
       .catch(() => {});
   }, []);
 
@@ -331,8 +336,9 @@ export default function ClientsPage() {
           </thead>
           <tbody>
             {clients.map(c => {
-              const docs = getDocumentsByClient(c.id);
-              const missing = getMissingCategories(c.id);
+              const docs = allDocs.filter(d => d.clientId === c.id);
+              const uploadedCats = new Set(docs.map(d => d.category));
+              const missing = DOC_CATEGORIES.filter(cat => cat.required && !uploadedCats.has(cat.id));
               return (
                 <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
                   <td className="py-3.5 px-5">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { CLIENTS, DOCUMENTS, DOCUMENT_REQUESTS, ACTIVITY_LOG, getClientsByRep, getMissingCategories } from '../../data/mockData';
+import { CLIENTS, DOCUMENT_REQUESTS, ACTIVITY_LOG, DOC_CATEGORIES, getClientsByRep } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { Users, FileText, AlertCircle, Clock, ArrowRight } from 'lucide-react';
 
@@ -15,6 +15,7 @@ export default function RepDashboard() {
   const { user, token } = useAuth();
   const isAdmin = user.role === 'admin';
   const [realClients, setRealClients] = useState([]);
+  const [realDocs, setRealDocs] = useState([]);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
@@ -22,6 +23,10 @@ export default function RepDashboard() {
     fetch(`${API}/clients-api`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setRealClients(data))
+      .catch(() => {});
+    fetch(`${API}/documents/client/all`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRealDocs(data))
       .catch(() => {});
   }, []);
 
@@ -32,15 +37,18 @@ export default function RepDashboard() {
   ];
   const myClientIds = new Set(myClients.map(c => c.id));
   const pendingRequests = DOCUMENT_REQUESTS.filter(r => r.status === 'Pending' && myClientIds.has(r.clientId));
-  const recentDocs = DOCUMENTS.filter(d => myClientIds.has(d.clientId)).sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).slice(0, 5);
-  const clientsMissingDocs = myClients.filter(c => getMissingCategories(c.id).length > 0);
+  const recentDocs = realDocs.filter(d => myClientIds.has(d.clientId)).sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).slice(0, 5);
+  const clientsMissingDocs = myClients.filter(c => {
+    const uploadedCats = new Set(realDocs.filter(d => d.clientId === c.id).map(d => d.category));
+    return DOC_CATEGORIES.some(cat => cat.required && !uploadedCats.has(cat.id));
+  });
   const recentActivity = ACTIVITY_LOG.filter(a => myClientIds.has(a.clientId)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
 
   const stats = [
     { label: 'Clients', value: myClients.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', link: '/clients' },
     { label: 'Pending Requests', value: pendingRequests.length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50', link: '/requests' },
     { label: 'Missing Docs', value: clientsMissingDocs.length, icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', link: '/clients' },
-    { label: 'Total Documents', value: DOCUMENTS.filter(d => myClientIds.has(d.clientId)).length, icon: FileText, color: 'text-green-600', bg: 'bg-green-50', link: '/documents' },
+    { label: 'Total Documents', value: realDocs.filter(d => myClientIds.has(d.clientId)).length, icon: FileText, color: 'text-green-600', bg: 'bg-green-50', link: '/documents' },
   ];
 
   return (
@@ -75,7 +83,7 @@ export default function RepDashboard() {
                 <Link key={c.id} to={`/clients/${c.id}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
                   <div>
                     <p className="text-gray-800 text-sm font-medium">{c.businessName}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{getMissingCategories(c.id).length} missing</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{DOC_CATEGORIES.filter(cat => cat.required && !new Set(realDocs.filter(d => d.clientId === c.id).map(d => d.category)).has(cat.id)).length} missing</p>
                   </div>
                   <StatusBadge status={c.status} size="xs" />
                 </Link>
