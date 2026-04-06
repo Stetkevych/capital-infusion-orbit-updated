@@ -25,6 +25,7 @@ export default function ClientsPage() {
   const [notification, setNotification] = useState(null);
   const [realClients, setRealClients] = useState([]);
   const [deletedClients, setDeletedClients] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
   const [showDeleted, setShowDeleted] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [permDeleteConfirm, setPermDeleteConfirm] = useState(null);
@@ -43,6 +44,10 @@ export default function ClientsPage() {
     fetch(`${API}/clients-api/deleted/all`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setDeletedClients(data))
+      .catch(() => {});
+    fetch(`${API}/activity`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setActivityLog(data))
       .catch(() => {});
   }, []);
 
@@ -319,7 +324,7 @@ export default function ClientsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
-              {['Business','Owner','Status','Docs','Missing',''].map(h => (
+              {['Business','Owner','Status','Last Activity','Docs','Missing',''].map(h => (
                 <th key={h} className="text-left py-3 px-5 text-gray-400 font-medium text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -336,6 +341,19 @@ export default function ClientsPage() {
                   </td>
                   <td className="py-3.5 px-5 text-gray-600 text-sm">{c.ownerName}</td>
                   <td className="py-3.5 px-5"><StatusBadge status={c.status} size="xs" /></td>
+                  <td className="py-3.5 px-5">
+                    {(() => {
+                      const clientActivity = activityLog.filter(a => a.clientId === c.id).sort((a, b) => new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt));
+                      if (clientActivity.length > 0) {
+                        const last = clientActivity[0];
+                        const desc = last.eventType === 'login' ? 'Client logged in' : last.eventType === 'upload' ? 'Document uploaded' : last.description;
+                        const time = new Date(last.timestamp || last.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        return <span className="text-gray-500 text-xs">{desc} · {time}</span>;
+                      }
+                      if (c.source === 'docusign' || c.envelopeId) return <span className="text-blue-500 text-xs">Application completed</span>;
+                      return <span className="text-gray-300 text-xs">No activity</span>;
+                    })()}
+                  </td>
                   <td className="py-3.5 px-5">
                     <div className="flex items-center gap-1.5 text-gray-500 text-sm">
                       <FileText size={13} className="text-gray-400" /> {docs.length}

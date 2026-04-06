@@ -43,10 +43,12 @@ router.post('/login', async (req, res) => {
   const token = generateToken(safe);
   EventLogger.login({ user_id: safe.id, email: safe.email, role: safe.role });
 
-  // Log to activity feed
+  // Log client logins to activity feed (skip rep/admin logins)
   try {
-    const { logActivity } = require('./activity');
-    await logActivity({ eventType: 'login', userId: safe.id, userName: safe.full_name, userEmail: safe.email, userRole: safe.role, description: `${safe.full_name} logged in` });
+    if (safe.role === 'client') {
+      const { logActivity } = require('./activity');
+      await logActivity({ eventType: 'login', userId: safe.id, clientId: safe.client_id, userName: safe.full_name, userEmail: safe.email, userRole: safe.role, description: `${safe.full_name} logged in` });
+    }
   } catch {}
 
   res.json({ token, user: safe });

@@ -348,32 +348,6 @@ export default function AutoUnderwriting() {
             </div>
           )}
 
-          {/* Decision banner */}
-          <div className={`rounded-2xl border p-5 ${result.bg}`}>
-            <div className="flex items-start justify-between flex-wrap gap-4">
-              <div>
-                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Underwriting Decision</p>
-                <p className={`text-3xl font-bold tracking-tight ${result.color}`}>{result.decision}</p>
-                <p className="text-gray-500 text-sm mt-1">
-                  Credit: <span className="font-semibold text-gray-700">{result.creditScore}</span>
-                  <span className="mx-2">·</span>
-                  Approval range: <span className="font-semibold text-gray-700">{fmt$(result.approvalMin)} – {fmt$(result.approvalMax)}</span>
-                </p>
-              </div>
-              {result.offerAmount > 0 && (
-                <div className="text-right">
-                  <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Recommended Offer</p>
-                  <p className="text-2xl font-bold text-gray-900">{fmt$(result.offerAmount)}</p>
-                  <p className="text-gray-500 text-sm mt-1">
-                    Factor <span className="font-semibold text-gray-700">{result.factorRate}</span>
-                    <span className="mx-2">·</span>
-                    Payback <span className="font-semibold text-gray-700">{fmt$(result.paybackAmount)}</span>
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Extracted financials */}
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -391,6 +365,7 @@ export default function AutoUnderwriting() {
                   { label: 'Number of Deposits', value: result.extracted.numberOfDeposits, icon: Hash, color: 'text-blue-600' },
                   { label: 'Negative Days', value: `${result.extracted.negativeDays} days`, icon: AlertCircle, color: result.extracted.negativeDays > 3 ? 'text-red-500' : 'text-green-600' },
                   { label: 'Months Covered', value: `${result.extracted.monthsCovered} months`, icon: FileText, color: 'text-gray-400' },
+                  { label: 'Credit Score', value: result.creditScore, icon: Hash, color: 'text-blue-600' },
                 ].map(f => (
                   <div key={f.label} className="flex items-center justify-between px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -465,27 +440,6 @@ export default function AutoUnderwriting() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-
-          {/* Formula breakdown */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
-            <h2 className="text-gray-900 font-semibold text-sm mb-4 flex items-center gap-2">
-              <DollarSign size={15} className="text-blue-600" /> Offer Formula Breakdown
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Avg Monthly Revenue', value: fmt$(result.extracted.avgMonthlyRevenue), sub: 'Base' },
-                { label: 'Approval Range', value: `${fmt$(result.approvalMin)} – ${fmt$(result.approvalMax)}`, sub: '80% – 120% of avg monthly' },
-                { label: 'Credit Adjustment', value: `${Math.round(result.creditRatio * 100)}%`, sub: `Score ${result.creditScore} / 850` },
-                { label: 'Factor Rate', value: result.factorRate ? `${result.factorRate}x` : 'N/A', sub: result.factorRate ? `${Math.round((result.factorRate - 1) * 100)}% cost of capital` : 'Credit below 550' },
-              ].map(f => (
-                <div key={f.label} className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-gray-400 text-xs mb-1">{f.label}</p>
-                  <p className="text-gray-900 font-bold text-base">{f.value}</p>
-                  <p className="text-gray-400 text-xs mt-0.5">{f.sub}</p>
-                </div>
-              ))}
             </div>
           </div>
         </div>
