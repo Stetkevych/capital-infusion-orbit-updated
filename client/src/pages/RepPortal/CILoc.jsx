@@ -5,7 +5,7 @@ import { PaymentStatusBadge, DocumentLinkCard, fmt$, fmtPct } from '../../compon
 import {
   CreditCard, FileText, DollarSign, TrendingUp, Clock, Shield,
   Building2, ChevronDown, RefreshCw, ArrowUpRight, Wallet, Banknote,
-  CheckCircle2, AlertCircle, ChevronRight
+  CheckCircle2
 } from 'lucide-react';
 
 const LOC = {
@@ -37,6 +37,25 @@ const DOCS = [
 
 const fd = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+function Stat({ label, value, sub, accent }) {
+  return (
+    <div>
+      <p className="text-slate-400 text-xs uppercase tracking-widest mb-1">{label}</p>
+      <p className={`text-3xl font-bold tracking-tight ${accent || 'text-slate-900'}`}>{value}</p>
+      {sub && <p className="text-slate-400 text-xs mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function Row({ label, value, hl }) {
+  return (
+    <div className="flex justify-between px-5 py-2.5 border-b border-gray-50 last:border-0">
+      <span className="text-gray-400 text-sm">{label}</span>
+      <span className={`text-sm font-semibold ${hl ? 'text-blue-600' : 'text-gray-900'}`}>{value}</span>
+    </div>
+  );
+}
+
 export default function CILocDetails() {
   const { token } = useAuth();
   const [tab, setTab] = useState('overview');
@@ -46,108 +65,91 @@ export default function CILocDetails() {
   const filtered = filter ? draws.filter(d => d.status === filter) : draws;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-5 max-w-5xl mx-auto">
       {showDraw && <PaymentModal locId="loc-cap-001" token={token} onClose={() => setShowDraw(false)} onSuccess={(txn) => { setDraws(prev => [txn, ...prev]); setShowDraw(false); }} />}
 
-      {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900 via-gray-800 to-blue-900 p-8 text-white">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center">
-                <CreditCard size={20} className="text-blue-400" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold">Line of Credit</h1>
-                <p className="text-white/40 text-xs">{LOC.loanType} &middot; {LOC.loanNumber}</p>
-              </div>
+      {/* ── HEADER ──────────────────────────────────────────────────────── */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <CreditCard size={18} className="text-blue-600" />
             </div>
-            <div className="flex items-center gap-2">
-              {LOC.autopay && <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">Autopay</span>}
-              <span className="text-xs font-medium px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">{LOC.paymentStatus}</span>
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">Line of Credit</h1>
+              <p className="text-slate-400 text-xs">{LOC.loanType} &middot; {LOC.loanNumber}</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-8">
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Available Credit</p>
-              <p className="text-4xl font-bold tracking-tight text-green-400">{fmt$(LOC.availableCredit)}</p>
-              <p className="text-white/30 text-xs mt-1">of {fmt$(LOC.originalLineAmount)}</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Current Balance</p>
-              <p className="text-4xl font-bold tracking-tight">{fmt$(LOC.currentBalance)}</p>
-              <p className="text-white/30 text-xs mt-1">{fmtPct(LOC.usagePercent)} utilized</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Next Payment</p>
-              <p className="text-4xl font-bold tracking-tight">{fmt$(LOC.monthlyPayment)}</p>
-              <p className="text-white/30 text-xs mt-1">due {LOC.dueDate}</p>
-            </div>
+          <div className="flex items-center gap-2">
+            {LOC.autopay && <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-200">Autopay</span>}
+            <span className="text-xs font-medium px-3 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{LOC.paymentStatus}</span>
           </div>
+        </div>
 
-          {/* Utilization bar */}
-          <div className="mt-8">
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-              <div className="h-2 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-1000" style={{ width: `${Math.min(LOC.usagePercent, 100)}%` }} />
-            </div>
-            <div className="flex justify-between mt-2">
-              <span className="text-white/30 text-xs">0%</span>
-              <span className="text-blue-400 text-xs font-medium">{fmtPct(LOC.usagePercent)} used</span>
-              <span className="text-white/30 text-xs">100%</span>
-            </div>
+        <div className="grid grid-cols-3 gap-8">
+          <Stat label="Available Credit" value={fmt$(LOC.availableCredit)} sub={`of ${fmt$(LOC.originalLineAmount)}`} accent="text-green-600" />
+          <Stat label="Current Balance" value={fmt$(LOC.currentBalance)} sub={`${fmtPct(LOC.usagePercent)} utilized`} />
+          <Stat label="Next Payment" value={fmt$(LOC.monthlyPayment)} sub={`due ${LOC.dueDate}`} />
+        </div>
+
+        <div className="mt-5">
+          <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-1000" style={{ width: `${Math.min(LOC.usagePercent, 100)}%` }} />
+          </div>
+          <div className="flex justify-between mt-1.5">
+            <span className="text-slate-300 text-xs">0%</span>
+            <span className="text-blue-600 text-xs font-semibold">{fmtPct(LOC.usagePercent)} used</span>
+            <span className="text-slate-300 text-xs">100%</span>
           </div>
         </div>
       </div>
 
-      {/* ── DRAW CTA ───────────────────────────────────────────────────── */}
+      {/* ── DRAW + CUTOFF ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <button
-          onClick={() => setShowDraw(true)}
-          className="lg:col-span-2 group relative overflow-hidden bg-blue-600 hover:bg-blue-700 rounded-2xl p-6 text-left transition-all hover:shadow-lg hover:shadow-blue-600/20 hover:scale-[1.01]"
-        >
-          <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
-          <div className="relative z-10 flex items-center justify-between">
+        <button onClick={() => setShowDraw(true)} className="lg:col-span-2 group bg-blue-600 hover:bg-blue-700 rounded-2xl p-6 text-left transition-all hover:shadow-lg hover:shadow-blue-500/15 hover:scale-[1.005]">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-white/70 text-xs uppercase tracking-widest mb-1">Draw Funds</p>
+              <p className="text-blue-200 text-xs uppercase tracking-widest mb-1">Draw Funds</p>
               <p className="text-white text-2xl font-bold">Request a Draw</p>
-              <p className="text-white/50 text-sm mt-1">Available: {fmt$(LOC.availableCredit)}</p>
+              <p className="text-blue-200 text-sm mt-1">Available: <span className="text-white font-semibold">{fmt$(LOC.availableCredit)}</span></p>
             </div>
-            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center group-hover:bg-white/20 transition-colors">
-              <ArrowUpRight size={24} className="text-white" />
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-white/20 transition-colors">
+              <ArrowUpRight size={22} className="text-white" />
             </div>
           </div>
         </button>
-
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 mb-2">
             <Clock size={14} className="text-amber-500" />
             <p className="text-gray-900 text-sm font-semibold">Daily Cutoff</p>
           </div>
-          <p className="text-3xl font-bold text-gray-900 tracking-tight">3:30 <span className="text-lg text-gray-400 font-medium">PM ET</span></p>
-          <p className="text-gray-400 text-xs mt-2">All draw requests require approval before ACH processing.</p>
+          <p className="text-3xl font-bold text-gray-900">3:30 <span className="text-base text-gray-400 font-medium">PM ET</span></p>
+          <p className="text-gray-400 text-xs mt-2">Draws require approval before ACH processing.</p>
         </div>
       </div>
 
-      {/* ── QUICK STATS ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { icon: Banknote, label: 'Interest Rate', value: `${LOC.interestRate}%`, sub: LOC.term, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { icon: TrendingUp, label: 'Interest Paid YTD', value: fmt$(LOC.interestPaidYTD), sub: `${LOC.interestPaidYTD > 0 ? '100' : '0'}% interest`, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { icon: Wallet, label: 'Payment Method', value: LOC.paymentMethod, sub: LOC.autopay ? 'Autopay enabled' : 'Manual', color: 'text-green-600', bg: 'bg-green-50' },
-          { icon: Shield, label: 'Draw Period', value: 'Active', sub: `Ends ${LOC.drawPeriodEnds}`, color: 'text-amber-600', bg: 'bg-amber-50' },
-        ].map(s => (
-          <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-sm transition-shadow">
-            <div className={`w-8 h-8 ${s.bg} rounded-lg flex items-center justify-center mb-3`}>
-              <s.icon size={15} className={s.color} />
-            </div>
-            <p className="text-gray-900 text-sm font-bold">{s.value}</p>
-            <p className="text-gray-400 text-xs mt-0.5">{s.label}</p>
-            <p className="text-gray-300 text-xs">{s.sub}</p>
-          </div>
-        ))}
+      {/* ── 4-COL DETAILS ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white border border-gray-100 rounded-xl p-4">
+          <p className="text-gray-400 text-xs mb-1">Interest Rate</p>
+          <p className="text-gray-900 text-lg font-bold">{LOC.interestRate}%</p>
+          <p className="text-gray-300 text-xs">{LOC.term}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4">
+          <p className="text-gray-400 text-xs mb-1">Interest Paid YTD</p>
+          <p className="text-blue-600 text-lg font-bold">{fmt$(LOC.interestPaidYTD)}</p>
+          <p className="text-gray-300 text-xs">100% interest</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4">
+          <p className="text-gray-400 text-xs mb-1">Payment Method</p>
+          <p className="text-gray-900 text-lg font-bold">{LOC.paymentMethod}</p>
+          <p className="text-green-500 text-xs flex items-center gap-1"><CheckCircle2 size={10} /> Autopay on</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4">
+          <p className="text-gray-400 text-xs mb-1">Draw Period</p>
+          <p className="text-gray-900 text-lg font-bold">Active</p>
+          <p className="text-gray-300 text-xs">Ends {LOC.drawPeriodEnds}</p>
+        </div>
       </div>
 
       {/* ── TABS ───────────────────────────────────────────────────────── */}
@@ -161,38 +163,70 @@ export default function CILocDetails() {
 
       {/* ── OVERVIEW ───────────────────────────────────────────────────── */}
       {tab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Line Details */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-              <Building2 size={15} className="text-blue-600" />
+            <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+              <Building2 size={14} className="text-blue-600" />
               <h2 className="text-gray-900 font-semibold text-sm">Line Details</h2>
             </div>
-            {[
-              ['Type', LOC.loanType], ['Account', LOC.loanNumber],
-              ['Principal', fmt$(LOC.principalBalance), true], ['Available', fmt$(LOC.availableCredit)],
-              ['Rate', `${LOC.interestRate}%`, true], ['Term', LOC.term],
-              ['Started', LOC.startDate], ['Draw Ends', LOC.drawPeriodEnds],
-              ['Maturity', LOC.maturityDate], ['Original Line', fmt$(LOC.originalLineAmount)],
-            ].map(([l, v, hl]) => (
-              <div key={l} className="flex justify-between px-5 py-2.5 border-b border-gray-50 last:border-0">
-                <span className="text-gray-400 text-sm">{l}</span>
-                <span className={`text-sm font-semibold ${hl ? 'text-blue-600' : 'text-gray-900'}`}>{v}</span>
-              </div>
-            ))}
+            <Row label="Type" value={LOC.loanType} />
+            <Row label="Account" value={LOC.loanNumber} />
+            <Row label="Principal" value={fmt$(LOC.principalBalance)} hl />
+            <Row label="Available" value={fmt$(LOC.availableCredit)} />
+            <Row label="Rate" value={`${LOC.interestRate}%`} hl />
+            <Row label="Term" value={LOC.term} />
+            <Row label="Original Line" value={fmt$(LOC.originalLineAmount)} />
           </div>
 
-          <div className="space-y-5">
+          {/* Timeline + Payment */}
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                <Clock size={14} className="text-blue-600" />
+                <h2 className="text-gray-900 font-semibold text-sm">Timeline</h2>
+              </div>
+              <Row label="Started" value={LOC.startDate} />
+              <Row label="Draw Ends" value={LOC.drawPeriodEnds} />
+              <Row label="Maturity" value={LOC.maturityDate} />
+              <Row label="Duration" value={LOC.duration} />
+              <div className="px-5 py-3">
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-blue-500" style={{ width: '11%' }} />
+                </div>
+                <div className="flex justify-between mt-1.5">
+                  <span className="text-gray-300 text-xs">2022</span>
+                  <span className="text-blue-500 text-xs font-medium">Now</span>
+                  <span className="text-gray-300 text-xs">2052</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2"><DollarSign size={14} className="text-blue-600" /><h2 className="text-gray-900 font-semibold text-sm">Payment</h2></div>
+                <button onClick={() => setShowDraw(true)} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-medium transition-colors">Pay</button>
+              </div>
+              <Row label="Monthly" value={fmt$(LOC.monthlyPayment)} hl />
+              <Row label="Due" value={LOC.dueDate} />
+              <Row label="Method" value={LOC.paymentMethod} />
+              <Row label="Autopay" value="On" />
+            </div>
+          </div>
+
+          {/* YTD */}
+          <div className="space-y-4">
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
-                <TrendingUp size={15} className="text-blue-600" />
+                <TrendingUp size={14} className="text-blue-600" />
                 <h2 className="text-gray-900 font-semibold text-sm">YTD Breakdown</h2>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 text-center border border-blue-100/50">
+              <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
                   <p className="text-blue-700 text-2xl font-bold">{fmt$(LOC.interestPaidYTD)}</p>
                   <p className="text-blue-500 text-xs mt-1">Interest Paid</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
                   <p className="text-gray-900 text-2xl font-bold">{fmt$(LOC.principalPaidYTD)}</p>
                   <p className="text-gray-400 text-xs mt-1">Principal Paid</p>
                 </div>
@@ -200,34 +234,11 @@ export default function CILocDetails() {
             </div>
 
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-2"><DollarSign size={15} className="text-blue-600" /><h2 className="text-gray-900 font-semibold text-sm">Payment</h2></div>
-                <button onClick={() => setShowDraw(true)} className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"><DollarSign size={11} /> Pay</button>
+              <div className="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                <FileText size={14} className="text-blue-600" />
+                <h2 className="text-gray-900 font-semibold text-sm">Recent Docs</h2>
               </div>
-              {[
-                ['Monthly', fmt$(LOC.monthlyPayment), true], ['Due', LOC.dueDate],
-                ['Method', LOC.paymentMethod], ['Autopay', LOC.autopay ? 'On' : 'Off'],
-              ].map(([l, v, hl]) => (
-                <div key={l} className="flex justify-between px-5 py-2.5 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-400 text-sm">{l}</span>
-                  <span className={`text-sm font-semibold ${hl ? 'text-blue-600' : 'text-gray-900'}`}>{v}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Timeline */}
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-              <p className="text-gray-900 font-semibold text-sm mb-4">Loan Timeline</p>
-              <div className="relative">
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-400" style={{ width: '11%' }} />
-                </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-gray-300 text-xs">Jul 2022</span>
-                  <span className="text-blue-600 text-xs font-semibold">Now</span>
-                  <span className="text-gray-300 text-xs">Aug 2052</span>
-                </div>
-              </div>
+              {DOCS.slice(0, 3).map((d, i) => <DocumentLinkCard key={i} name={d.name} date={d.date} type={d.type} />)}
             </div>
           </div>
         </div>
@@ -250,7 +261,7 @@ export default function CILocDetails() {
                 </select>
                 <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
-              <button className="flex items-center gap-1 text-xs text-gray-500 bg-white border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"><RefreshCw size={11} /></button>
+              <button className="text-xs text-gray-500 bg-white border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"><RefreshCw size={11} /></button>
               <button onClick={() => setShowDraw(true)} className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"><DollarSign size={12} /> New Draw</button>
             </div>
           </div>
@@ -266,7 +277,7 @@ export default function CILocDetails() {
                 </thead>
                 <tbody>
                   {filtered.map(d => (
-                    <tr key={d.id} className="border-t border-gray-50 hover:bg-blue-50/30 transition-colors">
+                    <tr key={d.id} className="border-t border-gray-50 hover:bg-blue-50/20 transition-colors">
                       <td className="py-3.5 px-5 text-gray-700 text-xs">{fd(d.date)}</td>
                       <td className="py-3.5 px-5 text-gray-500 text-xs font-mono">{d.ref}</td>
                       <td className="py-3.5 px-5 text-gray-900 text-sm font-bold">{fmt$(d.amount)}</td>
