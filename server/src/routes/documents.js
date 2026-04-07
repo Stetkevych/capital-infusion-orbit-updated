@@ -59,6 +59,7 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
         fileName: file.originalname,
         fileSize: file.size >= 102400 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${Math.round(file.size / 1024)} KB`,
         uploadedBy: uploadedBy || 'unknown',
+        bankAccount: (category === 'bank_statements' && req.body.bankAccount) ? req.body.bankAccount : null,
         uploadedAt: new Date().toISOString(),
         status: 'Uploaded', visibility: 'all', tags: [], note: '',
         extractedFinancials: null,
@@ -194,8 +195,10 @@ router.post('/confirm', async (req, res) => {
 router.get('/financials/:clientId', async (req, res) => {
   try {
     const allDocs = await loadDocs();
+    const accountFilter = req.query.account || null;
     const docs = allDocs.filter(
       d => d.clientId === req.params.clientId && d.category === 'bank_statements' && d.extractedFinancials?.success
+        && (!accountFilter || d.bankAccount === accountFilter)
     );
     if (docs.length === 0) return res.json({ available: false, monthsCovered: 0, docs: [] });
 
@@ -328,6 +331,16 @@ router.post('/reprocess/:clientId', async (req, res) => {
 
     await saveDocs(docs);
     res.json({ reprocessed: count, message: `Re-extracting ${count} bank statements. Check back in 30-60 seconds.` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get bank accounts for a client
+router.get('/accounts/:clientId', async (req, res) => {
+  try {
+    const docs = (await loadDocs()).filter(d => d.clientId === req.params.clientId && d.category === 'bank_statements');
+    const accounts = [...new Set(docs.map(d => d.bankAccount).filter(Boolean))];
+    if (accounts.length === 0 && docs.length > 0) accounts.push('Account 1');
+    res.json({ accounts, totalStatements: docs.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

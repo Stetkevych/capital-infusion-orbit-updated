@@ -6,12 +6,13 @@ const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/a
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.docx,.doc,.xlsx,.xls,.csv';
 const MAX_SIZE_MB = 50;
 
-async function uploadToS3(file, category, clientId, uploadedBy, token) {
+async function uploadToS3(file, category, clientId, uploadedBy, token, bankAccount) {
   const formData = new FormData();
   formData.append('files', file);
   formData.append('clientId', clientId);
   formData.append('category', category);
   formData.append('uploadedBy', uploadedBy || 'unknown');
+  if (bankAccount) formData.append('bankAccount', bankAccount);
 
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -42,6 +43,7 @@ export default function UploadZone({
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploads, setUploads] = useState([]);
+  const [bankAccount, setBankAccount] = useState('Account 1');
   const inputRef = useRef();
 
   const updateUpload = (id, patch) =>
@@ -66,7 +68,7 @@ export default function UploadZone({
           updateUpload(id, { progress: p => Math.min((p || 0) + 15, 85) });
         }, 300);
 
-        await uploadToS3(file, category, clientId, uploadedBy, token);
+        await uploadToS3(file, category, clientId, uploadedBy, token, category === 'bank_statements' ? bankAccount : null);
 
         clearInterval(progressInterval);
         updateUpload(id, { status: 'done', progress: 100 });
@@ -125,6 +127,14 @@ export default function UploadZone({
 
   return (
     <div className="space-y-2">
+      {category === 'bank_statements' && !compact && (
+        <div className="flex items-center gap-2 mb-1">
+          <label className="text-xs font-medium text-gray-500">Bank Account:</label>
+          <select value={bankAccount} onChange={e => setBankAccount(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            {['Account 1', 'Account 2', 'Account 3', 'Account 4', 'Account 5'].map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      )}
       {zone}
 
       {/* Upload status list */}

@@ -114,6 +114,8 @@ export default function AutoUnderwriting() {
   const [apiClients, setApiClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState('');
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
@@ -137,11 +139,15 @@ export default function AutoUnderwriting() {
 
   // Fetch real docs + financials when client changes
   useEffect(() => {
-    if (!selectedClientId) { setRealDocs([]); setResult(null); return; }
+    if (!selectedClientId) { setRealDocs([]); setResult(null); setBankAccounts([]); setSelectedAccount(''); return; }
     fetch(`${API}/documents/client/${selectedClientId}`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(docs => setRealDocs(docs))
       .catch(() => setRealDocs([]));
+    fetch(`${API}/documents/accounts/${selectedClientId}`, { headers })
+      .then(r => r.ok ? r.json() : { accounts: [] })
+      .then(data => { setBankAccounts(data.accounts || []); setSelectedAccount(''); })
+      .catch(() => setBankAccounts([]));
   }, [selectedClientId]);
 
   const runAnalysis = async () => {
@@ -170,7 +176,8 @@ export default function AutoUnderwriting() {
     // Fetch real extracted financials from server
     let serverFinancials = null;
     try {
-      const res = await fetch(`${API}/documents/financials/${selectedClientId}`, { headers });
+      const accountParam = selectedAccount ? `?account=${encodeURIComponent(selectedAccount)}` : '';
+      const res = await fetch(`${API}/documents/financials/${selectedClientId}${accountParam}`, { headers });
       if (res.ok) serverFinancials = await res.json();
     } catch {}
 
@@ -284,6 +291,19 @@ export default function AutoUnderwriting() {
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
             />
           </div>
+          {bankAccounts.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Bank Account</label>
+              <select
+                value={selectedAccount}
+                onChange={e => { setSelectedAccount(e.target.value); setResult(null); }}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              >
+                <option value="">All Accounts (Combined)</option>
+                {bankAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {client && (

@@ -26,6 +26,7 @@ export default function ClientDetail() {
   const { id } = useParams();
   const { can, user, token } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState(DOC_CATEGORIES[0].id);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
   const [activeTab, setActiveTab] = useState('Documents');
   const [showUpload, setShowUpload] = useState(false);
   const [realDocs, setRealDocs] = useState([]);
@@ -77,7 +78,10 @@ export default function ClientDetail() {
   const missingCategories = DOC_CATEGORIES.filter(c => !uploadedCategories.has(c.id));
 
   // Filter by selected category
-  const categoryDocs = allDocs.filter(d => d.category === selectedCategory);
+  const categoryDocs = allDocs.filter(d => d.category === selectedCategory
+    && (selectedCategory !== 'bank_statements' || !selectedBankAccount || d.bankAccount === selectedBankAccount)
+  );
+  const bankAccountsInDocs = [...new Set(allDocs.filter(d => d.category === 'bank_statements' && d.bankAccount).map(d => d.bankAccount))];
   const visibleDocs = can.seeInternalDocs
     ? categoryDocs
     : categoryDocs.filter(d => d.visibility !== 'internal');
@@ -260,6 +264,16 @@ export default function ClientDetail() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {selectedCategory === 'bank_statements' && bankAccountsInDocs.length > 0 && (
+                  <select
+                    value={selectedBankAccount}
+                    onChange={e => setSelectedBankAccount(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+                  >
+                    <option value="">All Accounts</option>
+                    {bankAccountsInDocs.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                )}
                 {can.uploadForClient && (
                   <button
                     onClick={() => setShowUpload(v => !v)}
