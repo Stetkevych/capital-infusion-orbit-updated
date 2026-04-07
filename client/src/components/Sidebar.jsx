@@ -17,7 +17,6 @@ const REP_LINKS = [
   { path: '/underwriting', label: 'Underwriting', icon: Zap },
   { path: '/analytics', label: 'Analytics', icon: BarChart2, adminOnly: true },
   { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
-  { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/activity', label: 'Activity', icon: Activity },
   { path: '/training', label: 'Training', icon: GraduationCap },
   { path: '/ci-loc', label: 'CI LOC', icon: CreditCard, adminOnly: true },

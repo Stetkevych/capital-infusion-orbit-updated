@@ -11,7 +11,7 @@ import UploadZone from '../../components/shared/UploadZone';
 import StatusBadge from '../../components/shared/StatusBadge';
 import {
   ArrowLeft, Mail, Phone, MapPin, Building2,
-  AlertCircle, Clock, Upload, Send, CheckCircle2, X
+  AlertCircle, Clock, Upload, Send, CheckCircle2, X, Bell, Plus
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -34,12 +34,15 @@ export default function ClientDetail() {
   const [requestingSent, setRequestingSent] = useState({});
   const [notification, setNotification] = useState(null);
   const [apiClient, setApiClient] = useState(null);
+  const [showCustomRequest, setShowCustomRequest] = useState(false);
+  const [customReqForm, setCustomReqForm] = useState({ category: '', instructions: '', dueDate: '' });
+  const [sendingCustom, setSendingCustom] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [clientActivity, setClientActivity] = useState([]);
 
   const mockClient = getClientById(id);
   const client = mockClient || apiClient;
   const rep = client ? getRepById(client.assignedRepId) : null;
-  const requests = getRequestsByClient(id);
-  const activity = getActivityByClient(id);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -64,6 +67,11 @@ export default function ClientDetail() {
       .then(docs => setRealDocs(docs))
       .catch(() => setRealDocs([]))
       .finally(() => setLoadingDocs(false));
+    // Fetch per-client activity
+    fetch(`${API}/activity`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setClientActivity(data.filter(a => a.clientId === id)))
+      .catch(() => setClientActivity([]));
   }, [id]);
 
   if (!client) {
@@ -87,6 +95,31 @@ export default function ClientDetail() {
     : categoryDocs.filter(d => d.visibility !== 'internal');
 
   const catLabel = DOC_CATEGORIES.find(c => c.id === selectedCategory)?.label || '';
+
+  // Send custom request
+  const sendCustomRequest = async (e) => {
+    e.preventDefault();
+    if (!customReqForm.category) return;
+    setSendingCustom(true);
+    const cat = DOC_CATEGORIES.find(c => c.id === customReqForm.category);
+    try {
+      await fetch(`${API}/clients-api/${id}/reminder`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ category: customReqForm.category, categoryLabel: cat?.label, customMessage: customReqForm.instructions || `Please upload your ${cat?.label} at your earliest convenience.` }),
+      });
+      const newReq = { id: `req_${Date.now()}`, category: customReqForm.category, catLabel: cat?.label, instructions: customReqForm.instructions, dueDate: customReqForm.dueDate, status: 'Pending', createdAt: new Date().toISOString() };
+      setPendingRequests(prev => [newReq, ...prev]);
+      setNotification(`Request sent to ${client.email} for ${cat?.label}`);
+    } catch {
+      setNotification(`Request queued for ${cat?.label}`);
+    }
+    setSendingCustom(false);
+    setShowCustomRequest(false);
+    setCustomReqForm({ category: '', instructions: '', dueDate: '' });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const fulfillRequest = (reqId) => setPendingRequests(prev => prev.filter(r => r.id !== reqId));
 
   // Send missing doc request email
   const sendDocRequest = async (category) => {
@@ -204,6 +237,46 @@ export default function ClientDetail() {
         </div>
       )}
 
+      {/* Custom Request Bar */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <button onClick={() => setShowCustomRequest(v => !v)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+          <div className="flex items-center gap-2.5">
+            <Bell size={15} className="text-blue-600" />
+            <span className="text-gray-900 text-sm font-medium">Custom Request</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-xs">Send a document request to this client</span>
+            <Plus size={14} className={`text-gray-400 transition-transform ${showCustomRequest ? 'rotate-45' : ''}`} />
+          </div>
+        </button>
+        {showCustomRequest && (
+          <form onSubmit={sendCustomRequest} className="px-5 pb-5 pt-2 border-t border-gray-100 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Document Type</label>
+                <select required value={customReqForm.category} onChange={e => setCustomReqForm(f => ({ ...f, category: e.target.value }))} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                  <option value="">Select...</option>
+                  {DOC_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Due Date</label>
+                <input type="date" value={customReqForm.dueDate} onChange={e => setCustomReqForm(f => ({ ...f, dueDate: e.target.value }))} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              </div>
+              <div className="flex items-end">
+                <button type="submit" disabled={sendingCustom || !customReqForm.category} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-4 py-2.5 rounded-xl font-medium transition-colors w-full justify-center">
+                  <Send size={13} /> {sendingCustom ? 'Sending...' : 'Send Request'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Instructions (optional)</label>
+              <textarea value={customReqForm.instructions} onChange={e => setCustomReqForm(f => ({ ...f, instructions: e.target.value }))} rows={2} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" placeholder="Describe what you need from the client..." />
+            </div>
+          </form>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-100">
         {TABS.map(tab => (
@@ -306,21 +379,23 @@ export default function ClientDetail() {
       {/* Requests Tab */}
       {activeTab === 'Requests' && (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm divide-y divide-gray-50">
-          {requests.length === 0 ? (
-            <p className="text-gray-400 text-sm px-5 py-6">No document requests.</p>
-          ) : requests.map(req => {
+          {pendingRequests.length === 0 ? (
+            <p className="text-gray-400 text-sm px-5 py-6 text-center">No pending requests. Use the Custom Request bar above to send one.</p>
+          ) : pendingRequests.map(req => {
             const cat = DOC_CATEGORIES.find(c => c.id === req.category);
             return (
               <div key={req.id} className="px-5 py-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-gray-800 font-medium text-sm">{cat?.label}</p>
-                    <p className="text-gray-400 text-xs mt-1">{req.instructions}</p>
+                    <p className="text-gray-800 font-medium text-sm">{cat?.icon} {req.catLabel || cat?.label}</p>
+                    {req.instructions && <p className="text-gray-400 text-xs mt-1">{req.instructions}</p>}
                     <p className="text-gray-300 text-xs mt-1.5 flex items-center gap-1">
-                      <Clock size={11} /> Due {fmt(req.dueDate)}
+                      <Clock size={11} /> {req.dueDate ? `Due ${fmt(req.dueDate)}` : `Sent ${fmt(req.createdAt)}`}
                     </p>
                   </div>
-                  <StatusBadge status={req.status} size="xs" />
+                  <button onClick={() => fulfillRequest(req.id)} className="flex items-center gap-1 text-xs text-green-600 hover:bg-green-50 border border-green-200 px-2.5 py-1.5 rounded-lg transition-colors">
+                    <CheckCircle2 size={11} /> Mark Done
+                  </button>
                 </div>
               </div>
             );
@@ -331,9 +406,12 @@ export default function ClientDetail() {
       {/* Activity Tab */}
       {activeTab === 'Activity' && (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm divide-y divide-gray-50">
-          {activity.map(a => {
+          {clientActivity.length === 0 ? (
+            <p className="text-gray-400 text-sm px-5 py-6 text-center">No activity recorded for this client yet.</p>
+          ) : clientActivity.map(a => {
             const typeColor = {
               upload: 'text-blue-600 bg-blue-50',
+              login: 'text-green-600 bg-green-50',
               status_change: 'text-green-600 bg-green-50',
               request: 'text-amber-600 bg-amber-50',
               note: 'text-purple-600 bg-purple-50',
@@ -341,11 +419,11 @@ export default function ClientDetail() {
             return (
               <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
                 <span className={`text-xs font-medium px-2 py-1 rounded-lg shrink-0 mt-0.5 ${typeColor}`}>
-                  {a.eventType.replace('_', ' ')}
+                  {(a.eventType || '').replace('_', ' ')}
                 </span>
                 <div>
                   <p className="text-gray-700 text-sm">{a.description}</p>
-                  <p className="text-gray-400 text-xs mt-0.5">{fmt(a.createdAt)}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">{fmt(a.timestamp || a.createdAt)}</p>
                 </div>
               </div>
             );
