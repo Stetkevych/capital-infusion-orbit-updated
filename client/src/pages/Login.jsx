@@ -17,19 +17,6 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const DEMO = {
-    client: [
-      { label: 'Christopher Cranton', sub: 'Client', email: 'christopher.cranton@gmail.com', pw: 'chrisbuildstech123' },
-      { label: 'Darnell Williams', sub: 'Williams Auto Repair', email: 'client@demo.com', pw: 'password' },
-      { label: 'Maria Gonzalez', sub: 'Gonzalez Catering', email: 'client2@demo.com', pw: 'password' },
-    ],
-    rep: [
-      { label: 'Alex Stetkevych', sub: 'Admin', email: 'alexs@capital-infusion.com', pw: 'CapitalAdmin2024!' },
-      { label: 'Anthony Diaz', sub: 'Rep', email: 'anthonyd@capital-infusion.com', pw: 'anthony$cool123!' },
-      { label: 'Sarah Mitchell', sub: 'Rep — Demo', email: 'rep@demo.com', pw: 'password' },
-    ],
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -54,7 +41,7 @@ export default function Login() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
-              onClick={() => { setFlow('client'); setEmail('client@demo.com'); setPassword('password'); }}
+              onClick={() => setFlow('client')}
               className="group bg-white border border-gray-200 hover:border-blue-300 rounded-2xl p-7 text-left transition-all hover:shadow-md"
             >
               <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-5 group-hover:bg-blue-600 transition-colors">
@@ -66,7 +53,7 @@ export default function Login() {
             </button>
 
             <button
-              onClick={() => { setFlow('rep'); setEmail('alexs@capital-infusion.com'); setPassword('CapitalAdmin2024!'); }}
+              onClick={() => setFlow('rep')}
               className="group bg-white border border-gray-200 hover:border-green-400 rounded-2xl p-7 text-left transition-all hover:shadow-md"
             >
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mb-5 group-hover:bg-green-600 transition-colors">
@@ -145,21 +132,6 @@ export default function Login() {
               Forgot password?
             </button>
           </form>
-
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Quick Access</p>
-            <div className="space-y-1">
-              {DEMO[flow].map(d => (
-                <button
-                  key={d.email}
-                  onClick={() => { setEmail(d.email); if (d.pw) setPassword(d.pw); }}
-                  className="w-full text-left text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  {d.label} <span className="text-gray-300">— {d.sub}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Forgot Password Modal */}

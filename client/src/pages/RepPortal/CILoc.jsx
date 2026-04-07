@@ -59,7 +59,7 @@ export default function CILocDetails() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <CreditCard size={22} className="text-blue-600" /> CI LOC
+            <CreditCard size={22} className="text-blue-600" /> Line of Credit
           </h1>
           <p className="text-gray-400 text-sm mt-0.5">Line of Credit Overview &middot; {loan.loanType} &middot; {loan.loanNumber}</p>
         </div>
