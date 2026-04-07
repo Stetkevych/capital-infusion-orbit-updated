@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, CheckCircle2, AlertCircle, X, FileText } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -40,11 +40,17 @@ export default function UploadZone({
   token,
   onUpload,
   compact = false,
+  defaultBankAccount = null,
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploads, setUploads] = useState([]);
-  const [bankAccount, setBankAccount] = useState('Account 1');
+  const [bankAccount, setBankAccount] = useState(defaultBankAccount || 'Account 1');
   const inputRef = useRef();
+
+  // Sync with parent's selected account
+  useEffect(() => {
+    if (defaultBankAccount) setBankAccount(defaultBankAccount);
+  }, [defaultBankAccount]);
 
   const updateUpload = (id, patch) =>
     setUploads(prev => prev.map(u => u.id === id ? { ...u, ...patch } : u));
@@ -127,7 +133,7 @@ export default function UploadZone({
 
   return (
     <div className="space-y-2">
-      {category === 'bank_statements' && !compact && (
+      {category === 'bank_statements' && !compact && !defaultBankAccount && (
         <div className="flex items-center gap-2 mb-1">
           <label className="text-xs font-medium text-gray-500">Bank Account:</label>
           <select value={bankAccount} onChange={e => setBankAccount(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">

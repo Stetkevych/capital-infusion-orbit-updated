@@ -372,6 +372,7 @@ export default function ClientDetail() {
                   clientId={id}
                   uploadedBy={user?.id}
                   onUpload={handleUploadComplete}
+                  defaultBankAccount={selectedCategory === 'bank_statements' ? (selectedBankAccount || 'Account 1') : null}
                   compact
                 />
               </div>
