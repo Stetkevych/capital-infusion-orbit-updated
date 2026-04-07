@@ -27,6 +27,7 @@ export default function ClientDetail() {
   const { can, user, token } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState(DOC_CATEGORIES[0].id);
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
+  const [customAccounts, setCustomAccounts] = useState([]);
   const [activeTab, setActiveTab] = useState('Documents');
   const [showUpload, setShowUpload] = useState(false);
   const [realDocs, setRealDocs] = useState([]);
@@ -89,7 +90,14 @@ export default function ClientDetail() {
   const categoryDocs = allDocs.filter(d => d.category === selectedCategory
     && (selectedCategory !== 'bank_statements' || !selectedBankAccount || d.bankAccount === selectedBankAccount)
   );
-  const bankAccountsInDocs = [...new Set(allDocs.filter(d => d.category === 'bank_statements' && d.bankAccount).map(d => d.bankAccount))];
+  const bankAccountsInDocs = [...new Set([...allDocs.filter(d => d.category === 'bank_statements' && d.bankAccount).map(d => d.bankAccount), ...customAccounts])];
+  const allBankAccounts = bankAccountsInDocs.length > 0 ? bankAccountsInDocs : (allDocs.some(d => d.category === 'bank_statements') ? ['Account 1'] : []);
+
+  const addBankAccount = () => {
+    const next = `Account ${allBankAccounts.length + 1}`;
+    setCustomAccounts(prev => [...prev, next]);
+    setSelectedBankAccount(next);
+  };
   const visibleDocs = can.seeInternalDocs
     ? categoryDocs
     : categoryDocs.filter(d => d.visibility !== 'internal');
@@ -337,15 +345,13 @@ export default function ClientDetail() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {selectedCategory === 'bank_statements' && bankAccountsInDocs.length > 0 && (
-                  <select
-                    value={selectedBankAccount}
-                    onChange={e => setSelectedBankAccount(e.target.value)}
-                    className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+                {selectedCategory === 'bank_statements' && (
+                  <button
+                    onClick={addBankAccount}
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
                   >
-                    <option value="">All Accounts</option>
-                    {bankAccountsInDocs.map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
+                    <Plus size={11} /> Add Account
+                  </button>
                 )}
                 {can.uploadForClient && (
                   <button
@@ -368,6 +374,26 @@ export default function ClientDetail() {
                   onUpload={handleUploadComplete}
                   compact
                 />
+              </div>
+            )}
+
+            {selectedCategory === 'bank_statements' && allBankAccounts.length > 0 && (
+              <div className="flex items-center gap-1 px-5 py-2 border-b border-gray-50 bg-gray-50/50 overflow-x-auto">
+                <button
+                  onClick={() => setSelectedBankAccount('')}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${!selectedBankAccount ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                >
+                  All
+                </button>
+                {allBankAccounts.map(a => (
+                  <button
+                    key={a}
+                    onClick={() => setSelectedBankAccount(a)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${selectedBankAccount === a ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    {a}
+                  </button>
+                ))}
               </div>
             )}
 
