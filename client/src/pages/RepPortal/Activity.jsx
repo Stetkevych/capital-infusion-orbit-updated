@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Activity, LogIn, Upload, FileText, Clock } from 'lucide-react';
+import { Activity, LogIn, Upload, FileText, Clock, ChevronRight } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -66,8 +67,11 @@ export default function ActivityPage() {
         {logs.map(a => {
           const t = TYPE_STYLE[a.eventType] || { label: a.eventType || 'Event', icon: Activity, cls: 'bg-gray-50 text-gray-500 border-gray-200' };
           const Icon = t.icon;
+          const linkTo = a.clientId ? `/clients/${a.clientId}` : null;
+          const Wrapper = linkTo ? Link : 'div';
+          const wrapperProps = linkTo ? { to: linkTo } : {};
           return (
-            <div key={a.id} className="flex items-start gap-4 px-5 py-4">
+            <Wrapper key={a.id} {...wrapperProps} className={`flex items-start gap-4 px-5 py-4 ${linkTo ? 'hover:bg-blue-50/40 cursor-pointer transition-colors' : ''}`}>
               <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border shrink-0 mt-0.5 ${t.cls}`}>
                 <Icon size={12} />
                 {t.label}
@@ -75,15 +79,18 @@ export default function ActivityPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-gray-800 text-sm">{a.description}</p>
                 {a.userName && <p className="text-gray-400 text-xs mt-0.5">{a.userName} · {a.userEmail}</p>}
-                {a.clientId && <p className="text-gray-400 text-xs">{a.fileName || ''}</p>}
+                {a.fileName && <p className="text-gray-400 text-xs">{a.fileName}</p>}
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-gray-400 text-xs">{timeAgo(a.timestamp)}</p>
-                <p className="text-gray-300 text-xs flex items-center gap-1 justify-end mt-0.5">
-                  <Clock size={10} /> {fmt(a.timestamp)}
-                </p>
+              <div className="shrink-0 text-right flex items-center gap-2">
+                <div>
+                  <p className="text-gray-400 text-xs">{timeAgo(a.timestamp)}</p>
+                  <p className="text-gray-300 text-xs flex items-center gap-1 justify-end mt-0.5">
+                    <Clock size={10} /> {fmt(a.timestamp)}
+                  </p>
+                </div>
+                {linkTo && <ChevronRight size={14} className="text-gray-300" />}
               </div>
-            </div>
+            </Wrapper>
           );
         })}
       </div>

@@ -11,7 +11,7 @@ import UploadZone from '../../components/shared/UploadZone';
 import StatusBadge from '../../components/shared/StatusBadge';
 import {
   ArrowLeft, Mail, Phone, MapPin, Building2,
-  AlertCircle, Clock, Upload, Send, CheckCircle2, X, Bell, Plus
+  AlertCircle, Clock, Upload, Send, CheckCircle2, X, Bell, Plus, ChevronRight
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -444,15 +444,16 @@ export default function ClientDetail() {
               note: 'text-purple-600 bg-purple-50',
             }[a.eventType] || 'text-gray-500 bg-gray-100';
             return (
-              <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
+              <button key={a.id} onClick={() => { if (a.eventType === 'upload') setActiveTab('Documents'); }} className={`w-full flex items-start gap-3 px-5 py-3.5 text-left ${a.eventType === 'upload' ? 'hover:bg-blue-50/40 cursor-pointer' : ''} transition-colors`}>
                 <span className={`text-xs font-medium px-2 py-1 rounded-lg shrink-0 mt-0.5 ${typeColor}`}>
                   {(a.eventType || '').replace('_', ' ')}
                 </span>
-                <div>
+                <div className="flex-1">
                   <p className="text-gray-700 text-sm">{a.description}</p>
                   <p className="text-gray-400 text-xs mt-0.5">{fmt(a.timestamp || a.createdAt)}</p>
                 </div>
-              </div>
+                {a.eventType === 'upload' && <ChevronRight size={14} className="text-gray-300 shrink-0 mt-1" />}
+              </button>
             );
           })}
         </div>
