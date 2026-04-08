@@ -1,14 +1,17 @@
-const { TextractClient, StartDocumentTextDetectionCommand, GetDocumentTextDetectionCommand, StartDocumentAnalysisCommand, GetDocumentAnalysisCommand } = require('@aws-sdk/client-textract');
+const mindee = require('mindee');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 
 const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const textract = new TextractClient({ region: REGION });
+const MINDEE_API_KEY = process.env.MINDEE_API_KEY || 'md_QHXO8ETx889TsZFE6Imi_FvB-s21JbWyGcmu1O9TD5c';
+const MINDEE_MODEL_ID = process.env.MINDEE_MODEL_ID || '52dc192e-8592-415d-aac5-5404d1e9080e';
+
+const s3 = new S3Client({ region: REGION });
+const mindeeClient = new mindee.Client({ apiKey: MINDEE_API_KEY });
 
 // ─── BANK SUMMARY PATTERNS ───────────────────────────────────────────────────
 const SUMMARY_PATTERNS = [
-  // Credit union: "19 Credit(s) This Period $98,189.01"
   /\d+\s+credit.?s.?\s+this\s+period\s*.?([\d,]+\.\d{2})/i,
-  // English patterns
   /total\s+deposits?\s+and\s+(?:other\s+)?(?:additions?|credits?)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /total\s+deposits?\s+and\s+additions?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /total\s+credits?\s+this\s+period\s*[:\s]*\$?([\d,]+\.\d{2})/i,
@@ -22,51 +25,31 @@ const SUMMARY_PATTERNS = [
   /deposits?\s+&\s+(?:other\s+)?credits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /credits?\s+&\s+deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /total\s+(?:electronic\s+)?deposits?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  // Canadian English
   /total\s+credits?\s+\(CAD\)\s*[:\s]*\$?([\d,]+\.\d{2})/i,
-  // French / Canadian French (comma as decimal: 27488,06)
   /total\s+des\s+cr[e\u00e9]dits?\s*[:\s]*\$?([\d][\d\s]*,\d{2})/i,
   /total\s+des\s+d[e\u00e9]p[o\u00f4]ts?\s*[:\s]*\$?([\d][\d\s]*,\d{2})/i,
   /d[e\u00e9]p[o\u00f4]ts?\s*[:\+\s]*\$?([\d][\d\s]*,\d{2})/i,
-  // Spanish
   /total\s+(?:de\s+)?dep[o\u00f3]sitos?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /total\s+(?:de\s+)?cr[e\u00e9]ditos?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /dep[o\u00f3]sitos?\s+totales?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
   /ingresos?\s+totales?\s*[:\s]*\$?([\d,]+\.\d{2})/i,
 ];
 
-// Lines to SKIP
 const SKIP_PATTERNS = [
   /total\s+(?:debits?|withdrawals?|checks?|fees?|charges?|payments?)/i,
   /total\s+(?:money\s+out|outgoing)/i,
   /\d+\s+debit.?s.?\s+this\s+period/i,
-  /ending\s+balance/i,
-  /beginning\s+balance/i,
-  /opening\s+balance/i,
-  /closing\s+balance/i,
-  /available\s+balance/i,
-  /current\s+balance/i,
-  /minimum\s+balance/i,
-  /average\s+(?:daily\s+)?(?:ledger\s+)?balance/i,
-  /overdraft/i,
-  /interest\s+(?:earned|paid|charged|days)/i,
-  /annual\s+percentage/i,
-  /service\s+(?:charge|fee)/i,
-  /account\s+(?:number|summary|type)/i,
-  /member\s+number/i,
-  /phone\s+number/i,
-  /statement\s+(?:period|ending)/i,
-  /page\s+\d/i,
-  /total\s+current\s+value/i,
-  /total\s+(?:for\s+this|year)/i,
+  /ending\s+balance/i, /beginning\s+balance/i, /opening\s+balance/i,
+  /closing\s+balance/i, /available\s+balance/i, /current\s+balance/i,
+  /minimum\s+balance/i, /average\s+(?:daily\s+)?(?:ledger\s+)?balance/i,
+  /overdraft/i, /interest\s+(?:earned|paid|charged|days)/i,
+  /annual\s+percentage/i, /service\s+(?:charge|fee)/i,
+  /account\s+(?:number|summary|type)/i, /member\s+number/i, /phone\s+number/i,
+  /statement\s+(?:period|ending)/i, /page\s+\d/i,
+  /total\s+current\s+value/i, /total\s+(?:for\s+this|year)/i,
   /total\s+(?:overdraft|returned)/i,
-  // French
-  /retraits?\s/i,
-  /solde\s+(?:d['\u2019]ouverture|de\s+cl[o\u00f4]ture|report\u00e9)/i,
-  /frais\s+(?:de\s+service|maximum)/i,
-  /int[e\u00e9]r[e\u00ea]t\s+sur/i,
-  /d[e\u00e9]couvert/i,
-  // Spanish
+  /retraits?\s/i, /solde\s+(?:d['\u2019]ouverture|de\s+cl[o\u00f4]ture|report\u00e9)/i,
+  /frais\s+(?:de\s+service|maximum)/i, /int[e\u00e9]r[e\u00ea]t\s+sur/i, /d[e\u00e9]couvert/i,
   /saldo\s+(?:inicial|final|disponible)/i,
   /total\s+(?:de\s+)?(?:retiros?|d[e\u00e9]bitos?|cargos?)/i,
 ];
@@ -99,7 +82,6 @@ const ALL_LENDERS = [...SAFE_LENDERS, ...AMBIGUOUS_LENDERS].sort((a, b) => b.len
 function parseDollar(str) {
   if (!str) return null;
   let cleaned = str.replace(/[$\s]/g, '');
-  // French format: comma as decimal (27488,06)
   if (cleaned.includes(',') && !cleaned.includes('.')) {
     const lastComma = cleaned.lastIndexOf(',');
     const afterComma = cleaned.slice(lastComma + 1);
@@ -117,26 +99,21 @@ function parseDollar(str) {
 
 function extractAllDollars(line) {
   const results = [];
-  // STRICT: only match proper dollar amounts — $1,234.56 or standalone 1,234.56
-  // Must have $ sign OR be a number with exactly 2 decimal places
   const re = /\$([\d,]+\.\d{2})\b/g;
   let m;
   while ((m = re.exec(line)) !== null) {
     const val = parseDollar(m[1]);
     if (val !== null) results.push(val);
   }
-  // If no $ signs found, try bare amounts with .XX decimal (but NOT phone numbers like 800.411.7590)
   if (results.length === 0) {
     const bareRe = /(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g;
     while ((m = bareRe.exec(line)) !== null) {
       const raw = m[1];
-      // Skip if it looks like a phone number (has multiple dots) or too many digits without commas
       if ((raw.match(/\./g) || []).length > 1) continue;
       const val = parseDollar(raw);
       if (val !== null) results.push(val);
     }
   }
-  // French format: 27488,06 $
   if (results.length === 0) {
     const frRe = /([\d][\d\s]*,\d{2})\s*\$/g;
     while ((m = frRe.exec(line)) !== null) {
@@ -151,46 +128,62 @@ function shouldSkipLine(line) {
   return SKIP_PATTERNS.some(p => p.test(line));
 }
 
-// ─── TEXTRACT JOB MANAGEMENT ──────────────────────────────────────────────────
-async function startJob(s3Key) {
-  const res = await textract.send(new StartDocumentAnalysisCommand({
-    DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
-    FeatureTypes: ['TABLES'],
-  }));
-  return res.JobId;
+// ─── MINDEE OCR ───────────────────────────────────────────────────────────────
+async function downloadFromS3(s3Key) {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
+  const chunks = [];
+  for await (const chunk of res.Body) chunks.push(chunk);
+  return Buffer.concat(chunks);
 }
 
-async function waitForJob(jobId) {
-  for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 3000));
-    const res = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId }));
-    if (res.JobStatus === 'SUCCEEDED') return;
-    if (res.JobStatus === 'FAILED') throw new Error('Textract job failed');
+function wordsToLines(pages) {
+  const lines = [];
+  for (const page of pages) {
+    const words = page.words || [];
+    if (!words.length) continue;
+    // Group words into lines by Y-coordinate proximity
+    const sorted = [...words].sort((a, b) => {
+      const ay = a.polygon?.[0]?.[1] ?? 0;
+      const by = b.polygon?.[0]?.[1] ?? 0;
+      return ay - by || (a.polygon?.[0]?.[0] ?? 0) - (b.polygon?.[0]?.[0] ?? 0);
+    });
+    let currentLine = [];
+    let currentY = sorted[0]?.polygon?.[0]?.[1] ?? 0;
+    for (const word of sorted) {
+      const wy = word.polygon?.[0]?.[1] ?? 0;
+      if (Math.abs(wy - currentY) > 0.008) {
+        if (currentLine.length) lines.push(currentLine.map(w => w.content).join(' '));
+        currentLine = [];
+        currentY = wy;
+      }
+      currentLine.push(word);
+    }
+    if (currentLine.length) lines.push(currentLine.map(w => w.content).join(' '));
   }
-  throw new Error('Textract job timed out');
+  return lines;
 }
 
-async function getBlocks(jobId) {
-  let blocks = [];
-  let nextToken;
-  do {
-    const params = { JobId: jobId };
-    if (nextToken) params.NextToken = nextToken;
-    const res = await textract.send(new GetDocumentAnalysisCommand(params));
-    blocks = blocks.concat(res.Blocks || []);
-    nextToken = res.NextToken;
-  } while (nextToken);
-  return blocks;
+async function runMindeeOcr(s3Key) {
+  console.log(`[Mindee] Downloading ${s3Key} from S3...`);
+  const buffer = await downloadFromS3(s3Key);
+  console.log(`[Mindee] Downloaded ${buffer.length} bytes, sending to Mindee OCR...`);
+
+  const input = new mindee.BufferInput({ buffer, filename: s3Key.split('/').pop() });
+  const response = await mindeeClient.enqueueAndGetResult(
+    mindee.product.Ocr,
+    input,
+    { modelId: MINDEE_MODEL_ID },
+  );
+
+  const pages = response.inference.result.pages;
+  const lines = wordsToLines(pages);
+  console.log(`[Mindee] Extracted ${lines.length} lines from ${pages.length} pages`);
+  return lines;
 }
 
-// ─── MAIN PARSER ──────────────────────────────────────────────────────────────
-function parseFinancials(blocks) {
-  const lines = blocks
-    .filter(b => b.BlockType === 'LINE')
-    .map(b => (b.Text || '').trim())
-    .filter(Boolean);
-
-  // Pre-process: join lines split across Textract lines
+// ─── MAIN PARSER (unchanged logic) ───────────────────────────────────────────
+function parseFinancials(lines) {
+  // Pre-process: join lines split across OCR lines
   const joinedLines = [];
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -218,14 +211,13 @@ function parseFinancials(blocks) {
         const val = parseDollar(match[1]);
         if (val && val >= 100) {
           summaryHits.push({ value: val, line: line.trim(), pattern: pattern.source });
-          console.log(`[Textract] \u2713 Summary match: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
+          console.log(`[Mindee] \u2713 Summary match: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
         }
         break;
       }
     }
   }
 
-  // Filter dormant accounts (10% threshold) and deduplicate same-value hits
   let filteredSummary = [...new Set(summaryHits.map(h => h.value))];
   if (filteredSummary.length > 1) {
     const maxVal = Math.max(...filteredSummary);
@@ -239,17 +231,14 @@ function parseFinancials(blocks) {
   let individualCount = 0;
 
   if (filteredSummary.length === 0) {
-    console.log('[Textract] No summary lines found, falling back to individual credit detection');
+    console.log('[Mindee] No summary lines found, falling back to individual credit detection');
     for (const line of joinedLines) {
       const lower = line.toLowerCase();
       if (shouldSkipLine(line)) continue;
-
       const amounts = extractAllDollars(line);
       if (!amounts.length) continue;
-
       const isCredit = /\b(deposit|credit|cr\b|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in|wire\s+deposit|mobile\s+deposit|atm\s+deposit|direct\s+deposit)\b/i.test(lower);
       const isDebit = /\b(debit|dr\b|withdrawal|withdraw|payment|purchase|pos\b|ach\s+debit|wire\s+out|check\b|fee\b|charge|transfer\s+out)\b/i.test(lower);
-
       if (isCredit) {
         if (isDebit) {
           const creditPos = lower.search(/\b(deposit|credit|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in)\b/i);
@@ -263,7 +252,7 @@ function parseFinancials(blocks) {
         }
       }
     }
-    console.log(`[Textract] Individual credits: ${individualCount} transactions, total: $${individualTotal.toLocaleString()}`);
+    console.log(`[Mindee] Individual credits: ${individualCount} transactions, total: $${individualTotal.toLocaleString()}`);
   }
 
   // STEP 3: Months covered
@@ -283,7 +272,6 @@ function parseFinancials(blocks) {
   // STEP 4: Calculate revenue
   let totalCredits, numberOfDeposits, method;
   const summaryTotal = filteredSummary.reduce((s, v) => s + v, 0);
-
   if (summaryTotal > 0) {
     totalCredits = summaryTotal;
     numberOfDeposits = filteredSummary.length;
@@ -301,9 +289,20 @@ function parseFinancials(blocks) {
   const avgMonthlyRevenue = totalCredits > 0 ? Math.round(totalCredits / monthsCovered) : null;
   const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
 
-  console.log(`[Textract] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()}`);
+  // STEP 4b: Payment frequency detection
+  let paymentFrequency = 'Unknown';
+  if (numberOfDeposits > 0 && monthsCovered > 0) {
+    const depositsPerMonth = numberOfDeposits / monthsCovered;
+    if (depositsPerMonth >= 18) paymentFrequency = 'Daily';
+    else if (depositsPerMonth >= 8) paymentFrequency = 'Weekly';
+    else if (depositsPerMonth >= 3.5) paymentFrequency = 'Bi-Weekly';
+    else if (depositsPerMonth >= 1.5) paymentFrequency = 'Monthly';
+    else paymentFrequency = 'Irregular';
+  }
 
-  // STEP 5: Negative days — only count actual negative balances, not boilerplate text
+  console.log(`[Mindee] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()} | freq=${paymentFrequency}`);
+
+  // STEP 5: Negative days
   const negRe = /-\$[\d,]+\.?\d{0,2}/g;
   const negMatches = fullLower.match(negRe) || [];
   const negativeDays = negMatches.length;
@@ -314,18 +313,15 @@ function parseFinancials(blocks) {
     const line = joinedLines[li];
     const lower = line.toLowerCase();
     let amounts = extractAllDollars(line);
-    // If no dollar amount on this line, peek at next line
     if (amounts.length === 0 && li + 1 < joinedLines.length) {
       amounts = extractAllDollars(joinedLines[li + 1]);
     }
     const hasDollar = amounts.length > 0;
-
     for (const kw of ALL_LENDERS) {
       if (!lower.includes(kw)) continue;
       if (AMBIGUOUS_LENDERS.includes(kw) && !hasDollar) continue;
       const kwRe = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       if (!kwRe.test(lower)) continue;
-
       const name = kw.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       if (!detectedLenders[name]) detectedLenders[name] = { name, totalPaid: 0, occurrences: 0 };
       detectedLenders[name].occurrences++;
@@ -340,46 +336,31 @@ function parseFinancials(blocks) {
     ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1)) : 0;
 
   return {
-    avgMonthlyRevenue,
-    estimatedAnnualRevenue,
-    numberOfDeposits,
-    totalCredits: Math.round(totalCredits),
-    negativeDays,
-    monthsCovered,
-    positions,
-    positionCount: positions.length,
-    totalLenderPayments: Math.round(totalLenderPayments),
-    withholdingRate,
-    method,
-    summaryHits: summaryHits.length,
+    avgMonthlyRevenue, estimatedAnnualRevenue, numberOfDeposits,
+    totalCredits: Math.round(totalCredits), negativeDays, monthsCovered,
+    positions, positionCount: positions.length,
+    totalLenderPayments: Math.round(totalLenderPayments), withholdingRate,
+    paymentFrequency, method, summaryHits: summaryHits.length,
     extractedAt: new Date().toISOString(),
     confidence: method === 'summary' ? 'high' : method === 'individual' ? 'medium' : 'low',
   };
 }
 
-// ─── EXPORT ───────────────────────────────────────────────────────────────────
+// ─── EXPORTS (same interface as before) ──────────────────────────────────────
 async function extractBankStatement(s3Key) {
   try {
-    const jobId = await startJob(s3Key);
-    await waitForJob(jobId);
-    const blocks = await getBlocks(jobId);
-    const financials = parseFinancials(blocks);
-    return { success: true, jobId, ...financials };
+    const lines = await runMindeeOcr(s3Key);
+    const financials = parseFinancials(lines);
+    return { success: true, ocrEngine: 'mindee', ...financials };
   } catch (err) {
-    console.error('[Textract] Error:', err.message);
+    console.error('[Mindee] Error:', err.message);
     return { success: false, error: err.message };
   }
 }
 
 async function extractRawLines(s3Key) {
   try {
-    const jobId = await startJob(s3Key);
-    await waitForJob(jobId);
-    const blocks = await getBlocks(jobId);
-    const lines = blocks
-      .filter(b => b.BlockType === 'LINE')
-      .map(b => (b.Text || '').trim())
-      .filter(Boolean);
+    const lines = await runMindeeOcr(s3Key);
     return { success: true, lineCount: lines.length, lines };
   } catch (err) {
     return { success: false, error: err.message };
