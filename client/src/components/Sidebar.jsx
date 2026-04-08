@@ -14,7 +14,6 @@ const REP_LINKS = [
   { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Documents', icon: FolderOpen },
-  { path: '/underwriting', label: 'Underwriting', icon: Zap },
   { path: '/analytics', label: 'Analytics', icon: BarChart2, adminOnly: true },
   { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
   { path: '/activity', label: 'Activity', icon: Activity },
