@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Key, Copy, CheckCircle2, Info } from 'lucide-react';
+import { Key, Copy, CheckCircle2, Info, UserPlus, Loader2 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 export default function ClientCredentials() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(null);
 
+  // Create form state
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ full_name: '', email: '', business_name: '', password: '' });
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
-  useEffect(() => {
+  const fetchCredentials = () => {
     fetch(`${API}/auth/client-credentials`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setCredentials(data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchCredentials(); }, []);
 
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -26,14 +35,101 @@ export default function ClientCredentials() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    if (!formData.full_name || !formData.email || !formData.password) {
+      setFormError('Name, email, and password are required');
+      return;
+    }
+    if (formData.password.length < 8) {
+      setFormError('Password must be at least 8 characters');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch(`${API}/auth/create-client`, {
+        method: 'POST', headers,
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create account');
+      setFormSuccess(`Account created for ${formData.full_name} — assigned to you`);
+      setFormData({ full_name: '', email: '', business_name: '', password: '' });
+      fetchCredentials();
+      setTimeout(() => setFormSuccess(''), 5000);
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-5 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2.5">
-          <Key size={22} className="text-blue-600" /> Client Credentials
-        </h1>
-        <p className="text-gray-400 text-sm mt-0.5">Auto-generated login credentials for clients</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <Key size={22} className="text-blue-600" /> Client Credentials
+          </h1>
+          <p className="text-gray-400 text-sm mt-0.5">Auto-generated login credentials for clients</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(f => !f); setFormError(''); setFormSuccess(''); }}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+        >
+          <UserPlus size={15} />
+          {showForm ? 'Cancel' : 'Create Client Account'}
+        </button>
       </div>
+
+      {/* Create Client Form */}
+      {showForm && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+          <h2 className="text-gray-900 font-semibold text-sm mb-4 flex items-center gap-2">
+            <UserPlus size={15} className="text-blue-600" /> New Client Account
+          </h2>
+          {formError && (
+            <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">{formError}</div>
+          )}
+          {formSuccess && (
+            <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center gap-2">
+              <CheckCircle2 size={14} /> {formSuccess}
+            </div>
+          )}
+          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Full Name *</label>
+              <input type="text" value={formData.full_name} onChange={e => setFormData(f => ({ ...f, full_name: e.target.value }))}
+                placeholder="John Smith" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Email *</label>
+              <input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
+                placeholder="client@example.com" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Business Name</label>
+              <input type="text" value={formData.business_name} onChange={e => setFormData(f => ({ ...f, business_name: e.target.value }))}
+                placeholder="Acme LLC" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Password *</label>
+              <input type="text" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))}
+                placeholder="Min 8 characters" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            </div>
+            <div className="md:col-span-2">
+              <button type="submit" disabled={creating}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
+                {creating ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+                {creating ? 'Creating...' : 'Create Account'}
+              </button>
+              <p className="text-gray-400 text-xs mt-2">Client will be auto-assigned to you ({user?.full_name || 'current rep'})</p>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
         <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />

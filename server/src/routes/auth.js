@@ -153,7 +153,7 @@ router.get('/client-credentials', authMiddleware, async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ message: 'Access denied' });
   const allUsers = await UserStore.findAll();
   const clientCreds = allUsers
-    .filter(u => u.role === 'client' && u.source === 'docusign')
+    .filter(u => u.role === 'client' && (u.source === 'docusign' || u.source === 'manual'))
     .map(u => ({
       id: u.id,
       email: u.email,
@@ -164,6 +164,47 @@ router.get('/client-credentials', authMiddleware, async (req, res) => {
       created_at: u.created_at,
     }));
   res.json(clientCreds);
+});
+
+// ─── POST /api/auth/create-client (rep/admin) ────────────────────────────────
+router.post('/create-client', authMiddleware, async (req, res) => {
+  if (req.user.role === 'client') return res.status(403).json({ message: 'Access denied' });
+  const { email, full_name, business_name, password } = req.body;
+  if (!email || !full_name || !password) return res.status(400).json({ message: 'email, full_name, and password required' });
+  if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+
+  try {
+    const ClientStore = require('../services/clientStore');
+    // Create or find client record
+    let client = await ClientStore.getByEmail(email);
+    const repId = req.user.rep_id || req.user.repId || req.user.id;
+    const repName = req.user.full_name;
+    if (!client) {
+      client = await ClientStore.create({
+        ownerName: full_name,
+        businessName: business_name || '',
+        email,
+        assignedRepId: repId,
+        assignedRepName: repName,
+        status: 'Pending',
+        source: 'manual',
+      });
+    } else {
+      await ClientStore.update(client.id, { assignedRepId: repId, assignedRepName: repName, hasPortalLogin: true });
+    }
+
+    // Create user account
+    const user = await UserStore.create({
+      email, full_name, role: 'client', password,
+      client_id: client.id, source: 'manual', temp_password: password, business_name,
+    });
+
+    await ClientStore.update(client.id, { hasPortalLogin: true, portalUserId: user.id });
+
+    res.status(201).json({ message: 'Client account created', user, client });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 // ─── Admin: GET /api/auth/users ───────────────────────────────────────────────
