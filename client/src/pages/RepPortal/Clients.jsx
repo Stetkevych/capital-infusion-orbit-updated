@@ -93,10 +93,25 @@ export default function ClientsPage() {
     ...mockClients.filter(mc => !realClients.find(rc => rc.email === mc.email)),
   ];
 
+  const STATUSES = ['Working', 'Inactive', 'Complete'];
+
   const clients = allClients
     .filter(c => !repFilter || c.assignedRepId === repFilter)
     .filter(c => !search || c.businessName?.toLowerCase().includes(search.toLowerCase()) || c.ownerName?.toLowerCase().includes(search.toLowerCase()))
-    .filter(c => !statusFilter || c.status === statusFilter);
+    .filter(c => !statusFilter || c.status === statusFilter)
+    .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+
+  const handleStatusChange = async (client, newStatus) => {
+    try {
+      const res = await fetch(`${API}/clients-api/${client.id}`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setRealClients(prev => prev.map(c => c.id === client.id ? { ...c, status: newStatus } : c));
+      }
+    } catch {}
+  };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -350,7 +365,7 @@ export default function ClientsPage() {
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm">
           <option value="">All Statuses</option>
-          {['Active','Pending','Under Review','Approved'].map(s => <option key={s}>{s}</option>)}
+          {STATUSES.map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
 
@@ -389,7 +404,19 @@ export default function ClientsPage() {
                       </select>
                     </td>
                   )}
-                  <td className="py-3.5 px-5"><StatusBadge status={c.status} size="xs" /></td>
+                  <td className="py-3.5 px-5">
+                    <select
+                      value={c.status || 'Working'}
+                      onChange={e => handleStatusChange(c, e.target.value)}
+                      className={`text-xs font-medium rounded-lg px-2 py-1 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                        c.status === 'Complete' ? 'bg-green-50 border-green-200 text-green-700'
+                        : c.status === 'Inactive' ? 'bg-gray-50 border-gray-200 text-gray-500'
+                        : 'bg-blue-50 border-blue-200 text-blue-700'
+                      }`}
+                    >
+                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
                   <td className="py-3.5 px-5">
                     {(() => {
                       const clientActivity = activityLog.filter(a => a.clientId === c.id).sort((a, b) => new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt));
@@ -404,8 +431,24 @@ export default function ClientsPage() {
                     })()}
                   </td>
                   <td className="py-3.5 px-5">
-                    <div className="flex items-center gap-1.5 text-gray-500 text-sm">
-                      <FileText size={13} className="text-gray-400" /> {docs.length}
+                    <div className="relative group/docs">
+                      <div className="flex items-center gap-1.5 text-gray-500 text-sm cursor-pointer">
+                        <FileText size={13} className="text-gray-400" /> {docs.length}
+                      </div>
+                      {docs.length > 0 && (
+                        <div className="absolute left-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-56 hidden group-hover/docs:block">
+                          <p className="text-xs font-semibold text-gray-900 mb-2">Documents ({docs.length})</p>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                            {docs.slice(0, 8).map(d => (
+                              <div key={d.id} className="flex items-center gap-2 text-xs">
+                                <FileText size={10} className="text-gray-400 shrink-0" />
+                                <span className="text-gray-600 truncate">{d.fileName || d.category || 'Document'}</span>
+                              </div>
+                            ))}
+                            {docs.length > 8 && <p className="text-gray-400 text-xs">+{docs.length - 8} more</p>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="py-3.5 px-5">
