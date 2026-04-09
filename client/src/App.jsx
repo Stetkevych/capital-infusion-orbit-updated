@@ -28,6 +28,7 @@ import NotesPage from './pages/RepPortal/Notes';
 import ActivityPage from './pages/RepPortal/Activity';
 import Training from './pages/RepPortal/Training';
 import CILoc from './pages/RepPortal/CILoc';
+import ClientData from './pages/RepPortal/ClientData';
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -85,6 +86,7 @@ function RepRoutes() {
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/training" element={<Training />} />
       <Route path="/ci-loc" element={<CILoc />} />
+      <Route path="/client-data" element={<ClientData />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />

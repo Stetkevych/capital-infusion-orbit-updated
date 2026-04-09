@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { ROLES, CLIENTS, getUserByEmail } from '../data/mockData';
 
 export const AuthContext = createContext(null);
@@ -90,6 +90,19 @@ export function AuthProvider({ children }) {
     reassignClients: ['admin', 'team_lead'].includes(user?.role),
     manageUsers: user?.role === 'admin',
   };
+
+  const sessionStart = useRef(Date.now());
+  useEffect(() => {
+    if (!user || !token) return;
+    sessionStart.current = Date.now();
+    const sendSession = () => {
+      const dur = Math.round((Date.now() - sessionStart.current) / 1000);
+      if (dur < 2) return;
+      try { navigator.sendBeacon(`${API}/client-data/session`, new Blob([JSON.stringify({ durationSec: dur })], { type: 'application/json' })); } catch {}
+    };
+    window.addEventListener('beforeunload', sendSession);
+    return () => window.removeEventListener('beforeunload', sendSession);
+  }, [user, token]);
 
   return (
     <AuthContext.Provider value={{ user, token, viewMode, canSwitchView, login, logout, switchView, can }}>

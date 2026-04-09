@@ -87,6 +87,10 @@ const actumRoutes = require('./routes/actum');
 app.use('/api/actum', actumRoutes);
 app.use('/api/loc', actumRoutes);
 
+// Client data metrics
+const clientDataRoutes = require('./routes/clientData');
+app.use('/api/client-data', clientDataRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

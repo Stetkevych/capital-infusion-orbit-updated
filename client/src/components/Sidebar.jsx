@@ -19,6 +19,7 @@ const REP_LINKS = [
   { path: '/activity', label: 'Activity', icon: Activity },
   { path: '/training', label: 'Training', icon: GraduationCap },
   { path: '/ci-loc', label: 'CI LOC', icon: CreditCard, adminOnly: true },
+  { path: '/client-data', label: 'Client Data', icon: BarChart2, adminOnly: true },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/client-credentials', label: 'Client Credentials', icon: Key },
   { path: '/settings', label: 'Settings', icon: Settings },
