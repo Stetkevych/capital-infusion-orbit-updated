@@ -70,6 +70,29 @@ router.delete('/:id/permanent', async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+// ─── POST /api/clients-api/bulk-assign (admin only) ──────────────────────────
+// Single S3 read → update all → single S3 write. No cache race conditions.
+router.post('/bulk-assign', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { assignments } = req.body; // [{ clientId, assignedRepId, assignedRepName }]
+    if (!Array.isArray(assignments) || !assignments.length) return res.status(400).json({ error: 'assignments array required' });
+    const { loadFromS3, saveToS3 } = require('../services/s3Store');
+    const clients = await loadFromS3('clients.json');
+    let updated = 0;
+    for (const a of assignments) {
+      const idx = clients.findIndex(c => c.id === a.clientId);
+      if (idx === -1) continue;
+      clients[idx].assignedRepId = a.assignedRepId;
+      clients[idx].assignedRepName = a.assignedRepName;
+      clients[idx].updatedAt = new Date().toISOString();
+      updated++;
+    }
+    await saveToS3('clients.json', clients);
+    res.json({ updated, total: assignments.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/:id/reminder', async (req, res) => {
   try {
     const client = await ClientStore.getById(req.params.id);

@@ -4,7 +4,6 @@ const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
-const { extractBankStatement, extractRawLines } = require('../services/textractService');
 const { loadFromS3, saveToS3 } = require('../services/s3Store');
 const EventLogger = require('../services/eventLogger');
 
@@ -68,20 +67,6 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
 
       docs.push(doc);
       results.push(doc);
-
-      if (category === 'bank_statements') {
-        const docId = doc.id;
-        extractBankStatement(key).then(async (financials) => {
-          const allDocs = await loadDocs();
-          const idx = allDocs.findIndex(d => d.id === docId);
-          if (idx !== -1) {
-            allDocs[idx].extractedFinancials = financials;
-            allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
-            await saveDocs(allDocs);
-            console.log(`[Textract] Extraction complete for ${file.originalname}:`, financials.success ? 'success' : financials.error);
-          }
-        }).catch(err => console.error('[Textract] Async error:', err.message));
-      }
 
       console.log(`[Upload] ${file.originalname} → ${key} (${doc.fileSize})`);
     }
@@ -155,19 +140,6 @@ router.post('/confirm', async (req, res) => {
     docs.push(doc);
     await saveDocs(docs);
 
-    if (category === 'bank_statements') {
-      extractBankStatement(key).then(async (financials) => {
-        const allDocs = await loadDocs();
-        const idx = allDocs.findIndex(d => d.id === doc.id);
-        if (idx !== -1) {
-          allDocs[idx].extractedFinancials = financials;
-          allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
-          await saveDocs(allDocs);
-          console.log(`[Textract] Extraction complete for ${fileName}:`, financials.success ? 'success' : financials.error);
-        }
-      }).catch(err => console.error('[Textract] Async error:', err.message));
-    }
-
     EventLogger.upload({
       upload_id: doc.id, client_id: clientId, rep_id: repId, category,
       file_name: fileName, file_size_mb: parseFloat(fileSize) || 0,
@@ -223,6 +195,15 @@ router.get('/financials/:clientId', async (req, res) => {
     const withholdingRate = avgMonthlyRevenue && totalLenderPayments > 0
       ? parseFloat((totalLenderPayments / avgMonthlyRevenue * 100).toFixed(1)) : 0;
 
+    // Payment frequency — use most common across docs
+    const freqCounts = {};
+    allFinancials.forEach(f => {
+      if (f.paymentFrequency && f.paymentFrequency !== 'Unknown') {
+        freqCounts[f.paymentFrequency] = (freqCounts[f.paymentFrequency] || 0) + 1;
+      }
+    });
+    const paymentFrequency = Object.entries(freqCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
     const pendingDocs = allDocs.filter(
       d => d.clientId === req.params.clientId && d.category === 'bank_statements' && d.extractionStatus === 'pending'
     ).length;
@@ -231,7 +212,7 @@ router.get('/financials/:clientId', async (req, res) => {
       available: true, monthsCovered: totalMonths, avgMonthlyRevenue, estimatedAnnualRevenue,
       numberOfDeposits: totalDepositCount, negativeDays: maxNegDays, totalCredits,
       positions, positionCount: positions.length, totalLenderPayments: Math.round(totalLenderPayments),
-      withholdingRate, docsProcessed: docs.length, pendingDocs,
+      withholdingRate, docsProcessed: docs.length, pendingDocs, paymentFrequency,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -288,50 +269,14 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── GET /api/documents/debug-textract/:docId ────────────────────────────────
+// ─── GET /api/documents/debug-ocr/:docId ─────────────────────────────────────
 router.get('/debug-textract/:docId', async (req, res) => {
-  try {
-    const docs = await loadDocs();
-    const doc = docs.find(d => d.id === req.params.docId);
-    if (!doc) return res.status(404).json({ error: 'Doc not found' });
-    const result = await extractRawLines(doc.key);
-    res.json(result);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  res.json({ success: false, error: 'OCR temporarily disabled' });
 });
 
 // ─── POST /api/documents/reprocess/:clientId ─────────────────────────────────
-// Re-run Textract on all bank statements for a client (clears old bad data)
 router.post('/reprocess/:clientId', async (req, res) => {
-  try {
-    const docs = await loadDocs();
-    const bankDocs = docs.filter(d => d.clientId === req.params.clientId && d.category === 'bank_statements');
-    if (bankDocs.length === 0) return res.json({ reprocessed: 0, message: 'No bank statements found' });
-
-    let count = 0;
-    for (const doc of bankDocs) {
-      const idx = docs.findIndex(d => d.id === doc.id);
-      if (idx === -1) continue;
-      docs[idx].extractedFinancials = null;
-      docs[idx].extractionStatus = 'pending';
-      count++;
-
-      const docId = doc.id;
-      const key = doc.key;
-      extractBankStatement(key).then(async (financials) => {
-        const allDocs = await loadDocs();
-        const i = allDocs.findIndex(d => d.id === docId);
-        if (i !== -1) {
-          allDocs[i].extractedFinancials = financials;
-          allDocs[i].extractionStatus = financials.success ? 'complete' : 'failed';
-          await saveDocs(allDocs);
-          console.log(`[Reprocess] ${doc.fileName}: ${financials.success ? 'success' : financials.error}`);
-        }
-      }).catch(err => console.error(`[Reprocess] Error: ${err.message}`));
-    }
-
-    await saveDocs(docs);
-    res.json({ reprocessed: count, message: `Re-extracting ${count} bank statements. Check back in 30-60 seconds.` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  res.json({ reprocessed: 0, message: 'OCR temporarily disabled' });
 });
 
 // Get bank accounts for a client

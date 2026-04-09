@@ -35,6 +35,8 @@ export default function ClientsPage() {
   const [sendingReminder, setSendingReminder] = useState(false);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  const [reps, setReps] = useState([]);
+  const [reassigning, setReassigning] = useState(null);
 
   // Fetch real clients from server
   useEffect(() => {
@@ -54,7 +56,35 @@ export default function ClientsPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setAllDocs(data))
       .catch(() => {});
+    if (user.role === 'admin' || user.role === 'team_lead') {
+      fetch(`${API}/auth/users`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setReps(data.filter(u => u.role === 'rep')))
+        .catch(() => {});
+    }
   }, []);
+
+  const handleReassign = async (client, repId) => {
+    const rep = reps.find(r => r.id === repId);
+    if (!rep) return;
+    setReassigning(client.id);
+    try {
+      const res = await fetch(`${API}/clients-api/${client.id}`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ assignedRepId: rep.id, assignedRepName: rep.full_name }),
+      });
+      if (res.ok) {
+        setRealClients(prev => prev.map(c => c.id === client.id ? { ...c, assignedRepId: rep.id, assignedRepName: rep.full_name } : c));
+        setNotification({ type: 'success', msg: `${client.businessName} assigned to ${rep.full_name}` });
+      } else {
+        setNotification({ type: 'error', msg: 'Failed to reassign' });
+      }
+    } catch {
+      setNotification({ type: 'error', msg: 'Failed to reassign' });
+    }
+    setReassigning(null);
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   // Merge mock + real clients
   const mockClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
@@ -329,7 +359,7 @@ export default function ClientsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
-              {['Business','Owner','Status','Last Activity','Docs','Missing',''].map(h => (
+              {['Business','Owner',...(user.role === 'admin' ? ['Assigned Rep'] : []),'Status','Last Activity','Docs','Missing',''].map(h => (
                 <th key={h} className="text-left py-3 px-5 text-gray-400 font-medium text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -346,6 +376,19 @@ export default function ClientsPage() {
                     <p className="text-gray-400 text-xs mt-0.5">{c.industry}{c.state ? ` · ${c.state}` : ''}</p>
                   </td>
                   <td className="py-3.5 px-5 text-gray-600 text-sm">{c.ownerName}</td>
+                  {user.role === 'admin' && (
+                    <td className="py-3.5 px-5">
+                      <select
+                        value={c.assignedRepId || ''}
+                        onChange={e => handleReassign(c, e.target.value)}
+                        disabled={reassigning === c.id}
+                        className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[120px]"
+                      >
+                        <option value="">Unassigned</option>
+                        {reps.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td className="py-3.5 px-5"><StatusBadge status={c.status} size="xs" /></td>
                   <td className="py-3.5 px-5">
                     {(() => {

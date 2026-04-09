@@ -1,0 +1,27 @@
+const https=require('https');
+function api(m,p,b,t){return new Promise((r,j)=>{const d=b?JSON.stringify(b):'';const u=new URL('https://api.orbit-technology.com/api'+p);const o={hostname:u.hostname,path:u.pathname,method:m,headers:{'Content-Type':'application/json'}};if(d)o.headers['Content-Length']=Buffer.byteLength(d);if(t)o.headers.Authorization='Bearer '+t;const q=https.request(o,res=>{let b='';res.on('data',c=>b+=c);res.on('end',()=>{try{r(JSON.parse(b))}catch{r(b)}})});q.on('error',j);if(d)q.write(d);q.end()});}
+async function main(){
+const l=await api('POST','/auth/login',{email:'alexs@capital-infusion.com',password:'CapitalAdmin2024!'});
+const t=l.token;
+const users=await api('GET','/auth/users',null,t);
+const clients=await api('GET','/clients-api',null,t);
+function findRep(n){const lo=n.toLowerCase().trim();
+const map={'nikholas':'nikholas','andy':'andy b','dom':'dominic','dominic':'dominic','evan':'evan','jeudy':'jeudy','blake':'blake','patrick':'patrick','eduardo':'eduardo','cristian':'cristian','kip':'kip','rio':'rio','jacob':'jacob','gabriel':'gabriel','gimmy':'gimmy','juan':'juan','frank':'frank','kevin mcmanus':'kevin mcmanus','kevin':'kevin cohen','colin':'colin','jonathan':'jonathan','joseph':'joseph','guillermo':'guillermo','daniel':'daniel','ivan':'ivan','erik':'erik'};
+const alias=map[lo]||lo;
+let r=users.find(u=>u.role!=='client'&&u.full_name&&u.full_name.toLowerCase().includes(alias));
+if(!r)r=users.find(u=>u.role!=='client'&&u.email&&u.email.split('@')[0].toLowerCase().includes(alias.split(' ')[0]));
+return r;}
+function findClient(e){return clients.find(c=>c.email&&c.email.toLowerCase()===e.toLowerCase());}
+const a=[
+['jcart2525@hotmail.com','nikholas'],['bhangu.ssss@yahoo.com','andy'],['ahmed@carcirus.com','dom'],['derek@dmsquaredcolorado.com','nikholas'],['Mlawless35@yahoo.com','evan'],['erikmathany@gmail.com','jeudy'],['mitchell.ramirez25@gmail.com','jeudy'],['Southernconcreteco1@gmail.com','nikholas'],['ronniesproservices@gmail.com','dominic'],['greg@americanheroesmedical.com','jonathan'],['huynhv1972@gmail.com','juan'],['calisnowshoe@gmail.com','blake'],['joysinc@bellsouth.net','patrick'],['Carverb1201787@gmail.com','eduardo'],['jorgecargarza@gmail.com','cristian'],['ctoombs@gmail.com','kip'],['Jbartpro@yahoo.com','evan'],['setaikitchenbath@gmail.com','cristian'],['Mallison@massageluxe.com','rio'],['sallison@massageluxe.com','rio'],['tbiniek84@gmail.com','jeudy'],['clearwithrms@gmail.com','evan'],['imn2pt@gmail.com','jacob'],['gavont954@gmail.com','eduardo'],['rob.jackson1228@gmail.com','blake'],['ritewayautoth@yahoo.com','gabriel'],['MarkSmith@SMITHarenas.com','gimmy'],['ALSERAJCONSULTING@GMAIL.COM','evan'],['donald_trentham@yahoo.com','eduardo'],['anwokoagbara@gmail.com','jacob'],['Jinawinnacho@gmail.com','dom'],['yoheni84@gmail.com','erik'],['info@mctransportservice.com','nikholas'],['vshapiro@optiramp.com','juan'],['bpusin@optiramp.com','juan'],['kangelite@gmail.com','nikholas'],['cruzarios.ac@gmail.com','nikholas'],['ventas@dulcerianaranjito.com','gimmy'],['istevefaupusa@gmail.com','jeudy'],['Agencontinc@gmail.com','kevin mcmanus'],['Ursuloneri@gmail.com','gabriel'],['jgarza131@yahoo.com','frank'],['Koolboiirello@gmail.com','juan'],['Platinumink1@gmail.com','gimmy'],['Backta.black.1@gmail.com','gimmy'],['famousdavesga@aol.com','colin'],['contact@nexusnovamarketing.com','andy'],['sheema.srj@gmail.com','evan'],['kittyami1211@yahoo.com','juan'],['simranbellani111@gmail.com','jeudy'],['info@skylinkdesign.ca','jeudy'],['admin@wingsofhopewellnes.com','eduardo'],['anderson@attheadwear.net','frank'],['tlovllc2665@gmail.com','blake'],['725hugegearllc@gmail.com','blake'],['aaapiatransport@gmail.com','eduardo'],['mike@mikeshomerejuvenation.com','nikholas'],['edward.d.leal@gmail.com','dom'],['alisonst25@hotmail.com','nikholas'],['emil@caravanllc.com','jonathan'],['Harpexp@gmail.com','nikholas'],['j4jetservicesllc@gmail.com','guillermo'],['bkurtz24@yahoo.com','gimmy'],['A-zrenovation@outlook.com','daniel'],['bgregory1@farmersagent.com','blake'],['Hundalhighwaysinc@gmail.com','nikholas'],['charles@elecrics.com','jeudy'],['Sierralenny01@gmail.com','joseph'],['sperling1.js@gmail.com','joseph'],['suissi.fathi@gmail.com','frank'],['Kushtrimcarpentry@gmail.com','andy'],['rrshearcon@gmail.com','gimmy'],['shylounge@gmail.com','juan'],['nelsonsrepairandservice@gmail.com','nikholas'],['mlunski1960@yahoo.com','colin'],['office@knoxcet.com','rio'],['acetqp@gmail.com','juan'],['Famousdavesga@sol.com','colin'],['kiel@kieljared.com','gimmy'],['ipm.sso@gmail.com','kevin'],['meddxtec@gmail.com','dominic'],['jpurcelldavis@icloud.com','evan'],['dave.dk@blwylogistics.com','ivan'],['m.ruel@blwylogistics.com','ivan'],['garyokorn15@gmail.com','joseph'],['GTTCC20@GMAIL.COM','jeudy'],['Norman@summitservices1.com','evan'],['Sueb2013@hotmail.com','nikholas'],['restorationbyyourdesign@gmail.com','dom'],['cccllc@optonline.net','evan']
+];
+let ok=0,nf=0,rm=0;
+for(const[email,repName]of a){
+const c=findClient(email);
+if(!c){console.log('NOT FOUND: '+email);nf++;continue;}
+const r=findRep(repName);
+if(!r){console.log('REP MISSING: '+repName+' for '+email);rm++;continue;}
+await api('PATCH','/clients-api/'+c.id,{assignedRepId:r.id,assignedRepName:r.full_name},t);
+console.log(c.ownerName+' -> '+r.full_name);ok++;}
+console.log('\nDone: '+ok+' assigned, '+nf+' clients not found, '+rm+' reps not found');}
+main().catch(e=>console.error(e.message));

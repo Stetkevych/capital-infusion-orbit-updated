@@ -1,13 +1,18 @@
-const mindee = require('mindee');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 
 const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const MINDEE_API_KEY = process.env.MINDEE_API_KEY || 'md_QHXO8ETx889TsZFE6Imi_FvB-s21JbWyGcmu1O9TD5c';
 const MINDEE_MODEL_ID = process.env.MINDEE_MODEL_ID || '52dc192e-8592-415d-aac5-5404d1e9080e';
+const MINDEE_HOST = 'https://api-v2.mindee.net';
 
 const s3 = new S3Client({ region: REGION });
-const mindeeClient = new mindee.Client({ apiKey: MINDEE_API_KEY });
+
+// Check Node capabilities at load time
+const HAS_FETCH = typeof globalThis.fetch === 'function';
+const HAS_FORMDATA = typeof globalThis.FormData === 'function';
+const HAS_BLOB = typeof globalThis.Blob === 'function';
+console.log(`[OCR] Node ${process.version} | fetch=${HAS_FETCH} FormData=${HAS_FORMDATA} Blob=${HAS_BLOB}`);
 
 // ─── BANK SUMMARY PATTERNS ───────────────────────────────────────────────────
 const SUMMARY_PATTERNS = [
@@ -54,7 +59,6 @@ const SKIP_PATTERNS = [
   /total\s+(?:de\s+)?(?:retiros?|d[e\u00e9]bitos?|cargos?)/i,
 ];
 
-// ─── LENDER KEYWORDS ──────────────────────────────────────────────────────────
 const SAFE_LENDERS = [
   'fund so fast', 'britecap', 'credibly', 'ondeck', 'on deck',
   'libertas', 'kapitus', 'byzfunder', 'fintap', 'fundworks', 'greenbox',
@@ -70,12 +74,10 @@ const SAFE_LENDERS = [
   'arsenal', 'bitty', 'mca servicing', 'strategic funding',
   'cfgms', 'eminent funding', 'ebf holdings',
 ];
-
 const AMBIGUOUS_LENDERS = [
   'idea', 'channel', 'can', 'wall', 'lg', 'fox', 'pearl', 'lily',
   'garden', 'journey', 'cedar', 'forward', 'house', 'delta', 'rapid',
 ];
-
 const ALL_LENDERS = [...SAFE_LENDERS, ...AMBIGUOUS_LENDERS].sort((a, b) => b.length - a.length);
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -85,14 +87,9 @@ function parseDollar(str) {
   if (cleaned.includes(',') && !cleaned.includes('.')) {
     const lastComma = cleaned.lastIndexOf(',');
     const afterComma = cleaned.slice(lastComma + 1);
-    if (afterComma.length <= 2) {
-      cleaned = cleaned.slice(0, lastComma).replace(/,/g, '') + '.' + afterComma;
-    } else {
-      cleaned = cleaned.replace(/,/g, '');
-    }
-  } else {
-    cleaned = cleaned.replace(/,/g, '');
-  }
+    if (afterComma.length <= 2) cleaned = cleaned.slice(0, lastComma).replace(/,/g, '') + '.' + afterComma;
+    else cleaned = cleaned.replace(/,/g, '');
+  } else cleaned = cleaned.replace(/,/g, '');
   const val = parseFloat(cleaned);
   return isNaN(val) || val <= 0 ? null : val;
 }
@@ -101,34 +98,24 @@ function extractAllDollars(line) {
   const results = [];
   const re = /\$([\d,]+\.\d{2})\b/g;
   let m;
-  while ((m = re.exec(line)) !== null) {
-    const val = parseDollar(m[1]);
-    if (val !== null) results.push(val);
-  }
-  if (results.length === 0) {
+  while ((m = re.exec(line)) !== null) { const v = parseDollar(m[1]); if (v) results.push(v); }
+  if (!results.length) {
     const bareRe = /(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g;
     while ((m = bareRe.exec(line)) !== null) {
-      const raw = m[1];
-      if ((raw.match(/\./g) || []).length > 1) continue;
-      const val = parseDollar(raw);
-      if (val !== null) results.push(val);
+      if ((m[1].match(/\./g) || []).length > 1) continue;
+      const v = parseDollar(m[1]); if (v) results.push(v);
     }
   }
-  if (results.length === 0) {
+  if (!results.length) {
     const frRe = /([\d][\d\s]*,\d{2})\s*\$/g;
-    while ((m = frRe.exec(line)) !== null) {
-      const val = parseDollar(m[1]);
-      if (val !== null) results.push(val);
-    }
+    while ((m = frRe.exec(line)) !== null) { const v = parseDollar(m[1]); if (v) results.push(v); }
   }
   return results;
 }
 
-function shouldSkipLine(line) {
-  return SKIP_PATTERNS.some(p => p.test(line));
-}
+function shouldSkipLine(line) { return SKIP_PATTERNS.some(p => p.test(line)); }
 
-// ─── MINDEE OCR ───────────────────────────────────────────────────────────────
+// ─── MINDEE OCR (direct REST API — no SDK) ───────────────────────────────────
 async function downloadFromS3(s3Key) {
   const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
   const chunks = [];
@@ -141,7 +128,6 @@ function wordsToLines(pages) {
   for (const page of pages) {
     const words = page.words || [];
     if (!words.length) continue;
-    // Group words into lines by Y-coordinate proximity
     const sorted = [...words].sort((a, b) => {
       const ay = a.polygon?.[0]?.[1] ?? 0;
       const by = b.polygon?.[0]?.[1] ?? 0;
@@ -164,26 +150,51 @@ function wordsToLines(pages) {
 }
 
 async function runMindeeOcr(s3Key) {
+  if (!HAS_FETCH || !HAS_FORMDATA || !HAS_BLOB) {
+    throw new Error(`Node ${process.version} missing: fetch=${HAS_FETCH} FormData=${HAS_FORMDATA} Blob=${HAS_BLOB}`);
+  }
   console.log(`[Mindee] Downloading ${s3Key} from S3...`);
   const buffer = await downloadFromS3(s3Key);
-  console.log(`[Mindee] Downloaded ${buffer.length} bytes, sending to Mindee OCR...`);
+  const filename = s3Key.split('/').pop();
+  console.log(`[Mindee] Downloaded ${buffer.length} bytes, sending to Mindee...`);
 
-  const input = new mindee.BufferInput({ buffer, filename: s3Key.split('/').pop() });
-  const response = await mindeeClient.enqueueAndGetResult(
-    mindee.product.Ocr,
-    input,
-    { modelId: MINDEE_MODEL_ID },
-  );
+  const form = new FormData();
+  form.append('file', new Blob([buffer]), filename);
+  form.append('model_id', MINDEE_MODEL_ID);
+  const enqRes = await fetch(`${MINDEE_HOST}/v2/products/ocr/enqueue`, {
+    method: 'POST',
+    headers: { 'Authorization': MINDEE_API_KEY },
+    body: form,
+  });
+  const enqData = await enqRes.json();
+  if (!enqRes.ok || !enqData.job?.id) throw new Error(`Mindee enqueue failed (${enqRes.status}): ${enqData.detail || JSON.stringify(enqData)}`);
+  const jobId = enqData.job.id;
+  console.log(`[Mindee] Job ${jobId} enqueued, polling...`);
 
-  const pages = response.inference.result.pages;
-  const lines = wordsToLines(pages);
-  console.log(`[Mindee] Extracted ${lines.length} lines from ${pages.length} pages`);
-  return lines;
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const pollRes = await fetch(`${MINDEE_HOST}/v2/jobs/${jobId}`, {
+      headers: { 'Authorization': MINDEE_API_KEY },
+    });
+    const pollData = await pollRes.json();
+    if (pollData.job?.error) throw new Error(`Mindee error: ${JSON.stringify(pollData.job.error)}`);
+    if (pollData.job?.status === 'Failed') throw new Error('Mindee job failed');
+    if (pollData.job?.status === 'Processed') {
+      const resultUrl = pollData.job.resultUrl;
+      if (!resultUrl) throw new Error('No result URL from Mindee');
+      const resultRes = await fetch(resultUrl, { headers: { 'Authorization': MINDEE_API_KEY } });
+      const resultData = await resultRes.json();
+      const pages = resultData.inference?.result?.pages || [];
+      const lines = wordsToLines(pages);
+      console.log(`[Mindee] Extracted ${lines.length} lines from ${pages.length} pages`);
+      return lines;
+    }
+  }
+  throw new Error('Mindee job timed out');
 }
 
-// ─── MAIN PARSER (unchanged logic) ───────────────────────────────────────────
+// ─── MAIN PARSER (identical logic) ───────────────────────────────────────────
 function parseFinancials(lines) {
-  // Pre-process: join lines split across OCR lines
   const joinedLines = [];
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -194,14 +205,11 @@ function parseFinancials(lines) {
         if (/\$[\d,]+\.\d{2}/.test(lines[j]) || /[\d][\d\s]*,\d{2}\s*\$/.test(lines[j])) { i = j; break; }
       }
       joinedLines.push(combined);
-    } else {
-      joinedLines.push(line);
-    }
+    } else joinedLines.push(line);
   }
 
   const fullLower = joinedLines.join('\n').toLowerCase();
 
-  // STEP 1: Summary credit lines
   const summaryHits = [];
   for (const line of joinedLines) {
     if (shouldSkipLine(line)) continue;
@@ -210,8 +218,8 @@ function parseFinancials(lines) {
       if (match) {
         const val = parseDollar(match[1]);
         if (val && val >= 100) {
-          summaryHits.push({ value: val, line: line.trim(), pattern: pattern.source });
-          console.log(`[Mindee] \u2713 Summary match: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
+          summaryHits.push({ value: val, line: line.trim() });
+          console.log(`[Mindee] \u2713 Summary: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
         }
         break;
       }
@@ -221,17 +229,13 @@ function parseFinancials(lines) {
   let filteredSummary = [...new Set(summaryHits.map(h => h.value))];
   if (filteredSummary.length > 1) {
     const maxVal = Math.max(...filteredSummary);
-    const threshold = maxVal * 0.10;
-    const significant = filteredSummary.filter(v => v >= threshold);
+    const significant = filteredSummary.filter(v => v >= maxVal * 0.10);
     if (significant.length > 0) filteredSummary = significant;
   }
 
-  // STEP 2: Individual deposit fallback
-  let individualTotal = 0;
-  let individualCount = 0;
-
+  let individualTotal = 0, individualCount = 0;
   if (filteredSummary.length === 0) {
-    console.log('[Mindee] No summary lines found, falling back to individual credit detection');
+    console.log('[Mindee] No summary lines, falling back to individual credits');
     for (const line of joinedLines) {
       const lower = line.toLowerCase();
       if (shouldSkipLine(line)) continue;
@@ -241,88 +245,57 @@ function parseFinancials(lines) {
       const isDebit = /\b(debit|dr\b|withdrawal|withdraw|payment|purchase|pos\b|ach\s+debit|wire\s+out|check\b|fee\b|charge|transfer\s+out)\b/i.test(lower);
       if (isCredit) {
         if (isDebit) {
-          const creditPos = lower.search(/\b(deposit|credit|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in)\b/i);
-          const debitPos = lower.search(/\b(debit|withdrawal|withdraw|payment|purchase|pos\b|ach\s+debit|wire\s+out|check\b|fee\b|charge|transfer\s+out)\b/i);
-          if (creditPos === -1 || (debitPos !== -1 && debitPos < creditPos)) continue;
+          const cp = lower.search(/\b(deposit|credit|incoming|received|transfer\s+in|direct\s+dep|payroll|ach\s+credit|wire\s+in)\b/i);
+          const dp = lower.search(/\b(debit|withdrawal|withdraw|payment|purchase|pos\b|ach\s+debit|wire\s+out|check\b|fee\b|charge|transfer\s+out)\b/i);
+          if (cp === -1 || (dp !== -1 && dp < cp)) continue;
         }
-        const txnAmount = Math.min(...amounts);
-        if (txnAmount >= 1 && txnAmount <= 5000000) {
-          individualTotal += txnAmount;
-          individualCount++;
-        }
+        const txn = Math.min(...amounts);
+        if (txn >= 1 && txn <= 5000000) { individualTotal += txn; individualCount++; }
       }
     }
-    console.log(`[Mindee] Individual credits: ${individualCount} transactions, total: $${individualTotal.toLocaleString()}`);
   }
 
-  // STEP 3: Months covered
   const monthRe = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/gi;
   const foundMonths = new Set();
   let mm;
-  while ((mm = monthRe.exec(fullLower)) !== null) {
-    foundMonths.add(mm[1].slice(0, 3));
-  }
-  let monthsCovered;
-  if (filteredSummary.length > 0) {
-    monthsCovered = filteredSummary.length;
-  } else {
-    monthsCovered = Math.max(foundMonths.size, 1);
-  }
+  while ((mm = monthRe.exec(fullLower)) !== null) foundMonths.add(mm[1].slice(0, 3));
+  const monthsCovered = filteredSummary.length > 0 ? filteredSummary.length : Math.max(foundMonths.size, 1);
 
-  // STEP 4: Calculate revenue
-  let totalCredits, numberOfDeposits, method;
   const summaryTotal = filteredSummary.reduce((s, v) => s + v, 0);
-  if (summaryTotal > 0) {
-    totalCredits = summaryTotal;
-    numberOfDeposits = filteredSummary.length;
-    method = 'summary';
-  } else if (individualTotal > 0) {
-    totalCredits = individualTotal;
-    numberOfDeposits = individualCount;
-    method = 'individual';
-  } else {
-    totalCredits = 0;
-    numberOfDeposits = 0;
-    method = 'none';
-  }
+  let totalCredits, numberOfDeposits, method;
+  if (summaryTotal > 0) { totalCredits = summaryTotal; numberOfDeposits = filteredSummary.length; method = 'summary'; }
+  else if (individualTotal > 0) { totalCredits = individualTotal; numberOfDeposits = individualCount; method = 'individual'; }
+  else { totalCredits = 0; numberOfDeposits = 0; method = 'none'; }
 
   const avgMonthlyRevenue = totalCredits > 0 ? Math.round(totalCredits / monthsCovered) : null;
   const estimatedAnnualRevenue = avgMonthlyRevenue ? avgMonthlyRevenue * 12 : null;
 
-  // STEP 4b: Payment frequency detection
   let paymentFrequency = 'Unknown';
   if (numberOfDeposits > 0 && monthsCovered > 0) {
-    const depositsPerMonth = numberOfDeposits / monthsCovered;
-    if (depositsPerMonth >= 18) paymentFrequency = 'Daily';
-    else if (depositsPerMonth >= 8) paymentFrequency = 'Weekly';
-    else if (depositsPerMonth >= 3.5) paymentFrequency = 'Bi-Weekly';
-    else if (depositsPerMonth >= 1.5) paymentFrequency = 'Monthly';
+    const dpm = numberOfDeposits / monthsCovered;
+    if (dpm >= 18) paymentFrequency = 'Daily';
+    else if (dpm >= 8) paymentFrequency = 'Weekly';
+    else if (dpm >= 3.5) paymentFrequency = 'Bi-Weekly';
+    else if (dpm >= 1.5) paymentFrequency = 'Monthly';
     else paymentFrequency = 'Irregular';
   }
 
-  console.log(`[Mindee] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()} | freq=${paymentFrequency}`);
+  console.log(`[Mindee] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()}`);
 
-  // STEP 5: Negative days
-  const negRe = /-\$[\d,]+\.?\d{0,2}/g;
-  const negMatches = fullLower.match(negRe) || [];
+  const negMatches = fullLower.match(/-\$[\d,]+\.?\d{0,2}/g) || [];
   const negativeDays = negMatches.length;
 
-  // STEP 6: Lender detection
   const detectedLenders = {};
   for (let li = 0; li < joinedLines.length; li++) {
-    const line = joinedLines[li];
-    const lower = line.toLowerCase();
-    let amounts = extractAllDollars(line);
-    if (amounts.length === 0 && li + 1 < joinedLines.length) {
-      amounts = extractAllDollars(joinedLines[li + 1]);
-    }
+    const lower = joinedLines[li].toLowerCase();
+    let amounts = extractAllDollars(joinedLines[li]);
+    if (!amounts.length && li + 1 < joinedLines.length) amounts = extractAllDollars(joinedLines[li + 1]);
     const hasDollar = amounts.length > 0;
     for (const kw of ALL_LENDERS) {
       if (!lower.includes(kw)) continue;
       if (AMBIGUOUS_LENDERS.includes(kw) && !hasDollar) continue;
-      const kwRe = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-      if (!kwRe.test(lower)) continue;
-      const name = kw.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      if (!new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(lower)) continue;
+      const name = kw.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
       if (!detectedLenders[name]) detectedLenders[name] = { name, totalPaid: 0, occurrences: 0 };
       detectedLenders[name].occurrences++;
       if (hasDollar) detectedLenders[name].totalPaid += amounts.reduce((a, b) => a + b, 0);
@@ -346,7 +319,7 @@ function parseFinancials(lines) {
   };
 }
 
-// ─── EXPORTS (same interface as before) ──────────────────────────────────────
+// ─── EXPORTS (same interface) ─────────────────────────────────────────────────
 async function extractBankStatement(s3Key) {
   try {
     const lines = await runMindeeOcr(s3Key);

@@ -162,7 +162,7 @@ export default function AutoUnderwriting() {
     setResult(null);
 
     const steps = [
-      'Connecting to AWS Textract...',
+      'Connecting to OCR engine...',
       'Extracting bank statement data...',
       'Analyzing deposit patterns...',
       'Applying underwriting formula...',
@@ -204,7 +204,7 @@ export default function AutoUnderwriting() {
       // No Textract data yet — do NOT guess from requestedAmount
       setResult({ insufficient: true, monthsCovered: bankDocs.length, message: bankDocs.length === 0
         ? 'No bank statements on file. Upload bank statements to run underwriting.'
-        : 'Textract is still processing bank statements. Please re-run in 1-2 minutes.' });
+        : 'OCR is still processing bank statements. Please re-run in 1-2 minutes.' });
       setLoading(false);
       setStep('');
       return;
@@ -226,7 +226,7 @@ export default function AutoUnderwriting() {
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2">
             <Zap size={22} className="text-blue-600" /> Auto-Underwriting
           </h1>
-          <p className="text-gray-400 text-sm mt-0.5">Deterministic decision engine · AWS Textract</p>
+          <p className="text-gray-400 text-sm mt-0.5">Deterministic decision engine · Mindee OCR</p>
         </div>
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
           <div className="w-2 h-2 bg-blue-600 rounded-full" />
@@ -357,13 +357,13 @@ export default function AutoUnderwriting() {
       {result && !result.insufficient && !loading && (
         <div className="space-y-4">
 
-          {/* Textract source badge + pending warning */}
+          {/* OCR source badge + pending warning */}
           {result.pendingExtraction && (
             <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
               <AlertCircle size={18} className="text-amber-500 shrink-0 mt-0.5" />
               <div>
-                <p className="text-amber-700 font-semibold text-sm">Textract Still Processing</p>
-                <p className="text-amber-600 text-sm mt-0.5">Some bank statements are still being analyzed. Results shown use estimated data — re-run once processing completes.</p>
+                <p className="text-amber-700 font-semibold text-sm">OCR Still Processing</p>
+                <p className="text-amber-600 text-sm mt-0.5">Some bank statements are still being analyzed. Re-run once processing completes.</p>
               </div>
             </div>
           )}
@@ -375,7 +375,7 @@ export default function AutoUnderwriting() {
                 <BarChart2 size={15} className="text-blue-600" />
                 <h2 className="text-gray-900 font-semibold text-sm">Extracted Financials</h2>
                 <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">
-                  {result.fromTextract ? '✓ Live Textract' : 'Estimated'}
+                  {result.fromTextract ? '✓ Live OCR' : 'Estimated'}
                 </span>
               </div>
               <div className="divide-y divide-gray-100">

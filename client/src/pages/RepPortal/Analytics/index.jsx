@@ -116,7 +116,7 @@ export default function Analytics() {
       <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
         <Info size={13} className="text-gray-400 shrink-0" />
         <p className="text-gray-500 text-xs">
-          <span className="font-medium text-green-600">⚡ Auto-collected</span> — extracted from uploaded documents via AWS Textract &nbsp;·&nbsp;
+          <span className="font-medium text-green-600">⚡ Auto-collected</span> — extracted from uploaded documents via OCR &nbsp;·&nbsp;
           <span className="font-medium text-gray-600">✏️ Manual</span> — entered by rep in Deal Log &nbsp;·&nbsp;
           <span className="font-medium text-blue-600">Source: {data?.source === 'live' ? 'Live Data' : 'Sample Data'}</span>
         </p>

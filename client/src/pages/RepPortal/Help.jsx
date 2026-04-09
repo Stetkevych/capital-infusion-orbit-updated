@@ -68,7 +68,7 @@ const SECTIONS = [
     steps: [
       { label: 'Go to Underwriting', detail: 'Click Underwriting in the sidebar.' },
       { label: 'Select a client', detail: 'Choose the client from the dropdown.' },
-      { label: 'Run Analysis', detail: 'Click Run Analysis. The system analyzes uploaded bank statements and documents via AWS Textract.' },
+      { label: 'Run Analysis', detail: 'Click Run Analysis. The system analyzes uploaded bank statements and documents via OCR.' },
       { label: 'Review results', detail: 'See the decision (Approve/Review/Decline), confidence score, max offer amount, factor rate, and a 7-point checklist.' },
     ],
   },
