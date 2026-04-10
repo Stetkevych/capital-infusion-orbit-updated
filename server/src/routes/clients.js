@@ -6,13 +6,33 @@ const { sendDocumentRequestEmail } = require('../services/emailService');
 
 router.use(authMiddleware);
 
+// Team lead -> member email mapping (team leads see their members' clients)
+const TEAM_MEMBERS = {
+  'ray@capital-infusion.com': ['jamar@capital-infusion.com','pat@capital-infusion.com','kevin@capital-infusion.com','eduardo@capital-infusion.com','jacob@capital-infusion.com'],
+  'anthony@capital-infusion.com': ['nikholas@capital-infusion.com','dominic@capital-infusion.com','kevinc@capital-infusion.com','michaelm@capital-infusion.com'],
+  'ivan@capital-infusion.com': ['evan@capital-infusion.com','danielp@capital-infusion.com','juans@capital-infusion.com','frankp@capital-infusion.com','gimmy@capital-infusion.com'],
+  'erik@capital-infusion.com': ['jeudy@capital-infusion.com','gabriels@capital-infusion.com','dominic@capital-infusion.com'],
+};
+
 router.get('/', async (req, res) => {
   try {
     const user = req.user;
-    const clients = user.role === 'admin'
-      ? await ClientStore.getAll()
-      : await ClientStore.getByRep([user.rep_id, user.repId, user.id].filter(Boolean));
-    res.json(clients);
+    if (user.role === 'admin') return res.json(await ClientStore.getAll());
+
+    // Team lead: see own clients + all team members' clients
+    const teamMemberEmails = TEAM_MEMBERS[user.email?.toLowerCase()];
+    if (teamMemberEmails) {
+      const UserStore = require('../services/userStore');
+      const memberIds = [];
+      for (const email of teamMemberEmails) {
+        const member = await UserStore.findByEmail(email);
+        if (member) memberIds.push(member.id, member.rep_id, member.repId);
+      }
+      const allIds = [user.rep_id, user.repId, user.id, ...memberIds].filter(Boolean);
+      return res.json(await ClientStore.getByRep([...new Set(allIds)]));
+    }
+
+    res.json(await ClientStore.getByRep([user.rep_id, user.repId, user.id].filter(Boolean)));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

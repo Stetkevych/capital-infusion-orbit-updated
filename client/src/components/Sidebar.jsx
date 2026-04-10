@@ -9,7 +9,7 @@ import {
 
 const REP_LINKS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/reps', label: 'Rep Info', icon: Users },
+  { path: '/reps', label: 'Teams', icon: Users },
   { path: '/clients', label: 'Clients', icon: Users },
   { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
