@@ -59,7 +59,7 @@ export default function ClientsPage() {
     if (user.role === 'admin' || user.role === 'team_lead') {
       fetch(`${API}/auth/users`, { headers })
         .then(r => r.ok ? r.json() : [])
-        .then(data => setReps(data.filter(u => u.role === 'rep')))
+        .then(data => setReps(data.filter(u => u.role === 'rep' || u.role === 'team_lead' || u.role === 'admin')))
         .catch(() => {});
     }
   }, []);
@@ -374,7 +374,7 @@ export default function ClientsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
-              {['Business','Owner',...(user.role === 'admin' ? ['Assigned Rep'] : []),'Status','Last Activity','Docs','Missing',''].map(h => (
+              {['Business','Owner',...(user.role === 'admin' || user.role === 'team_lead' ? ['Assigned Rep'] : []),'Status','Last Activity','Docs','Missing',''].map(h => (
                 <th key={h} className="text-left py-3 px-5 text-gray-400 font-medium text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -391,7 +391,7 @@ export default function ClientsPage() {
                     <p className="text-gray-400 text-xs mt-0.5">{c.industry}{c.state ? ` · ${c.state}` : ''}</p>
                   </td>
                   <td className="py-3.5 px-5 text-gray-600 text-sm">{c.ownerName}</td>
-                  {user.role === 'admin' && (
+                  {(user.role === 'admin' || user.role === 'team_lead') && (
                     <td className="py-3.5 px-5">
                       <select
                         value={c.assignedRepId || ''}
