@@ -461,14 +461,14 @@ export default function ClientsPage() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => openReminder(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors"
                         title="Send reminder"
                       >
                         <Bell size={11} /> Remind
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2.5 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2.5 py-1.5 rounded-lg transition-colors"
                         title="Delete client"
                       >
                         <Trash2 size={11} />
