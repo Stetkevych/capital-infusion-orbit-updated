@@ -370,8 +370,8 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
               {['Business','Owner',...(user.role === 'admin' || user.role === 'team_lead' ? ['Assigned Rep'] : []),'Status','Last Activity','Docs','Missing',''].map(h => (
@@ -457,18 +457,18 @@ export default function ClientsPage() {
                       : <span className="text-green-600 text-xs font-medium">Complete</span>
                     }
                   </td>
-                  <td className="py-3.5 px-5">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="py-3.5 px-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => openReminder(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2.5 py-1.5 rounded-lg transition-colors"
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2 py-1.5 rounded-lg transition-colors"
                         title="Send reminder"
                       >
                         <Bell size={11} /> Remind
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2.5 py-1.5 rounded-lg transition-colors"
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2 py-1.5 rounded-lg transition-colors"
                         title="Delete client"
                       >
                         <Trash2 size={11} />

@@ -44,7 +44,7 @@ export default function Navbar() {
           </div>
           <div className="hidden sm:block">
             <p className="text-gray-800 text-xs font-medium leading-tight">{user?.name}</p>
-            <p className="text-gray-400 text-xs leading-tight capitalize">{user?.role}</p>
+            <p className="text-gray-400 text-xs leading-tight capitalize">{user?.email === 'matthew@capital-infusion.com' ? 'CEO' : user?.role}</p>
           </div>
           <button onClick={onLogout} className="ml-1 p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-700" title="Sign out">
             <LogOut size={14} />
