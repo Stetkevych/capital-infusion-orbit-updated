@@ -459,20 +459,6 @@ export default function ClientsPage() {
                   </td>
                   <td className="py-3.5 px-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openReminder(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-300 px-2 py-1.5 rounded-lg transition-colors"
-                        title="Send reminder"
-                      >
-                        <Bell size={11} /> Remind
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(c)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-2 py-1.5 rounded-lg transition-colors"
-                        title="Delete client"
-                      >
-                        <Trash2 size={11} />
-                      </button>
                       <Link to={`/clients/${c.id}`} className="flex items-center gap-1 text-blue-600 text-xs font-medium hover:opacity-70">
                         Open <ArrowRight size={12} />
                       </Link>
