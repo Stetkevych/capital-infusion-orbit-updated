@@ -91,6 +91,10 @@ app.use('/api/loc', actumRoutes);
 const clientDataRoutes = require('./routes/clientData');
 app.use('/api/client-data', clientDataRoutes);
 
+// Messages
+const messageRoutes = require('./routes/messages');
+app.use('/api/messages', messageRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

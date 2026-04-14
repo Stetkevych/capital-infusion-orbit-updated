@@ -6,6 +6,7 @@ import {
   AlertCircle, TrendingUp, DollarSign, BarChart2,
   FileText, RefreshCw, FileSearch, Hash, ChevronRight
 } from 'lucide-react';
+import UnderwritingTrainer from './UnderwritingTrainer';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -464,6 +465,9 @@ export default function AutoUnderwriting() {
           </div>
         </div>
       )}
+
+      {/* Underwriting Trainer */}
+      <UnderwritingTrainer />
     </div>
   );
 }
