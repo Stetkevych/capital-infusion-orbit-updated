@@ -14,6 +14,7 @@ const REP_LINKS = [
   { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Documents', icon: FolderOpen },
+  { path: '/underwriting', label: 'Underwriting', icon: Zap, adminOnly: true },
   { path: '/analytics', label: 'Analytics', icon: BarChart2, adminOnly: true },
   { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
   { path: '/activity', label: 'Activity', icon: Activity, adminOnly: true },
@@ -21,8 +22,8 @@ const REP_LINKS = [
   { path: '/ci-loc', label: 'CI LOC', icon: CreditCard, adminOnly: true },
   { path: '/client-data', label: 'Client Data', icon: BarChart2, adminOnly: true },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
-  { path: '/client-credentials', label: 'Client Credentials', icon: Key },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/client-credentials', label: 'Client Credentials', icon: Key, adminOnly: true },
+  { path: '/my-orbit', label: 'My Orbit', icon: User },
 ];
 
 const CLIENT_LINKS = [

@@ -34,6 +34,8 @@ export default function ClientsPage() {
   const [reminderMsg, setReminderMsg] = useState('');
   const [sendingReminder, setSendingReminder] = useState(false);
 
+  const [sortBy, setSortBy] = useState('recent');
+
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const [reps, setReps] = useState([]);
   const [reassigning, setReassigning] = useState(null);
@@ -86,20 +88,37 @@ export default function ClientsPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Merge mock + real clients
-  const mockClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
-  const allClients = [
-    ...realClients,
-    ...mockClients.filter(mc => !realClients.find(rc => rc.email === mc.email)),
-  ];
+  // Only use real clients from API — no mock data
+  const allClients = realClients;
 
   const STATUSES = ['Working', 'Inactive', 'Complete'];
+
+  const getLastActivity = (c) => {
+    const ca = activityLog.filter(a => a.clientId === c.id).sort((a, b) => new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt));
+    if (ca.length > 0) return new Date(ca[0].timestamp || ca[0].createdAt).getTime();
+    if (c.createdAt || c.created_at) return new Date(c.createdAt || c.created_at).getTime();
+    return 0;
+  };
 
   const clients = allClients
     .filter(c => !repFilter || c.assignedRepId === repFilter)
     .filter(c => !search || c.businessName?.toLowerCase().includes(search.toLowerCase()) || c.ownerName?.toLowerCase().includes(search.toLowerCase()))
     .filter(c => !statusFilter || c.status === statusFilter)
-    .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+    .sort((a, b) => {
+      if (sortBy === 'recent') return getLastActivity(b) - getLastActivity(a);
+      if (sortBy === 'oldest') return getLastActivity(a) - getLastActivity(b);
+      if (sortBy === 'logged_in') {
+        const aLogged = activityLog.some(x => x.clientId === a.id && x.eventType === 'login') ? 1 : 0;
+        const bLogged = activityLog.some(x => x.clientId === b.id && x.eventType === 'login') ? 1 : 0;
+        return bLogged - aLogged;
+      }
+      if (sortBy === 'app_completed') {
+        const aApp = (a.source === 'docusign' || a.envelopeId) ? 1 : 0;
+        const bApp = (b.source === 'docusign' || b.envelopeId) ? 1 : 0;
+        return bApp - aApp;
+      }
+      return 0;
+    });
 
   const handleStatusChange = async (client, newStatus) => {
     try {
@@ -292,12 +311,17 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Clients</h1>
           <p className="text-gray-400 text-sm mt-0.5">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm font-medium"
-        >
-          <Plus size={15} /> Add Client
-        </button>
+        <div className="flex items-center gap-3">
+          {user.role === 'team_lead' && (
+            <span className="text-gray-400 text-xs">Team leads can see their team's pipeline</span>
+          )}
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm font-medium"
+          >
+            <Plus size={15} /> Add Client
+          </button>
+        </div>
       </div>
 
       {/* Add Client Form */}
@@ -367,6 +391,12 @@ export default function ClientsPage() {
           <option value="">All Statuses</option>
           {STATUSES.map(s => <option key={s}>{s}</option>)}
         </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm">
+          <option value="recent">Most Recent Activity</option>
+          <option value="oldest">Least Recent Activity</option>
+          <option value="logged_in">Client Logged In</option>
+          <option value="app_completed">Application Completed</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -393,15 +423,19 @@ export default function ClientsPage() {
                   <td className="py-3.5 px-5 text-gray-600 text-sm">{c.ownerName}</td>
                   {(user.role === 'admin' || user.role === 'team_lead') && (
                     <td className="py-3.5 px-5">
-                      <select
-                        value={c.assignedRepId || ''}
-                        onChange={e => handleReassign(c, e.target.value)}
-                        disabled={reassigning === c.id}
-                        className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[120px]"
-                      >
-                        <option value="">Unassigned</option>
-                        {reps.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
-                      </select>
+                      {user.role === 'admin' ? (
+                        <select
+                          value={c.assignedRepId || ''}
+                          onChange={e => handleReassign(c, e.target.value)}
+                          disabled={reassigning === c.id}
+                          className="bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[120px]"
+                        >
+                          <option value="">Unassigned</option>
+                          {reps.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-gray-700 text-xs font-medium">{c.assignedRepName || 'Unassigned'}</span>
+                      )}
                     </td>
                   )}
                   <td className="py-3.5 px-5">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
@@ -87,7 +87,7 @@ function RepRoutes() {
       <Route path="/training" element={<Training />} />
       <Route path="/ci-loc" element={<CILoc />} />
       <Route path="/client-data" element={<ClientData />} />
-      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -110,11 +110,35 @@ function ClientRoutes() {
   );
 }
 
-function SettingsPage() {
+function MyOrbitPage() {
+  const { user } = useAuth();
+  const [pic, setPic] = useState(localStorage.getItem('orbit_pic') || '');
+  const handlePic = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { const url = ev.target.result; setPic(url); localStorage.setItem('orbit_pic', url); };
+    reader.readAsDataURL(file);
+  };
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold text-apple-gray1 tracking-tight mb-2">Settings</h1>
-      <p className="text-apple-gray4 text-sm">Settings panel — coming soon.</p>
+    <div className="p-6 max-w-2xl mx-auto space-y-5">
+      <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">My Orbit</h1>
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 flex items-center gap-6">
+        <div className="relative">
+          <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-2xl overflow-hidden">
+            {pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
+          </div>
+          <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
+            <span className="text-white text-xs">✎</span>
+            <input type="file" accept="image/*" className="hidden" onChange={handlePic} />
+          </label>
+        </div>
+        <div>
+          <p className="text-gray-900 font-semibold text-lg">{user?.name}</p>
+          <p className="text-gray-400 text-sm">{user?.email}</p>
+          <p className="text-gray-500 text-xs mt-1 capitalize">{user?.email === 'matthew@capital-infusion.com' ? 'CEO' : user?.role} · Active</p>
+        </div>
+      </div>
     </div>
   );
 }
