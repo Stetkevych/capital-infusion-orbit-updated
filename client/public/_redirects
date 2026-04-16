@@ -1,1 +1,3 @@
+/headshots/*    /headshots/:splat    200
+/OrbitLogo.png    /OrbitLogo.png    200
 /*    /index.html    200
