@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import UnderwritingTrainer from './UnderwritingTrainer';
 import UnderwritingResults from './UnderwritingResults';
+import UnderwritingLedger from './UnderwritingLedger';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -474,6 +475,11 @@ export default function AutoUnderwriting() {
 
       {/* Underwriting Trainer */}
       <UnderwritingTrainer />
+
+      {/* Transaction Intelligence Ledger */}
+      {selectedClientId && realDocs.length > 0 && (
+        <UnderwritingLedger clientId={selectedClientId} docs={realDocs} />
+      )}
     </div>
   );
 }
