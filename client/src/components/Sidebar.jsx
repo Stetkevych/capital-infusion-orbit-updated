@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -7,6 +7,8 @@ import {
   Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap, CreditCard, MessageSquare
 } from 'lucide-react';
 
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+
 const REP_LINKS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/reps', label: 'Teams', icon: Users },
@@ -14,7 +16,7 @@ const REP_LINKS = [
   { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Documents', icon: FolderOpen },
-  { path: '/messages', label: 'Messages', icon: MessageSquare },
+  { path: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   { path: '/underwriting', label: 'Underwriting', icon: Zap, adminOnly: true },
   { path: '/analytics', label: 'Analytics', icon: BarChart2, adminOnly: true },
   { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
@@ -32,22 +34,41 @@ const CLIENT_LINKS = [
   { path: '/my-documents', label: 'My Documents', icon: FileText },
   { path: '/upload', label: 'Upload Center', icon: Upload },
   { path: '/requests', label: 'Requests', icon: Bell },
+  { path: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   { path: '/businesses', label: 'My Businesses', icon: Building2 },
   { path: '/profile', label: 'Profile', icon: User },
 ];
 
 export default function Sidebar() {
-  const { viewMode, user } = useAuth();
+  const { viewMode, user, token } = useAuth();
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
   const baseLinks = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
   const links = baseLinks.filter(l => !l.adminOnly || isAdmin);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!token) return;
+    const fetchUnread = () => {
+      fetch(`${API}/messages/conversations`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : [])
+        .then(convos => {
+          const total = (Array.isArray(convos) ? convos : []).reduce((sum, c) => sum + (c.unread || 0), 0);
+          setUnreadCount(total);
+        })
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000); // poll every 30s
+    return () => clearInterval(interval);
+  }, [token]);
+
   return (
     <div className="w-52 bg-white border-r border-gray-100 flex flex-col shrink-0">
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <nav className="space-y-0.5">
-          {links.map(({ path, label, icon: Icon }) => {
+          {links.map(({ path, label, icon: Icon, badge }) => {
             const active = location.pathname === path;
             return (
               <Link
@@ -61,6 +82,11 @@ export default function Sidebar() {
               >
                 <Icon size={15} className={active ? 'text-blue-600' : 'text-gray-400'} />
                 {label}
+                {badge && unreadCount > 0 && (
+                  <span className="ml-auto w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-semibold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

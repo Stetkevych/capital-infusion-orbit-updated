@@ -5,6 +5,19 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const { getPresignedUploadUrl, getPresignedDownloadUrl, fileExists, deleteFile } = require('../services/s3Service');
 const { loadFromS3, saveToS3 } = require('../services/s3Store');
+
+// Safe OCR import — uploads NEVER fail because of OCR issues
+let extractBankStatement, extractRawLines;
+try {
+  const ocr = require('../services/textractService');
+  extractBankStatement = ocr.extractBankStatement;
+  extractRawLines = ocr.extractRawLines;
+  console.log('[Documents] Textract OCR loaded');
+} catch (e) {
+  console.error('[Documents] OCR failed to load:', e.message);
+  extractBankStatement = async () => ({ success: false, error: 'OCR unavailable' });
+  extractRawLines = async () => ({ success: false, error: 'OCR unavailable' });
+}
 const EventLogger = require('../services/eventLogger');
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -67,6 +80,23 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
 
       docs.push(doc);
       results.push(doc);
+
+      // Fire-and-forget OCR for bank statements
+      if (category === 'bank_statements') {
+        const docId = doc.id;
+        extractBankStatement(key).then(async (financials) => {
+          try {
+            const allDocs = await loadDocs();
+            const idx = allDocs.findIndex(d => d.id === docId);
+            if (idx !== -1) {
+              allDocs[idx].extractedFinancials = financials;
+              allDocs[idx].extractionStatus = financials.success ? 'complete' : 'failed';
+              await saveDocs(allDocs);
+              console.log(`[OCR] ${file.originalname}: ${financials.success ? 'success' : financials.error}`);
+            }
+          } catch (e) { console.error('[OCR] Save error:', e.message); }
+        }).catch(err => console.error('[OCR] Error:', err.message));
+      }
 
       console.log(`[Upload] ${file.originalname} → ${key} (${doc.fileSize})`);
     }
@@ -269,14 +299,46 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── GET /api/documents/debug-ocr/:docId ─────────────────────────────────────
+// ─── GET /api/documents/debug-textract/:docId ─────────────────────────────────────
 router.get('/debug-textract/:docId', async (req, res) => {
-  res.json({ success: false, error: 'OCR temporarily disabled' });
+  try {
+    const docs = await loadDocs();
+    const doc = docs.find(d => d.id === req.params.docId);
+    if (!doc) return res.status(404).json({ error: 'Doc not found' });
+    const result = await extractRawLines(doc.key);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── POST /api/documents/reprocess/:clientId ─────────────────────────────────
 router.post('/reprocess/:clientId', async (req, res) => {
-  res.json({ reprocessed: 0, message: 'OCR temporarily disabled' });
+  try {
+    const docs = await loadDocs();
+    const bankDocs = docs.filter(d => d.clientId === req.params.clientId && d.category === 'bank_statements');
+    if (bankDocs.length === 0) return res.json({ reprocessed: 0, message: 'No bank statements found' });
+    let count = 0;
+    for (const doc of bankDocs) {
+      const idx = docs.findIndex(d => d.id === doc.id);
+      if (idx === -1) continue;
+      docs[idx].extractedFinancials = null;
+      docs[idx].extractionStatus = 'pending';
+      count++;
+      const docId = doc.id;
+      extractBankStatement(doc.key).then(async (financials) => {
+        try {
+          const allDocs = await loadDocs();
+          const i = allDocs.findIndex(d => d.id === docId);
+          if (i !== -1) {
+            allDocs[i].extractedFinancials = financials;
+            allDocs[i].extractionStatus = financials.success ? 'complete' : 'failed';
+            await saveDocs(allDocs);
+          }
+        } catch {}
+      }).catch(err => console.error(`[Reprocess] Error: ${err.message}`));
+    }
+    await saveDocs(docs);
+    res.json({ reprocessed: count, message: `Re-extracting ${count} bank statements. Check back in 30-60 seconds.` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Get bank accounts for a client

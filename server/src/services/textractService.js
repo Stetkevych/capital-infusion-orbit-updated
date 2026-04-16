@@ -1,18 +1,8 @@
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { TextractClient, StartDocumentAnalysisCommand, GetDocumentAnalysisCommand } = require('@aws-sdk/client-textract');
 
 const BUCKET = process.env.AWS_S3_BUCKET || 'orbit-documents-882611632216-882611632216-us-east-1-an';
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const MINDEE_API_KEY = process.env.MINDEE_API_KEY || 'md_QHXO8ETx889TsZFE6Imi_FvB-s21JbWyGcmu1O9TD5c';
-const MINDEE_MODEL_ID = process.env.MINDEE_MODEL_ID || '52dc192e-8592-415d-aac5-5404d1e9080e';
-const MINDEE_HOST = 'https://api-v2.mindee.net';
-
-const s3 = new S3Client({ region: REGION });
-
-// Check Node capabilities at load time
-const HAS_FETCH = typeof globalThis.fetch === 'function';
-const HAS_FORMDATA = typeof globalThis.FormData === 'function';
-const HAS_BLOB = typeof globalThis.Blob === 'function';
-console.log(`[OCR] Node ${process.version} | fetch=${HAS_FETCH} FormData=${HAS_FORMDATA} Blob=${HAS_BLOB}`);
+const textract = new TextractClient({ region: REGION });
 
 // ─── BANK SUMMARY PATTERNS ───────────────────────────────────────────────────
 const SUMMARY_PATTERNS = [
@@ -80,7 +70,6 @@ const AMBIGUOUS_LENDERS = [
 ];
 const ALL_LENDERS = [...SAFE_LENDERS, ...AMBIGUOUS_LENDERS].sort((a, b) => b.length - a.length);
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function parseDollar(str) {
   if (!str) return null;
   let cleaned = str.replace(/[$\s]/g, '');
@@ -115,86 +104,42 @@ function extractAllDollars(line) {
 
 function shouldSkipLine(line) { return SKIP_PATTERNS.some(p => p.test(line)); }
 
-// ─── MINDEE OCR (direct REST API — no SDK) ───────────────────────────────────
-async function downloadFromS3(s3Key) {
-  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
-  const chunks = [];
-  for await (const chunk of res.Body) chunks.push(chunk);
-  return Buffer.concat(chunks);
+// ─── TEXTRACT JOB MANAGEMENT ──────────────────────────────────────────────────
+async function startJob(s3Key) {
+  const res = await textract.send(new StartDocumentAnalysisCommand({
+    DocumentLocation: { S3Object: { Bucket: BUCKET, Name: s3Key } },
+    FeatureTypes: ['TABLES'],
+  }));
+  return res.JobId;
 }
 
-function wordsToLines(pages) {
-  const lines = [];
-  for (const page of pages) {
-    const words = page.words || [];
-    if (!words.length) continue;
-    const sorted = [...words].sort((a, b) => {
-      const ay = a.polygon?.[0]?.[1] ?? 0;
-      const by = b.polygon?.[0]?.[1] ?? 0;
-      return ay - by || (a.polygon?.[0]?.[0] ?? 0) - (b.polygon?.[0]?.[0] ?? 0);
-    });
-    let currentLine = [];
-    let currentY = sorted[0]?.polygon?.[0]?.[1] ?? 0;
-    for (const word of sorted) {
-      const wy = word.polygon?.[0]?.[1] ?? 0;
-      if (Math.abs(wy - currentY) > 0.008) {
-        if (currentLine.length) lines.push(currentLine.map(w => w.content).join(' '));
-        currentLine = [];
-        currentY = wy;
-      }
-      currentLine.push(word);
-    }
-    if (currentLine.length) lines.push(currentLine.map(w => w.content).join(' '));
-  }
-  return lines;
-}
-
-async function runMindeeOcr(s3Key) {
-  if (!HAS_FETCH || !HAS_FORMDATA || !HAS_BLOB) {
-    throw new Error(`Node ${process.version} missing: fetch=${HAS_FETCH} FormData=${HAS_FORMDATA} Blob=${HAS_BLOB}`);
-  }
-  console.log(`[Mindee] Downloading ${s3Key} from S3...`);
-  const buffer = await downloadFromS3(s3Key);
-  const filename = s3Key.split('/').pop();
-  console.log(`[Mindee] Downloaded ${buffer.length} bytes, sending to Mindee...`);
-
-  const form = new FormData();
-  form.append('file', new Blob([buffer]), filename);
-  form.append('model_id', MINDEE_MODEL_ID);
-  const enqRes = await fetch(`${MINDEE_HOST}/v2/products/ocr/enqueue`, {
-    method: 'POST',
-    headers: { 'Authorization': MINDEE_API_KEY },
-    body: form,
-  });
-  const enqData = await enqRes.json();
-  if (!enqRes.ok || !enqData.job?.id) throw new Error(`Mindee enqueue failed (${enqRes.status}): ${enqData.detail || JSON.stringify(enqData)}`);
-  const jobId = enqData.job.id;
-  console.log(`[Mindee] Job ${jobId} enqueued, polling...`);
-
+async function waitForJob(jobId) {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
-    const pollRes = await fetch(`${MINDEE_HOST}/v2/jobs/${jobId}`, {
-      headers: { 'Authorization': MINDEE_API_KEY },
-    });
-    const pollData = await pollRes.json();
-    if (pollData.job?.error) throw new Error(`Mindee error: ${JSON.stringify(pollData.job.error)}`);
-    if (pollData.job?.status === 'Failed') throw new Error('Mindee job failed');
-    if (pollData.job?.status === 'Processed') {
-      const resultUrl = pollData.job.resultUrl;
-      if (!resultUrl) throw new Error('No result URL from Mindee');
-      const resultRes = await fetch(resultUrl, { headers: { 'Authorization': MINDEE_API_KEY } });
-      const resultData = await resultRes.json();
-      const pages = resultData.inference?.result?.pages || [];
-      const lines = wordsToLines(pages);
-      console.log(`[Mindee] Extracted ${lines.length} lines from ${pages.length} pages`);
-      return lines;
-    }
+    const res = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId }));
+    if (res.JobStatus === 'SUCCEEDED') return;
+    if (res.JobStatus === 'FAILED') throw new Error('Textract job failed');
   }
-  throw new Error('Mindee job timed out');
+  throw new Error('Textract job timed out');
 }
 
-// ─── MAIN PARSER (identical logic) ───────────────────────────────────────────
-function parseFinancials(lines) {
+async function getBlocks(jobId) {
+  let blocks = [];
+  let nextToken;
+  do {
+    const params = { JobId: jobId };
+    if (nextToken) params.NextToken = nextToken;
+    const res = await textract.send(new GetDocumentAnalysisCommand(params));
+    blocks = blocks.concat(res.Blocks || []);
+    nextToken = res.NextToken;
+  } while (nextToken);
+  return blocks;
+}
+
+// ─── MAIN PARSER ──────────────────────────────────────────────────────────────
+function parseFinancials(blocks) {
+  const lines = blocks.filter(b => b.BlockType === 'LINE').map(b => (b.Text || '').trim()).filter(Boolean);
+
   const joinedLines = [];
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -219,7 +164,7 @@ function parseFinancials(lines) {
         const val = parseDollar(match[1]);
         if (val && val >= 100) {
           summaryHits.push({ value: val, line: line.trim() });
-          console.log(`[Mindee] \u2713 Summary: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
+          console.log(`[Textract] \u2713 Summary: "${line.trim()}" \u2192 $${val.toLocaleString()}`);
         }
         break;
       }
@@ -235,7 +180,6 @@ function parseFinancials(lines) {
 
   let individualTotal = 0, individualCount = 0;
   if (filteredSummary.length === 0) {
-    console.log('[Mindee] No summary lines, falling back to individual credits');
     for (const line of joinedLines) {
       const lower = line.toLowerCase();
       if (shouldSkipLine(line)) continue;
@@ -280,8 +224,6 @@ function parseFinancials(lines) {
     else paymentFrequency = 'Irregular';
   }
 
-  console.log(`[Mindee] RESULT: method=${method} | total=$${totalCredits.toLocaleString()} | months=${monthsCovered} | avg=$${(avgMonthlyRevenue || 0).toLocaleString()}`);
-
   const negMatches = fullLower.match(/-\$[\d,]+\.?\d{0,2}/g) || [];
   const negativeDays = negMatches.length;
 
@@ -319,21 +261,26 @@ function parseFinancials(lines) {
   };
 }
 
-// ─── EXPORTS (same interface) ─────────────────────────────────────────────────
+// ─── EXPORTS ──────────────────────────────────────────────────────────────────
 async function extractBankStatement(s3Key) {
   try {
-    const lines = await runMindeeOcr(s3Key);
-    const financials = parseFinancials(lines);
-    return { success: true, ocrEngine: 'mindee', ...financials };
+    const jobId = await startJob(s3Key);
+    await waitForJob(jobId);
+    const blocks = await getBlocks(jobId);
+    const financials = parseFinancials(blocks);
+    return { success: true, jobId, ocrEngine: 'textract', ...financials };
   } catch (err) {
-    console.error('[Mindee] Error:', err.message);
+    console.error('[Textract] Error:', err.message);
     return { success: false, error: err.message };
   }
 }
 
 async function extractRawLines(s3Key) {
   try {
-    const lines = await runMindeeOcr(s3Key);
+    const jobId = await startJob(s3Key);
+    await waitForJob(jobId);
+    const blocks = await getBlocks(jobId);
+    const lines = blocks.filter(b => b.BlockType === 'LINE').map(b => (b.Text || '').trim()).filter(Boolean);
     return { success: true, lineCount: lines.length, lines };
   } catch (err) {
     return { success: false, error: err.message };
