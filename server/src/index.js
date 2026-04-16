@@ -95,6 +95,10 @@ app.use('/api/client-data', clientDataRoutes);
 const messageRoutes = require('./routes/messages');
 app.use('/api/messages', messageRoutes);
 
+// Underwriting corrections
+const correctionsRoutes = require('./routes/corrections');
+app.use('/api/corrections', correctionsRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

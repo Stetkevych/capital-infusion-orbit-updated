@@ -7,6 +7,7 @@ import {
   FileText, RefreshCw, FileSearch, Hash, ChevronRight
 } from 'lucide-react';
 import UnderwritingTrainer from './UnderwritingTrainer';
+import UnderwritingResults from './UnderwritingResults';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -464,6 +465,11 @@ export default function AutoUnderwriting() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Full Underwriting Results */}
+      {result && !result.insufficient && !loading && (
+        <UnderwritingResults clientId={selectedClientId} financials={result?.extracted ? { ...result.extracted, fromTextract: result.fromTextract, ocrEngine: result.ocrEngine, confidence: result.extracted?.confidence || (result.fromTextract ? 'high' : 'low'), positions: result.extracted?.positions || [], positionCount: result.extracted?.positionCount || 0, totalLenderPayments: result.extracted?.totalLenderPayments || 0, withholdingRate: result.extracted?.withholdingRate || 0, paymentFrequency: result.extracted?.paymentFrequency || 'Unknown' } : null} docs={realDocs} />
       )}
 
       {/* Underwriting Trainer */}
