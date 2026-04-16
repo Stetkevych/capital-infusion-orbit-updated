@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
@@ -113,8 +113,20 @@ function ClientRoutes() {
 }
 
 function MyOrbitPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+  const [profile, setProfile] = useState(null);
   const [pic, setPic] = useState(localStorage.getItem('orbit_pic') || '');
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setProfile(d); })
+      .catch(() => {});
+  }, [token]);
+
+  const headshot = profile?.headshot || pic;
   const handlePic = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -128,7 +140,7 @@ function MyOrbitPage() {
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 flex items-center gap-6">
         <div className="relative">
           <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-2xl overflow-hidden">
-            {pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
+            {headshot ? <img src={headshot} alt="" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
           </div>
           <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
             <span className="text-white text-xs">✎</span>
@@ -139,6 +151,7 @@ function MyOrbitPage() {
           <p className="text-gray-900 font-semibold text-lg">{user?.name}</p>
           <p className="text-gray-400 text-sm">{user?.email}</p>
           <p className="text-gray-500 text-xs mt-1 capitalize">{user?.email === 'matthew@capital-infusion.com' ? 'CEO' : user?.role} · Active</p>
+          {profile?.phone && <p className="text-gray-400 text-xs mt-0.5">{profile.phone}</p>}
         </div>
       </div>
     </div>
