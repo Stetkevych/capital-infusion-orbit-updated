@@ -99,6 +99,10 @@ app.use('/api/messages', messageRoutes);
 const correctionsRoutes = require('./routes/corrections');
 app.use('/api/corrections', correctionsRoutes);
 
+// LOC v2 with Onyx integration
+const locV2Routes = require('./routes/locV2');
+app.use('/api/loc-v2', locV2Routes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
