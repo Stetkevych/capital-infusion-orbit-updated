@@ -39,7 +39,7 @@ export default function CILoc() {
   const [drawReason, setDrawReason] = useState('');
   const [drawLoading, setDrawLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ clientId: '', creditLimit: '', factorRate: '1.35', paymentTermDays: '30' });
+  const [createForm, setCreateForm] = useState({ clientId: '', creditLimit: '', factorRate: '1.2', term: '12', paymentFrequency: 'monthly' });
   const [notification, setNotification] = useState(null);
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -355,9 +355,14 @@ export default function CILoc() {
               <input type="number" value={createForm.creditLimit} onChange={e => setCreateForm(f => ({ ...f, creditLimit: e.target.value }))}
                 placeholder="Credit Limit (e.g. 50000)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
               <input type="number" step="0.01" value={createForm.factorRate} onChange={e => setCreateForm(f => ({ ...f, factorRate: e.target.value }))}
-                placeholder="Factor Rate (e.g. 1.35)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-              <input type="number" value={createForm.paymentTermDays} onChange={e => setCreateForm(f => ({ ...f, paymentTermDays: e.target.value }))}
-                placeholder="Payment Term Days (default 30)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                placeholder="Factor Rate (e.g. 1.2 = 20%)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              <input type="number" value={createForm.term} onChange={e => setCreateForm(f => ({ ...f, term: e.target.value }))}
+                placeholder="Term in months (default 12)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              <select value={createForm.paymentFrequency} onChange={e => setCreateForm(f => ({ ...f, paymentFrequency: e.target.value }))}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                <option value="monthly">Monthly Payments</option>
+                <option value="weekly">Weekly Payments</option>
+              </select>
             </div>
             <div className="flex items-center justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
               <button onClick={() => setShowCreate(false)} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50">Cancel</button>
