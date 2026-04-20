@@ -35,6 +35,7 @@ const CLIENT_LINKS = [
   { path: '/upload', label: 'Upload Center', icon: Upload },
   { path: '/requests', label: 'Requests', icon: Bell },
   { path: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
+  { path: '/my-loc', label: 'Line of Credit', icon: CreditCard, locOnly: true },
   { path: '/businesses', label: 'My Businesses', icon: Building2 },
   { path: '/profile', label: 'Profile', icon: User },
 ];
@@ -44,7 +45,13 @@ export default function Sidebar() {
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
   const baseLinks = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
-  const links = baseLinks.filter(l => !l.adminOnly || isAdmin);
+  const LOC_EMAILS = ['christopher.cranton@gmail.com'];
+  const hasLoc = LOC_EMAILS.includes(user?.email?.toLowerCase());
+  const links = baseLinks.filter(l => {
+    if (l.adminOnly && !isAdmin) return false;
+    if (l.locOnly && !hasLoc) return false;
+    return true;
+  });
 
   const [unreadCount, setUnreadCount] = useState(0);
 

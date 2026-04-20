@@ -39,6 +39,7 @@ import ClientRequests from './pages/ClientPortal/Requests';
 import ClientStatus from './pages/ClientPortal/Status';
 import ClientProfile from './pages/ClientPortal/Profile';
 import MyBusinesses from './pages/ClientPortal/MyBusinesses';
+import ClientLoc from './pages/ClientPortal/ClientLoc';
 import ClientCredentials from './pages/RepPortal/ClientCredentials';
 
 function AppShell() {
@@ -107,6 +108,7 @@ function ClientRoutes() {
       <Route path="/status" element={<ClientStatus />} />
       <Route path="/profile" element={<ClientProfile />} />
       <Route path="/businesses" element={<MyBusinesses />} />
+      <Route path="/my-loc" element={<ClientLoc />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
