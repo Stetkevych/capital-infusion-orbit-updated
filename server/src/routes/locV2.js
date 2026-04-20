@@ -55,7 +55,23 @@ router.get('/accounts/:id', async (req, res) => {
     const balance = Math.max(0, totalDrawn - totalPaid);
     const availability = Math.max(0, acct.creditLimit - balance);
 
-    res.json({ ...acct, balance, availability, totalDrawn, totalPaid });
+    // Next payment: find the nearest upcoming payment from funded draws
+    const fundedDraws = (acct.draws || []).filter(d => d.status === 'funded' && d.nextPaymentDate);
+    const now = Date.now();
+    const upcoming = fundedDraws
+      .filter(d => new Date(d.nextPaymentDate).getTime() > now)
+      .sort((a, b) => new Date(a.nextPaymentDate) - new Date(b.nextPaymentDate));
+    const nextPayment = upcoming.length > 0 ? {
+      amount: upcoming[0].paybackAmount || upcoming[0].amount,
+      date: upcoming[0].nextPaymentDate,
+      drawId: upcoming[0].id,
+    } : null;
+
+    // Total payback owed (all funded draws payback - payments made)
+    const totalPayback = fundedDraws.reduce((s, d) => s + (d.paybackAmount || d.amount), 0);
+    const totalOwed = Math.max(0, totalPayback - totalPaid);
+
+    res.json({ ...acct, balance, availability, totalDrawn, totalPaid, totalOwed, nextPayment });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -73,9 +89,11 @@ router.post('/accounts', async (req, res) => {
       onyxClientId: onyxClientId || null,
       onyxApplicationId: null,
       creditLimit: parseFloat(creditLimit),
+      factorRate: parseFloat(req.body.factorRate) || 1.35,
+      paymentTermDays: parseInt(req.body.paymentTermDays) || 30,
       interestRate: parseFloat(interestRate) || 0,
       term: parseInt(term) || 12,
-      paymentFrequency: paymentFrequency || 'daily',
+      paymentFrequency: paymentFrequency || 'monthly',
       draws: [],
       payments: [],
       status: 'active',
@@ -135,7 +153,7 @@ router.post('/draw-request', async (req, res) => {
 
       await ses.send(new SendEmailCommand({
         Source: `Capital Infusion <${FROM}>`,
-        Destination: { ToAddresses: ['chris@capital-infusion.com'] },
+        Destination: { ToAddresses: ['matthews@capital-infusion.com'] },
         Message: {
           Subject: { Data: `LOC Draw Request: $${amount.toLocaleString()} — Approval Needed` },
           Body: {
@@ -164,6 +182,16 @@ router.post('/draw/:drawId/approve', async (req, res) => {
     draw.status = 'funded';
     draw.approvedBy = req.user.id;
     draw.approvedAt = new Date().toISOString();
+    // Calculate payback and next payment date
+    const accounts2 = await loadLoc();
+    const acct2 = accounts2.find(a => a.id === draw.locAccountId);
+    const factorRate = acct2?.factorRate || 1.35;
+    const termDays = acct2?.paymentTermDays || 30;
+    draw.paybackAmount = parseFloat((draw.amount * factorRate).toFixed(2));
+    draw.nextPaymentDate = new Date(Date.now() + termDays * 24 * 60 * 60 * 1000).toISOString();
+    draw.nextPaymentAmount = draw.paybackAmount;
+    draw.factorRate = factorRate;
+    draw.termDays = termDays;
     await saveDraws(draws);
 
     // Add draw to LOC account — this is the new "deal", reamortization resets
@@ -173,6 +201,10 @@ router.post('/draw/:drawId/approve', async (req, res) => {
       acct.draws.push({
         id: draw.id,
         amount: draw.amount,
+        paybackAmount: draw.paybackAmount,
+        nextPaymentDate: draw.nextPaymentDate,
+        factorRate: draw.factorRate,
+        termDays: draw.termDays,
         date: draw.approvedAt,
         status: 'funded',
       });

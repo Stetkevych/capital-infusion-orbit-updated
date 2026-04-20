@@ -39,7 +39,7 @@ export default function CILoc() {
   const [drawReason, setDrawReason] = useState('');
   const [drawLoading, setDrawLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ clientId: '', creditLimit: '', interestRate: '', term: '12' });
+  const [createForm, setCreateForm] = useState({ clientId: '', creditLimit: '', factorRate: '1.35', paymentTermDays: '30' });
   const [notification, setNotification] = useState(null);
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -198,6 +198,20 @@ export default function CILoc() {
             </div>
           </div>
 
+          {/* Next Payment */}
+          {selectedAcct?.nextPayment && (
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide">Next Payment</p>
+                <p className="text-gray-900 text-xl font-bold mt-0.5">{fmt$(selectedAcct.nextPayment.amount)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-400 text-xs">Due {fd(selectedAcct.nextPayment.date)}</p>
+                <p className="text-gray-400 text-xs">Factor: {selectedAcct.factorRate || '1.35'}x</p>
+              </div>
+            </div>
+          )}
+
           {/* Draw CTA */}
           <button onClick={() => setShowDraw(true)} className="w-full group bg-blue-600 hover:bg-blue-700 rounded-2xl p-5 text-left transition-all hover:shadow-lg hover:shadow-blue-500/15">
             <div className="flex items-center justify-between">
@@ -272,6 +286,8 @@ export default function CILoc() {
           {/* Line Details */}
           <Expandable title="Line Details" icon={Building2}>
             {[
+              ['Factor Rate', selectedAcct?.factorRate ? `${selectedAcct.factorRate}x` : '—'],
+              ['Payment Term', selectedAcct?.paymentTermDays ? `${selectedAcct.paymentTermDays} days` : '30 days'],
               ['Credit Limit', fmt$(creditLimit)],
               ['Interest Rate', selectedAcct?.interestRate ? `${selectedAcct.interestRate}%` : '—'],
               ['Term', selectedAcct?.term ? `${selectedAcct.term} months` : '—'],
@@ -338,10 +354,10 @@ export default function CILoc() {
                 placeholder="Client ID" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
               <input type="number" value={createForm.creditLimit} onChange={e => setCreateForm(f => ({ ...f, creditLimit: e.target.value }))}
                 placeholder="Credit Limit (e.g. 50000)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-              <input type="number" value={createForm.interestRate} onChange={e => setCreateForm(f => ({ ...f, interestRate: e.target.value }))}
-                placeholder="Interest Rate % (e.g. 8.5)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-              <input type="number" value={createForm.term} onChange={e => setCreateForm(f => ({ ...f, term: e.target.value }))}
-                placeholder="Term (months)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              <input type="number" step="0.01" value={createForm.factorRate} onChange={e => setCreateForm(f => ({ ...f, factorRate: e.target.value }))}
+                placeholder="Factor Rate (e.g. 1.35)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+              <input type="number" value={createForm.paymentTermDays} onChange={e => setCreateForm(f => ({ ...f, paymentTermDays: e.target.value }))}
+                placeholder="Payment Term Days (default 30)" className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
             </div>
             <div className="flex items-center justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
               <button onClick={() => setShowCreate(false)} className="text-gray-500 text-sm px-4 py-2 rounded-xl hover:bg-gray-50">Cancel</button>
