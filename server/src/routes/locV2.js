@@ -23,31 +23,32 @@ async function saveDraws(d) { await saveToS3(DRAW_FILE, d); }
  */
 
 function computeAccount(acct) {
-  const draws = (acct.draws || []).filter(d => d.status === 'funded');
+  const draws = (acct.draws || []);
   const payments = acct.payments || [];
   const freq = acct.paymentFrequency || 'monthly';
   const termMonths = acct.term || 12;
   const paymentsPerTerm = freq === 'weekly' ? Math.round(termMonths * 4.33) : termMonths;
 
-  // Total principal drawn
-  const totalPrincipal = draws.reduce((s, d) => s + d.amount, 0);
-  // Total payback owed (with factor)
-  const totalPayback = draws.reduce((s, d) => s + (d.paybackAmount || d.amount), 0);
+  // Find the active funded draw (the current deal after reamortization)
+  const activeDraw = draws.filter(d => d.status === 'funded').pop();
+  // Total principal drawn (all draws, funded + reamortized)
+  const totalPrincipal = draws.filter(d => d.status === 'funded' || d.status === 'reamortized').reduce((s, d) => s + d.amount, 0);
+  // Total payback = active draw's paybackAmount (includes reamortized balance)
+  const totalPayback = activeDraw?.paybackAmount || draws.filter(d => d.status === 'funded').reduce((s, d) => s + (d.paybackAmount || d.amount * (acct.factorRate || 1.2)), 0);
   // Total paid
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
   // Balance = what's still owed
   const balance = Math.max(0, totalPayback - totalPaid);
-  // Availability = credit limit - principal drawn (not payback)
+  // Availability = credit limit - total principal drawn
   const availability = Math.max(0, acct.creditLimit - totalPrincipal);
-  // Current installment (reamortized across remaining payments)
+  // Installment
   const paidCount = payments.length;
   const remainingPayments = Math.max(1, paymentsPerTerm - paidCount);
   const installmentAmount = balance > 0 ? parseFloat((balance / remainingPayments).toFixed(2)) : 0;
 
   // Next payment date
   const lastPayment = payments.length > 0 ? payments[payments.length - 1] : null;
-  const lastDraw = draws.length > 0 ? draws[draws.length - 1] : null;
-  const baseDate = lastPayment ? new Date(lastPayment.date) : lastDraw ? new Date(lastDraw.date) : new Date();
+  const baseDate = lastPayment ? new Date(lastPayment.date) : activeDraw ? new Date(activeDraw.date) : new Date();
   const daysUntilNext = freq === 'weekly' ? 7 : 30;
   const nextPaymentDate = new Date(baseDate.getTime() + daysUntilNext * 24 * 60 * 60 * 1000);
 
@@ -74,6 +75,18 @@ router.get('/accounts/:id', async (req, res) => {
     const accounts = await loadLoc();
     const acct = accounts.find(a => a.id === req.params.id);
     if (!acct) return res.status(404).json({ error: 'Not found' });
+    // Patch any draws with null paybackAmount (legacy fix)
+    let patched = false;
+    (acct.draws || []).forEach(d => {
+      if (d.status === 'funded' && !d.paybackAmount) {
+        d.paybackAmount = parseFloat((d.amount * (acct.factorRate || 1.2) + (d.previousBalance || 0)).toFixed(2));
+        const freq = acct.paymentFrequency || 'monthly';
+        const tp = freq === 'weekly' ? Math.round((acct.term || 12) * 4.33) : (acct.term || 12);
+        d.installment = parseFloat((d.paybackAmount / tp).toFixed(2));
+        patched = true;
+      }
+    });
+    if (patched) await saveLoc(accounts);
     res.json({ ...acct, ...computeAccount(acct) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -184,23 +197,27 @@ router.post('/draw/:drawId/approve', async (req, res) => {
     const accounts = await loadLoc();
     const acct = accounts.find(a => a.id === draw.locAccountId);
     if (acct) {
-      // Close previous active draws (reamortization — they're absorbed into the new combined deal)
-      acct.draws.forEach(d => { if (d.status === 'funded') d.status = 'reamortized'; });
-      
-      // Calculate new combined payback
+      // Calculate remaining balance from all previous draws
+      const totalPrevPayback = (acct.draws || []).filter(d => d.status === 'funded').reduce((s, d) => s + (d.paybackAmount || d.amount * (acct.factorRate || 1.2)), 0);
       const totalPaid = (acct.payments || []).reduce((s, p) => s + p.amount, 0);
-      const oldRemaining = acct.draws.filter(d => d.status === 'reamortized').reduce((s, d) => s + (d.paybackAmount || d.amount), 0) - totalPaid;
-      const newPayback = Math.max(0, oldRemaining) + draw.paybackAmount;
+      const remainingBalance = Math.max(0, totalPrevPayback - totalPaid);
+
+      // Close previous active draws
+      acct.draws.forEach(d => { if (d.status === 'funded') d.status = 'reamortized'; });
+
+      // New combined payback = remaining + new draw payback
+      const newDrawPayback = draw.amount * (acct.factorRate || 1.2);
+      const combinedPayback = parseFloat((remainingBalance + newDrawPayback).toFixed(2));
       const freq = acct.paymentFrequency || 'monthly';
-      const totalPayments = freq === 'weekly' ? Math.round(acct.term * 4.33) : acct.term;
-      const newInstallment = parseFloat((newPayback / totalPayments).toFixed(2));
+      const totalPayments = freq === 'weekly' ? Math.round((acct.term || 12) * 4.33) : (acct.term || 12);
+      const newInstallment = parseFloat((combinedPayback / totalPayments).toFixed(2));
 
       acct.draws.push({
         id: draw.id, amount: draw.amount,
-        paybackAmount: newPayback, installment: newInstallment,
-        factorRate: acct.factorRate, date: draw.approvedAt, status: 'funded',
-        isReamortized: oldRemaining > 0,
-        previousBalance: Math.max(0, oldRemaining),
+        paybackAmount: combinedPayback, installment: newInstallment,
+        factorRate: acct.factorRate || 1.2, date: draw.approvedAt, status: 'funded',
+        isReamortized: remainingBalance > 0,
+        previousBalance: remainingBalance,
       });
       acct.updatedAt = new Date().toISOString();
       await saveLoc(accounts);
