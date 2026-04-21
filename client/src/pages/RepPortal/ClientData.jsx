@@ -44,12 +44,13 @@ export default function ClientData() {
 
   const { summary, uploadsByCategory, clientDetails } = data;
 
-  // Compute multi-type upload count from clientDetails
+  // Single-type: uploaded at least 1 doc type (excl application)
   const singleTypeUploaders = clientDetails.filter(c => {
     const nonAppCats = (c.categories || []).filter(cat => cat !== 'application');
-    return nonAppCats.length === 1;
+    return nonAppCats.length >= 1;
   }).length;
 
+  // Multi-type: uploaded 2+ different doc types (excl application) — inclusive of single
   const multiTypeUploaders = clientDetails.filter(c => {
     const nonAppCats = (c.categories || []).filter(cat => cat !== 'application');
     return nonAppCats.length >= 2;
@@ -77,15 +78,15 @@ export default function ClientData() {
         <StatCard icon={LogIn} label="Clients Logged In" value={summary.uniqueLoggedIn}
           sub={`${summary.totalClients > 0 ? ((summary.uniqueLoggedIn / summary.totalClients) * 100).toFixed(1) : 0}% login rate`}
           color="text-green-600" bg="bg-green-50" />
-        <StatCard icon={Upload} label="Single-Type Uploaders" value={singleTypeUploaders}
-          sub="Uploaded 1 doc type (excl. application)"
+        <StatCard icon={Upload} label="Doc Uploaders" value={singleTypeUploaders}
+          sub="Uploaded at least 1 doc type (excl. application) *"
           color="text-indigo-600" bg="bg-indigo-50" />
       </div>
 
       {/* Row 2: 3 boxes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard icon={Layers} label="Multi-Type Uploaders" value={multiTypeUploaders}
-          sub="Uploaded 2+ different doc types"
+          sub={`Uploaded 2+ doc types · includes all doc uploaders above *`}
           color="text-purple-600" bg="bg-purple-50" />
         <StatCard icon={Clock} label="Avg Logged-In Time" value={formatDuration(summary.avgSessionSec)}
           sub={summary.maxSessionSec > 0 ? `Longest: ${formatDuration(summary.maxSessionSec)}` : 'No session data yet'}
