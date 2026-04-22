@@ -44,11 +44,13 @@ export default function ClientData() {
 
   const { summary, uploadsByCategory, clientDetails } = data;
 
-  // Single-type: uploaded at least 1 doc type (excl application)
-  const singleTypeUploaders = clientDetails.filter(c => {
-    const nonAppCats = (c.categories || []).filter(cat => cat !== 'application');
-    return nonAppCats.length >= 1;
-  }).length;
+  // Bank statement uploaders
+  const bankStatementUploaders = clientDetails.filter(c =>
+    (c.categories || []).includes('bank_statements')
+  ).length;
+  const bankStmtPct = summary.uniqueLoggedIn > 0
+    ? ((bankStatementUploaders / summary.uniqueLoggedIn) * 100).toFixed(1)
+    : 0;
 
   // Multi-type: uploaded 2+ different doc types (excl application) — inclusive of single
   const multiTypeUploaders = clientDetails.filter(c => {
@@ -78,8 +80,8 @@ export default function ClientData() {
         <StatCard icon={LogIn} label="Clients Logged In" value={summary.uniqueLoggedIn}
           sub={`${summary.totalClients > 0 ? ((summary.uniqueLoggedIn / summary.totalClients) * 100).toFixed(1) : 0}% login rate`}
           color="text-green-600" bg="bg-green-50" />
-        <StatCard icon={Upload} label="Doc Uploaders" value={singleTypeUploaders}
-          sub="Uploaded at least 1 doc type (excl. application) *"
+        <StatCard icon={Upload} label="Bank Statement Uploaders" value={bankStatementUploaders}
+          sub={`${bankStmtPct}% of logged-in clients`}
           color="text-indigo-600" bg="bg-indigo-50" />
       </div>
 

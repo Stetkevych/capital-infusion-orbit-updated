@@ -48,7 +48,7 @@ app.use(cors({
   credentials: true
 }));
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use('/api/', limiter);
 
 app.use(express.json({ limit: '50mb' }));

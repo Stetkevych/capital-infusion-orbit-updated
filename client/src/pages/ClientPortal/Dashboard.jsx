@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getClientById, getRepById, getRequestsByClient, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { FileText, Bell, AlertCircle, ArrowRight, Mail, Phone } from 'lucide-react';
+import UploadZone from '../../components/shared/UploadZone';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 const CLIENT_DOC_CATEGORIES = DOC_CATEGORIES.filter(c => c.required);
@@ -97,6 +98,18 @@ export default function ClientDashboard() {
           </div>
         </div>
       )}
+
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <p className="text-gray-800 font-semibold text-sm mb-3">🏦 Upload Bank Statements</p>
+        <UploadZone
+          category="bank_statements"
+          categoryLabel="Drop bank statements here or click to browse"
+          clientId={clientId}
+          uploadedBy={user?.id}
+          token={token}
+          compact
+        />
+      </div>
 
       {rep && (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex items-center gap-4">
