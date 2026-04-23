@@ -71,6 +71,8 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, [token]);
 
+  const isClient = viewMode === 'client';
+
   return (
     <div className="w-52 bg-white border-r border-gray-100 flex flex-col shrink-0">
       <div className="flex-1 overflow-y-auto py-4 px-2">
@@ -99,6 +101,15 @@ export default function Sidebar() {
           })}
         </nav>
       </div>
+      {isClient && (
+        <div className="mx-2 mb-3 p-3 bg-gray-50 border border-gray-100 rounded-xl">
+          <div className="flex items-center gap-2 mb-1">
+            <HelpCircle size={13} className="text-blue-600" />
+            <span className="text-gray-700 text-xs font-semibold">Need help?</span>
+          </div>
+          <p className="text-gray-400 text-xs leading-relaxed">Contact your rep or email support@capital-infusion.com</p>
+        </div>
+      )}
     </div>
   );
 }
