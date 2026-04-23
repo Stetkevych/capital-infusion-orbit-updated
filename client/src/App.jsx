@@ -31,6 +31,7 @@ import Training from './pages/RepPortal/Training';
 import CILoc from './pages/RepPortal/CILoc';
 import ClientData from './pages/RepPortal/ClientData';
 import Messages from './pages/RepPortal/Messages';
+import NexusBot from './pages/RepPortal/NexusBot';
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -92,6 +93,7 @@ function RepRoutes() {
       <Route path="/ci-loc" element={<CILoc />} />
       <Route path="/client-data" element={<ClientData />} />
       <Route path="/messages" element={<Messages />} />
+      <Route path="/nexus-bot" element={<NexusBot />} />
       <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />

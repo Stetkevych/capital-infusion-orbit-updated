@@ -27,6 +27,7 @@ const REP_LINKS = [
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/client-credentials', label: 'Client Credentials', icon: Key, adminOnly: true },
   { path: '/my-orbit', label: 'My Orbit', icon: User },
+  { path: '/nexus-bot', label: 'Nexus Bot', icon: Zap },
 ];
 
 const CLIENT_LINKS = [
