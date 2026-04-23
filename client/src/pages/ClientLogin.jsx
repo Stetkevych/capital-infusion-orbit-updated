@@ -10,7 +10,7 @@ const API_FORGOT = process.env.REACT_APP_API_URL || 'https://api.orbit-technolog
 function Header() {
   return (
     <header className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 lg:px-10 py-5">
-      <img src={OrbitLogo} alt="Capital Infusion Orbit" className="h-10 w-auto object-contain" />
+      <img src={OrbitLogo} alt="Capital Infusion Orbit" className="h-16 w-auto object-contain" />
       <div className="hidden sm:flex items-center gap-2.5">
         <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
           <Lock size={14} className="text-green-600" />
