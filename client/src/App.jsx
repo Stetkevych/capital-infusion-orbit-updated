@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import UserManagement from './pages/RepPortal/UserManagement';
 
 import Login from './pages/Login';
+import ClientLogin from './pages/ClientLogin';
 import ResetPassword from './pages/ResetPassword';
 import Register from './pages/Register';
 import Navbar from './components/Navbar';
@@ -49,6 +50,7 @@ function AppShell() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/client-login" element={<ClientLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
