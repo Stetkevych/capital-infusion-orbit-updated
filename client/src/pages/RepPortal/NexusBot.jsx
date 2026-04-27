@@ -5,8 +5,8 @@ import {
   X, Copy, Download, Trash2, Edit3, CheckCircle2, AlertTriangle, Filter, BookOpen
 } from 'lucide-react';
 
-const NEXUS_CHAT = `${API}/nexus/chat`;
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+const NEXUS_CHAT = `${API}/nexus/chat`;
 
 const TONES = ['professional', 'aggressive sales', 'friendly', 'concise', 'MCA expert'];
 const CATEGORIES = ['cold outreach', 'follow-up', 'objection handling', 'renewal', 'underwriting explanation', 'funding offer', 'general'];
