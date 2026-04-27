@@ -47,7 +47,7 @@ router.post('/enrich', async (req, res) => {
     if (!APOLLO_KEY) return res.status(400).json({ error: 'APOLLO_API_KEY not configured on server' });
     const { id } = req.body;
     if (!id) return res.status(400).json({ error: 'id required' });
-    const data = await apolloPost('/v1/people/match', { id, reveal_personal_emails: false, reveal_phone_number: true });
+    const data = await apolloPost('/v1/people/match', { id, reveal_personal_emails: false });
     res.json(data);
   } catch (e) {
     console.error('[Apollo Enrich]', e.message);
