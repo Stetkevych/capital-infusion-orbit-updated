@@ -103,13 +103,13 @@ app.use('/api/corrections', correctionsRoutes);
 const locV2Routes = require('./routes/locV2');
 app.use('/api/loc-v2', locV2Routes);
 
-// Nexus training library
-const nexusRoutes = require('./routes/nexus');
-app.use('/api/nexus', nexusRoutes);
-
-// Nexus chat (ported from Render)
+// Nexus chat (public, no auth)
 const nexusChatRoutes = require('./routes/nexusChat');
 app.use('/api/nexus', nexusChatRoutes);
+
+// Nexus training library (auth required)
+const nexusRoutes = require('./routes/nexus');
+app.use('/api/nexus', nexusRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
