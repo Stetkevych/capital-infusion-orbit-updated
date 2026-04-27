@@ -103,6 +103,10 @@ app.use('/api/corrections', correctionsRoutes);
 const locV2Routes = require('./routes/locV2');
 app.use('/api/loc-v2', locV2Routes);
 
+// Nexus training library
+const nexusRoutes = require('./routes/nexus');
+app.use('/api/nexus', nexusRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
