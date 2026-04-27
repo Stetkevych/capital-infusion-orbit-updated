@@ -29,6 +29,7 @@ const REP_LINKS = [
   { path: '/my-orbit', label: 'My Orbit', icon: User },
   { path: '/nexus-bot', label: 'Nexus Bot', icon: Zap, adminOnly: true },
   { path: '/lead-finder', label: 'Lead Finder', icon: Search, adminOnly: true },
+  { path: '/leads', label: 'Leads', icon: Users, adminOnly: true },
 ];
 
 const CLIENT_LINKS = [

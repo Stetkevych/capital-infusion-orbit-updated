@@ -115,6 +115,10 @@ app.use('/api/nexus', nexusRoutes);
 const apolloRoutes = require('./routes/apollo');
 app.use('/api/apollo', apolloRoutes);
 
+// Zoho CRM check
+const zohoCrmRoutes = require('./routes/zohoCrm');
+app.use('/api/zoho-crm', zohoCrmRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
