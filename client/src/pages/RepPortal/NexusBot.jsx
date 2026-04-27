@@ -5,7 +5,7 @@ import {
   X, Copy, Download, Trash2, Edit3, CheckCircle2, AlertTriangle, Filter, BookOpen
 } from 'lucide-react';
 
-const NEXUS_CHAT = 'https://nexus-1-hd6i.onrender.com/chat';
+const NEXUS_CHAT = `${API}/nexus/chat`;
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 const TONES = ['professional', 'aggressive sales', 'friendly', 'concise', 'MCA expert'];

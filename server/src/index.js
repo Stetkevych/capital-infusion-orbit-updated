@@ -107,6 +107,10 @@ app.use('/api/loc-v2', locV2Routes);
 const nexusRoutes = require('./routes/nexus');
 app.use('/api/nexus', nexusRoutes);
 
+// Nexus chat (ported from Render)
+const nexusChatRoutes = require('./routes/nexusChat');
+app.use('/api/nexus', nexusChatRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
