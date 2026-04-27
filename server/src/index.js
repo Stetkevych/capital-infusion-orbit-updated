@@ -111,6 +111,10 @@ app.use('/api/nexus', nexusChatRoutes);
 const nexusRoutes = require('./routes/nexus');
 app.use('/api/nexus', nexusRoutes);
 
+// Apollo lead finder proxy
+const apolloRoutes = require('./routes/apollo');
+app.use('/api/apollo', apolloRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
