@@ -9,8 +9,15 @@ import {
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 const INDUSTRIES = ['Construction', 'Medical', 'Restaurants', 'Trucking', 'Auto Repair', 'Landscaping', 'Plumbing', 'HVAC', 'Dental', 'Veterinary', 'Insurance', 'Real Estate', 'Retail', 'Transportation'];
-const TITLES = ['Owner', 'CEO', 'Founder', 'President', 'Managing Partner', 'Director of Operations', 'General Manager'];
-const STATES = ['New York', 'California', 'Texas', 'Florida', 'Illinois', 'New Jersey', 'Pennsylvania', 'Ohio', 'Georgia', 'North Carolina', 'Arizona', 'Massachusetts', 'Virginia', 'Washington', 'Colorado', 'Michigan', 'Tennessee', 'Maryland', 'Indiana', 'Missouri'];
+const TITLES = ['Founder', 'Co-Founder', 'CEO', 'President', 'Principal', 'Managing Partner', 'Partner', 'Owner', 'Director of Operations', 'General Manager'];
+const LOCATIONS = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia',
+  'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland',
+  'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
+  'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina',
+  'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+  'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 'Newfoundland and Labrador', 'Nova Scotia', 'Ontario', 'Prince Edward Island', 'Quebec', 'Saskatchewan',
+];
 const EMP_RANGES = ['1,10', '11,20', '21,50', '51,100', '101,200'];
 
 function Badge({ status }) {
@@ -97,7 +104,7 @@ export default function LeadFinder() {
   const [enriching, setEnriching] = useState(false);
   const [selected, setSelected] = useState(null);
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({ industry: '', state: '', empRange: '11,50', title: 'Owner' });
+  const [filters, setFilters] = useState({ industry: '', state: '', empRange: '11,50', title: 'Owner', keyword: '' });
   const [error, setError] = useState('');
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -112,7 +119,7 @@ export default function LeadFinder() {
         person_titles: filters.title ? [filters.title] : [],
         person_locations: filters.state ? [filters.state] : [],
         organization_num_employees_ranges: filters.empRange ? [filters.empRange] : [],
-        q_organization_keyword_tags: filters.industry ? [filters.industry.toLowerCase()] : [],
+        q_keywords: [filters.industry, filters.keyword].filter(Boolean).join(' '),
         person_seniorities: ['owner', 'founder', 'c_suite'],
       };
       const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
@@ -205,7 +212,7 @@ export default function LeadFinder() {
         {/* Search filters */}
         <div className="p-6 border-b border-gray-100">
           <div className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Industry</label>
                 <select value={filters.industry} onChange={e => setFilters(p => ({ ...p, industry: e.target.value }))}
@@ -215,11 +222,16 @@ export default function LeadFinder() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
                 <select value={filters.state} onChange={e => setFilters(p => ({ ...p, state: e.target.value }))}
                   className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                  <option value="">All States</option>
-                  {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="">All US & Canada</option>
+                  <optgroup label="United States">
+                    {LOCATIONS.slice(0, 50).map(s => <option key={s} value={s}>{s}</option>)}
+                  </optgroup>
+                  <optgroup label="Canada">
+                    {LOCATIONS.slice(50).map(s => <option key={s} value={s}>{s}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -236,6 +248,11 @@ export default function LeadFinder() {
                   <option value="">All Titles</option>
                   {TITLES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Keyword</label>
+                <input value={filters.keyword} onChange={e => setFilters(p => ({ ...p, keyword: e.target.value }))} placeholder="e.g. plumbing, roofing..."
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
               </div>
             </div>
             <button onClick={() => runSearch(1)} disabled={searching}

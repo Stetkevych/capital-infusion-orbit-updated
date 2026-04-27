@@ -15,23 +15,23 @@ async function apolloPost(path, body) {
   });
   if (!res.ok) {
     const err = await res.text().catch(() => '');
-    throw new Error(`Apollo ${res.status}: ${err.slice(0, 200)}`);
+    throw new Error(`Apollo ${res.status}: ${err.slice(0, 300)}`);
   }
   return res.json();
 }
 
-// POST /api/apollo/search — People Search
+// POST /api/apollo/search
 router.post('/search', async (req, res) => {
   try {
     if (!APOLLO_KEY) return res.status(400).json({ error: 'APOLLO_API_KEY not configured on server' });
-    const { page, per_page, person_titles, person_locations, organization_num_employees_ranges, q_organization_keyword_tags, person_seniorities } = req.body;
-    const data = await apolloPost('/v1/mixed_people/search', {
+    const { page, per_page, person_titles, person_locations, organization_num_employees_ranges, q_keywords, person_seniorities } = req.body;
+    const data = await apolloPost('/v1/mixed_people/api_search', {
       page: page || 1,
       per_page: per_page || 25,
       person_titles: person_titles || [],
       person_locations: person_locations || [],
       organization_num_employees_ranges: organization_num_employees_ranges || [],
-      q_organization_keyword_tags: q_organization_keyword_tags || [],
+      q_keywords: q_keywords || '',
       person_seniorities: person_seniorities || [],
     });
     res.json(data);
@@ -41,7 +41,7 @@ router.post('/search', async (req, res) => {
   }
 });
 
-// POST /api/apollo/enrich — People Enrichment (reveals full contact)
+// POST /api/apollo/enrich
 router.post('/enrich', async (req, res) => {
   try {
     if (!APOLLO_KEY) return res.status(400).json({ error: 'APOLLO_API_KEY not configured on server' });
