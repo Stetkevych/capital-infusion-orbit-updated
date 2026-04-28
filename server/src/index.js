@@ -119,6 +119,10 @@ app.use('/api/apollo', apolloRoutes);
 const zohoCrmRoutes = require('./routes/zohoCrm');
 app.use('/api/zoho-crm', zohoCrmRoutes);
 
+// Email notifications (admin)
+const notifyRoutes = require('./routes/notify');
+app.use('/api/notify', notifyRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

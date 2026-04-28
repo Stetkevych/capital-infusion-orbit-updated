@@ -124,13 +124,15 @@ export default function Login() {
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
-            <button
-              type="button"
-              onClick={() => setForgotMode(true)}
-              className="w-full text-center text-sm text-blue-600 hover:opacity-70 mt-2"
-            >
-              Forgot password?
-            </button>
+            {isClient && (
+              <button
+                type="button"
+                onClick={() => setForgotMode(true)}
+                className="w-full text-center text-sm text-blue-600 hover:opacity-70 mt-2"
+              >
+                Forgot password?
+              </button>
+            )}
           </form>
         </div>
 
