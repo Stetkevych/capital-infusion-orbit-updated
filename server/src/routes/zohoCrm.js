@@ -46,8 +46,8 @@ async function zohoSearch(module, criteria) {
 router.post('/check', async (req, res) => {
   try {
     if (!REFRESH_TOKEN) return res.status(400).json({ error: 'Zoho CRM not configured' });
-    const { name, email } = req.body;
-    if (!name && !email) return res.status(400).json({ error: 'name or email required' });
+    const { name, email, company } = req.body;
+    if (!name && !email && !company) return res.status(400).json({ error: 'name, email, or company required' });
 
     const results = { in_leads: false, in_contacts: false, in_deals: false, details: [] };
 
@@ -68,6 +68,15 @@ router.post('/check', async (req, res) => {
         zohoSearch('Contacts', `(Last_Name:equals:${lastName})`).catch(() => []),
       ]);
       if (leads.length) { results.in_leads = true; results.details.push(...leads.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, status: l.Lead_Status, id: l.id }))); }
+      if (contacts.length) { results.in_contacts = true; results.details.push(...contacts.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, id: c.id }))); }
+    }
+
+    if (!results.in_leads && !results.in_contacts && company) {
+      const [leads, contacts] = await Promise.all([
+        zohoSearch('Leads', `(Company:equals:${company})`).catch(() => []),
+        zohoSearch('Contacts', `(Account_Name:equals:${company})`).catch(() => []),
+      ]);
+      if (leads.length) { results.in_leads = true; results.details.push(...leads.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, id: l.id }))); }
       if (contacts.length) { results.in_contacts = true; results.details.push(...contacts.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, id: c.id }))); }
     }
 

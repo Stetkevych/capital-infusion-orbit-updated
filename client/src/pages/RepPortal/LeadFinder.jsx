@@ -14,7 +14,7 @@ const US_STATES = ['Alabama','Alaska','Arizona','Arkansas','California','Colorad
 const CA_PROVINCES = ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Nova Scotia','Ontario','Prince Edward Island','Quebec','Saskatchewan'];
 const LOCATIONS = [...US_STATES, ...CA_PROVINCES];
 const EMP_RANGES = [['1,10','1–10'],['11,20','11–20'],['21,50','21–50'],['51,100','51–100'],['101,200','101–200'],['201,500','201–500']];
-const BIZ_TYPES = ['B2B', 'B2C', 'Non-Profit'];
+const BIZ_TYPES = ['B2B', 'B2C', 'B2B2C', 'E-Commerce', 'Fintech', 'D2C', 'Non-Profit', 'SaaS', 'Consulting', 'Services', 'Retail'];
 
 /* ── Multi-select bubble component ── */
 function MultiSelect({ label, options, selected, onChange, optGroups }) {
@@ -155,6 +155,8 @@ export default function LeadFinder() {
   const [enriching, setEnriching] = useState(false);
   const [zohoChecking, setZohoChecking] = useState(false);
   const [zohoResult, setZohoResult] = useState(null);
+  const [zohoMap, setZohoMap] = useState({});
+  const [zohoLoading, setZohoLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
@@ -193,6 +195,8 @@ export default function LeadFinder() {
         linkedin_url: p.linkedin_url || '', source: 'Apollo',
       }));
       setLeads(mapped); setTotalEntries(data.total_entries || 0); setPage(pg);
+      // Auto Zoho check all leads
+      batchZohoCheck(mapped);
     } catch (e) { setError(e.message); }
     setSearching(false);
   };
@@ -235,6 +239,20 @@ export default function LeadFinder() {
       setZohoResult(data);
     } catch (e) { setZohoResult({ found: false, error: e.message }); }
     setZohoChecking(false);
+  };
+
+  const batchZohoCheck = async (leadsList) => {
+    setZohoLoading(true);
+    const map = {};
+    for (const l of leadsList) {
+      try {
+        const res = await fetch(`${API}/zoho-crm/check`, { method: 'POST', headers, body: JSON.stringify({ name: l.contact_name, email: l.email, company: l.company_name }) });
+        const data = await res.json();
+        map[l.id] = data.found ? 'Yes' : 'No';
+      } catch { map[l.id] = '—'; }
+    }
+    setZohoMap(prev => ({ ...prev, ...map }));
+    setZohoLoading(false);
   };
 
   const exportCSV = () => {
@@ -319,7 +337,7 @@ export default function LeadFinder() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/50">
-                      {['Contact', 'Company', 'Industry', 'Location', 'Email', ''].map(h => (
+                      {['Contact', 'Company', 'In Zoho?', 'Industry', 'Location', 'Email', ''].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium">{h}</th>
                       ))}
                     </tr>
@@ -334,6 +352,17 @@ export default function LeadFinder() {
                         <td className="px-4 py-3">
                           <p className="text-gray-800 text-sm">{l.company_name}</p>
                           <p className="text-gray-400 text-xs">{l.employee_count ? `${l.employee_count} emp` : ''}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {zohoLoading && !zohoMap[l.id] ? (
+                            <Loader2 size={12} className="text-gray-300 animate-spin" />
+                          ) : zohoMap[l.id] === 'Yes' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 text-xs rounded-full font-medium border border-amber-100"><AlertCircle size={10} /> Yes</span>
+                          ) : zohoMap[l.id] === 'No' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full font-medium border border-green-100"><CheckCircle2 size={10} /> No</span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-gray-600 text-sm">{l.industry}</td>
                         <td className="px-4 py-3 text-gray-600 text-sm">{l.location}</td>
