@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap, CreditCard, MessageSquare, Search
+  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap, CreditCard, MessageSquare, Search, BookOpen
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -30,6 +30,7 @@ const REP_LINKS = [
   { path: '/nexus-bot', label: 'Nexus Bot', icon: Zap, adminOnly: true },
   { path: '/lead-finder', label: 'Lead Finder', icon: Search, adminOnly: true },
   { path: '/leads', label: 'Leads', icon: Users, adminOnly: true },
+  { path: '/funding-book', label: 'Funding Book', icon: BookOpen },
 ];
 
 const CLIENT_LINKS = [

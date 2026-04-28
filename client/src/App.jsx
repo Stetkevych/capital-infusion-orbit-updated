@@ -34,6 +34,7 @@ import Messages from './pages/RepPortal/Messages';
 import NexusBot from './pages/RepPortal/NexusBot';
 import LeadFinder from './pages/RepPortal/LeadFinder';
 import Leads from './pages/RepPortal/Leads';
+import FundingBook from './pages/RepPortal/FundingBook';
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -98,6 +99,7 @@ function RepRoutes() {
       <Route path="/nexus-bot" element={<NexusBot />} />
       <Route path="/lead-finder" element={<LeadFinder />} />
       <Route path="/leads" element={<Leads />} />
+      <Route path="/funding-book" element={<FundingBook />} />
       <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />

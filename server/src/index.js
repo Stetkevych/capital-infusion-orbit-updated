@@ -123,9 +123,9 @@ app.use('/api/zoho-crm', zohoCrmRoutes);
 const zerobounceRoutes = require('./routes/zerobounce');
 app.use('/api/zerobounce', zerobounceRoutes);
 
-// ZeroBounce email validation
-const zerobounceRoutes = require('./routes/zerobounce');
-app.use('/api/zerobounce', zerobounceRoutes);
+// Funding Book
+const fundingBookRoutes = require('./routes/fundingBook');
+app.use('/api/funding-book', fundingBookRoutes);
 
 // Email notifications (admin)
 const notifyRoutes = require('./routes/notify');
