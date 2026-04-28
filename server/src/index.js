@@ -119,6 +119,14 @@ app.use('/api/apollo', apolloRoutes);
 const zohoCrmRoutes = require('./routes/zohoCrm');
 app.use('/api/zoho-crm', zohoCrmRoutes);
 
+// ZeroBounce email validation
+const zerobounceRoutes = require('./routes/zerobounce');
+app.use('/api/zerobounce', zerobounceRoutes);
+
+// ZeroBounce email validation
+const zerobounceRoutes = require('./routes/zerobounce');
+app.use('/api/zerobounce', zerobounceRoutes);
+
 // Email notifications (admin)
 const notifyRoutes = require('./routes/notify');
 app.use('/api/notify', notifyRoutes);

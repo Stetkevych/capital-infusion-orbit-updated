@@ -34,15 +34,18 @@ async function zohoSearch(module, criteria) {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
   });
   if (res.status === 204) return [];
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`Zoho ${res.status}: ${err.slice(0, 200)}`);
-  }
+  if (!res.ok) return [];
   const data = await res.json();
   return data.data || [];
 }
 
-// POST /api/zoho-crm/check — check if a name/email exists in Leads, Contacts, or Deals
+// Deduplicate by id
+function dedup(arr) {
+  const seen = new Set();
+  return arr.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+}
+
+// POST /api/zoho-crm/check
 router.post('/check', async (req, res) => {
   try {
     if (!REFRESH_TOKEN) return res.status(400).json({ error: 'Zoho CRM not configured' });
@@ -50,34 +53,52 @@ router.post('/check', async (req, res) => {
     if (!name && !email && !company) return res.status(400).json({ error: 'name, email, or company required' });
 
     const results = { in_leads: false, in_contacts: false, in_deals: false, details: [] };
+    const searches = [];
 
+    // Email search — exact match, most reliable
     if (email) {
-      const [leads, contacts] = await Promise.all([
-        zohoSearch('Leads', `(Email:equals:${email})`).catch(() => []),
-        zohoSearch('Contacts', `(Email:equals:${email})`).catch(() => []),
-      ]);
-      if (leads.length) { results.in_leads = true; results.details.push(...leads.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, status: l.Lead_Status, id: l.id }))); }
-      if (contacts.length) { results.in_contacts = true; results.details.push(...contacts.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, id: c.id }))); }
+      searches.push(zohoSearch('Leads', `(Email:equals:${email})`).then(r => r.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, status: l.Lead_Status, id: l.id }))));
+      searches.push(zohoSearch('Contacts', `(Email:equals:${email})`).then(r => r.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, company: c.Account_Name, id: c.id }))));
     }
 
-    if (name && !results.in_leads && !results.in_contacts) {
-      const nameParts = name.trim().split(/\s+/);
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : name;
-      const [leads, contacts] = await Promise.all([
-        zohoSearch('Leads', `(Last_Name:equals:${lastName})`).catch(() => []),
-        zohoSearch('Contacts', `(Last_Name:equals:${lastName})`).catch(() => []),
-      ]);
-      if (leads.length) { results.in_leads = true; results.details.push(...leads.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, status: l.Lead_Status, id: l.id }))); }
-      if (contacts.length) { results.in_contacts = true; results.details.push(...contacts.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, id: c.id }))); }
+    // Name search — first + last for precision
+    if (name) {
+      const parts = name.trim().split(/\s+/);
+      const firstName = parts[0];
+      const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+
+      if (lastName) {
+        // Search by last name + first name combo
+        searches.push(zohoSearch('Leads', `((Last_Name:equals:${lastName})and(First_Name:equals:${firstName}))`).then(r => r.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, status: l.Lead_Status, id: l.id, match: 'name' }))));
+        searches.push(zohoSearch('Contacts', `((Last_Name:equals:${lastName})and(First_Name:equals:${firstName}))`).then(r => r.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, company: c.Account_Name, id: c.id, match: 'name' }))));
+        // Also search last name only as fallback
+        searches.push(zohoSearch('Leads', `(Last_Name:equals:${lastName})`).then(r => r.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, status: l.Lead_Status, id: l.id, match: 'last_name' }))));
+        searches.push(zohoSearch('Contacts', `(Last_Name:equals:${lastName})`).then(r => r.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, company: c.Account_Name, id: c.id, match: 'last_name' }))));
+      } else {
+        searches.push(zohoSearch('Leads', `(Last_Name:equals:${firstName})`).then(r => r.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, status: l.Lead_Status, id: l.id, match: 'name' }))));
+        searches.push(zohoSearch('Contacts', `(Last_Name:equals:${firstName})`).then(r => r.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, company: c.Account_Name, id: c.id, match: 'name' }))));
+      }
     }
 
-    if (!results.in_leads && !results.in_contacts && company) {
-      const [leads, contacts] = await Promise.all([
-        zohoSearch('Leads', `(Company:equals:${company})`).catch(() => []),
-        zohoSearch('Contacts', `(Account_Name:equals:${company})`).catch(() => []),
-      ]);
-      if (leads.length) { results.in_leads = true; results.details.push(...leads.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, id: l.id }))); }
-      if (contacts.length) { results.in_contacts = true; results.details.push(...contacts.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, id: c.id }))); }
+    // Company search — starts_with for partial match
+    if (company) {
+      const cleanCo = company.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+      if (cleanCo.length >= 3) {
+        searches.push(zohoSearch('Leads', `(Company:starts_with:${cleanCo})`).then(r => r.map(l => ({ module: 'Leads', name: l.Full_Name, email: l.Email, company: l.Company, status: l.Lead_Status, id: l.id, match: 'company' }))));
+        searches.push(zohoSearch('Contacts', `(Account_Name:starts_with:${cleanCo})`).then(r => r.map(c => ({ module: 'Contacts', name: c.Full_Name, email: c.Email, company: c.Account_Name, id: c.id, match: 'company' }))));
+        // Also search Deals
+        searches.push(zohoSearch('Deals', `(Deal_Name:starts_with:${cleanCo})`).then(r => r.map(d => ({ module: 'Deals', name: d.Deal_Name, amount: d.Amount, stage: d.Stage, id: d.id, match: 'company' }))).catch(() => []));
+      }
+    }
+
+    const allResults = await Promise.all(searches.map(s => s.catch(() => [])));
+    const flat = dedup(allResults.flat());
+
+    for (const r of flat) {
+      if (r.module === 'Leads') results.in_leads = true;
+      if (r.module === 'Contacts') results.in_contacts = true;
+      if (r.module === 'Deals') results.in_deals = true;
+      results.details.push(r);
     }
 
     results.found = results.in_leads || results.in_contacts || results.in_deals;
