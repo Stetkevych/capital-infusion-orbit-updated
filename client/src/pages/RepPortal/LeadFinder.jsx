@@ -12,16 +12,12 @@ const INDUSTRIES = ['Construction', 'Medical', 'Restaurants', 'Trucking', 'Auto 
 const TITLES = ['Founder', 'Co-Founder', 'CEO', 'President', 'Principal', 'Managing Partner', 'Partner', 'Owner', 'Director of Operations', 'General Manager'];
 const US_STATES = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'];
 const CA_PROVINCES = ['Alberta','British Columbia','Manitoba','New Brunswick','Newfoundland and Labrador','Nova Scotia','Ontario','Prince Edward Island','Quebec','Saskatchewan'];
-const LOCATIONS = [...US_STATES, ...CA_PROVINCES];
 const EMP_RANGES = [['1,10','1–10'],['11,20','11–20'],['21,50','21–50'],['51,100','51–100'],['101,200','101–200'],['201,500','201–500']];
 const BIZ_TYPES = ['B2B', 'B2C', 'B2B2C', 'E-Commerce', 'Fintech', 'D2C', 'Non-Profit', 'SaaS', 'Consulting', 'Services', 'Retail'];
 
-/* ── Multi-select bubble component ── */
 function MultiSelect({ label, options, selected, onChange, optGroups }) {
   const [open, setOpen] = useState(false);
-  const toggle = (val) => {
-    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
-  };
+  const toggle = (val) => onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
   return (
     <div className="relative">
       <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
@@ -105,9 +101,7 @@ function LeadDrawer({ lead, onClose, onEnrich, enriching, onZohoCheck, zohoResul
               <p className="text-gray-400 text-sm">{lead.title}</p>
             </div>
           </div>
-          <div className="flex gap-2 mb-5">
-            <Badge status={lead.email_status} />
-          </div>
+          <div className="flex gap-2 mb-5"><Badge status={lead.email_status} /></div>
           <div className="flex gap-2 mb-5">
             {!lead.email && (
               <button onClick={() => onEnrich(lead)} disabled={enriching}
@@ -122,11 +116,9 @@ function LeadDrawer({ lead, onClose, onEnrich, enriching, onZohoCheck, zohoResul
           </div>
           {zohoResult && (
             <div className={`mb-5 p-3 rounded-xl border text-xs ${zohoResult.found ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
-              {zohoResult.found ? (
-                <><AlertCircle size={12} className="inline mr-1" /> Already in CRM: {zohoResult.details?.map(d => `${d.module} — ${d.name}`).join(', ')}</>
-              ) : (
-                <><CheckCircle2 size={12} className="inline mr-1" /> Not found in Zoho CRM — fresh lead</>
-              )}
+              {zohoResult.found
+                ? <><AlertCircle size={12} className="inline mr-1" /> Already in CRM: {zohoResult.details?.map(d => `${d.module} — ${d.name}`).join(', ')}</>
+                : <><CheckCircle2 size={12} className="inline mr-1" /> Not found in Zoho CRM — fresh lead</>}
             </div>
           )}
           <div className="space-y-4">
@@ -158,20 +150,20 @@ export default function LeadFinder() {
   const [zohoMap, setZohoMap] = useState({});
   const [zohoLoading, setZohoLoading] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [checked, setChecked] = useState(new Set());
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
-    industries: [], locations: [], empRanges: ['11,50'], titles: ['Owner'], bizType: '', keyword: '',
+    industries: [], locations: [], empRanges: ['11,50'], titles: ['Owner'], bizTypes: [], keyword: '',
   });
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   const runSearch = async (pg = 1) => {
-    setSearching(true); setError('');
+    setSearching(true); setError(''); setChecked(new Set());
     try {
-      const kwParts = [...filters.industries];
+      const kwParts = [...filters.industries, ...filters.bizTypes];
       if (filters.keyword) kwParts.push(filters.keyword);
-      if (filters.bizType) kwParts.push(filters.bizType);
       const body = {
         page: pg, per_page: 25,
         person_titles: filters.titles,
@@ -183,19 +175,20 @@ export default function LeadFinder() {
       const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
-      const mapped = (data.people || []).map(p => ({
-        id: p.id,
-        contact_name: `${p.first_name || ''} ${p.last_name || p.last_name_obfuscated || ''}`.trim(),
-        title: p.title || '', company_name: p.organization?.name || '',
-        website: p.organization?.website_url || '', industry: p.organization?.industry || '',
-        location: [p.city, p.state, p.country].filter(Boolean).join(', '),
-        employee_count: p.organization?.estimated_num_employees || '',
-        email: p.email || '', email_status: p.email_status || (p.has_email ? 'available' : 'unavailable'),
-        phone: p.phone_numbers?.[0]?.sanitized_number || '', has_phone: p.has_direct_phone === 'Yes',
-        linkedin_url: p.linkedin_url || '', source: 'Apollo',
-      }));
+      const mapped = (data.people || [])
+        .map(p => ({
+          id: p.id,
+          contact_name: `${p.first_name || ''} ${p.last_name || p.last_name_obfuscated || ''}`.trim(),
+          title: p.title || '', company_name: p.organization?.name || '',
+          website: p.organization?.website_url || '', industry: p.organization?.industry || '',
+          location: [p.city, p.state, p.country].filter(Boolean).join(', '),
+          employee_count: p.organization?.estimated_num_employees || '',
+          email: p.email || '', email_status: p.email_status || (p.has_email ? 'available' : 'unavailable'),
+          phone: p.phone_numbers?.[0]?.sanitized_number || '', has_phone: p.has_direct_phone === 'Yes',
+          linkedin_url: p.linkedin_url || '', source: 'Apollo',
+        }))
+        .filter(p => p.email);
       setLeads(mapped); setTotalEntries(data.total_entries || 0); setPage(pg);
-      // Auto Zoho check all leads
       batchZohoCheck(mapped);
     } catch (e) { setError(e.message); }
     setSearching(false);
@@ -222,7 +215,6 @@ export default function LeadFinder() {
       };
       setSelected(updated);
       setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
-      // Save enriched leads to localStorage for Leads page
       const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
       const exists = saved.findIndex(s => s.id === updated.id);
       if (exists >= 0) saved[exists] = updated; else saved.unshift(updated);
@@ -235,16 +227,15 @@ export default function LeadFinder() {
     setZohoChecking(true); setZohoResult(null);
     try {
       const res = await fetch(`${API}/zoho-crm/check`, { method: 'POST', headers, body: JSON.stringify({ name: lead.contact_name, email: lead.email }) });
-      const data = await res.json();
-      setZohoResult(data);
+      setZohoResult(await res.json());
     } catch (e) { setZohoResult({ found: false, error: e.message }); }
     setZohoChecking(false);
   };
 
-  const batchZohoCheck = async (leadsList) => {
+  const batchZohoCheck = async (list) => {
     setZohoLoading(true);
     const map = {};
-    for (const l of leadsList) {
+    for (const l of list) {
       try {
         const res = await fetch(`${API}/zoho-crm/check`, { method: 'POST', headers, body: JSON.stringify({ name: l.contact_name, email: l.email, company: l.company_name }) });
         const data = await res.json();
@@ -255,7 +246,21 @@ export default function LeadFinder() {
     setZohoLoading(false);
   };
 
-  const exportCSV = () => {
+  // Selection
+  const toggleCheck = (id) => setChecked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const selectAll = () => { if (checked.size === leads.length) setChecked(new Set()); else setChecked(new Set(leads.map(l => l.id))); };
+
+  const exportSelected = () => {
+    const sel = leads.filter(l => checked.has(l.id));
+    if (!sel.length) return;
+    const cols = ['contact_name','title','company_name','website','industry','location','employee_count','email','email_status','phone','linkedin_url','source'];
+    const rows = sel.map(l => cols.map(c => `"${String(l[c] ?? '').replace(/"/g, '""')}"`).join(','));
+    const blob = new Blob([[cols.join(','), ...rows].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `selected-leads-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  };
+
+  const exportAll = () => {
     if (!leads.length) return;
     const cols = ['contact_name','title','company_name','website','industry','location','employee_count','email','email_status','phone','linkedin_url','source'];
     const rows = leads.map(l => cols.map(c => `"${String(l[c] ?? '').replace(/"/g, '""')}"`).join(','));
@@ -271,18 +276,24 @@ export default function LeadFinder() {
           <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center"><Search size={16} className="text-white" /></div>
           <div>
             <h1 className="text-gray-900 font-semibold text-sm">Lead Finder</h1>
-            <p className="text-gray-400 text-xs">Apollo.io · Real B2B leads</p>
+            <p className="text-gray-400 text-xs">Apollo.io · Email-verified leads only</p>
           </div>
         </div>
-        {leads.length > 0 && (
-          <button onClick={exportCSV} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
-            <Download size={12} /> Export CSV
-          </button>
-        )}
+        <div className="flex gap-2">
+          {checked.size > 0 && (
+            <button onClick={exportSelected} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
+              <Download size={12} /> Download {checked.size} Selected
+            </button>
+          )}
+          {leads.length > 0 && (
+            <button onClick={exportAll} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
+              <Download size={12} /> Export All
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Filters */}
         <div className="p-6 border-b border-gray-100">
           <div className="max-w-5xl mx-auto space-y-3">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -293,14 +304,7 @@ export default function LeadFinder() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <MultiSelect label="Title" options={TITLES} selected={filters.titles} onChange={v => setFilters(p => ({ ...p, titles: v }))} />
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Business Type</label>
-                <select value={filters.bizType} onChange={e => setFilters(p => ({ ...p, bizType: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                  <option value="">All Types</option>
-                  {BIZ_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
+              <MultiSelect label="Business Type" options={BIZ_TYPES} selected={filters.bizTypes} onChange={v => setFilters(p => ({ ...p, bizTypes: v }))} />
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Keyword</label>
                 <input value={filters.keyword} onChange={e => setFilters(p => ({ ...p, keyword: e.target.value }))} placeholder="e.g. roofing, dental..."
@@ -325,7 +329,7 @@ export default function LeadFinder() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-gray-900 font-semibold text-sm">{totalEntries.toLocaleString()} total matches</p>
-                <p className="text-gray-400 text-xs">Showing {leads.length} · Page {page}</p>
+                <p className="text-gray-400 text-xs">Showing {leads.length} with email · Page {page}{checked.size > 0 ? ` · ${checked.size} selected` : ''}</p>
               </div>
               <div className="flex gap-2">
                 {page > 1 && <button onClick={() => runSearch(page - 1)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg">← Prev</button>}
@@ -337,6 +341,10 @@ export default function LeadFinder() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-3 py-3 w-10">
+                        <input type="checkbox" checked={checked.size === leads.length && leads.length > 0} onChange={selectAll}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500/20" />
+                      </th>
                       {['Contact', 'Company', 'In Zoho?', 'Industry', 'Location', 'Email', ''].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium">{h}</th>
                       ))}
@@ -344,12 +352,16 @@ export default function LeadFinder() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {leads.map(l => (
-                      <tr key={l.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => { setSelected(l); setZohoResult(null); }}>
-                        <td className="px-4 py-3">
+                      <tr key={l.id} className={`hover:bg-gray-50/50 cursor-pointer ${checked.has(l.id) ? 'bg-blue-50/40' : ''}`}>
+                        <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" checked={checked.has(l.id)} onChange={() => toggleCheck(l.id)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500/20" />
+                        </td>
+                        <td className="px-4 py-3" onClick={() => { setSelected(l); setZohoResult(null); }}>
                           <p className="text-gray-900 font-medium text-sm">{l.contact_name}</p>
                           <p className="text-gray-400 text-xs">{l.title}</p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={() => { setSelected(l); setZohoResult(null); }}>
                           <p className="text-gray-800 text-sm">{l.company_name}</p>
                           <p className="text-gray-400 text-xs">{l.employee_count ? `${l.employee_count} emp` : ''}</p>
                         </td>
@@ -364,10 +376,10 @@ export default function LeadFinder() {
                             <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 text-sm">{l.industry}</td>
-                        <td className="px-4 py-3 text-gray-600 text-sm">{l.location}</td>
+                        <td className="px-4 py-3 text-gray-600 text-sm" onClick={() => { setSelected(l); setZohoResult(null); }}>{l.industry}</td>
+                        <td className="px-4 py-3 text-gray-600 text-sm" onClick={() => { setSelected(l); setZohoResult(null); }}>{l.location}</td>
                         <td className="px-4 py-3"><Badge status={l.email_status} /></td>
-                        <td className="px-4 py-3"><ChevronRight size={14} className="text-gray-300" /></td>
+                        <td className="px-4 py-3" onClick={() => { setSelected(l); setZohoResult(null); }}><ChevronRight size={14} className="text-gray-300" /></td>
                       </tr>
                     ))}
                   </tbody>
