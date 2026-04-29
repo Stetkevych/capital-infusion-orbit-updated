@@ -179,8 +179,11 @@ export default function LeadFinder() {
         person_seniorities: ['owner', 'founder', 'c_suite'],
       };
       const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const txt = await res.text();
+        try { throw new Error(JSON.parse(txt).error || txt); } catch (e) { if (e.message) throw e; throw new Error(txt.slice(0, 100)); }
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Search failed');
       const mapped = (data.people || [])
         .map(p => ({
           id: p.id,
@@ -250,6 +253,7 @@ export default function LeadFinder() {
     for (const l of list) {
       try {
         const res = await fetch(`${API}/zoho-crm/check`, { method: 'POST', headers, body: JSON.stringify({ name: l.contact_name, email: l.email, company: l.company_name }) });
+        if (!res.ok) { map[l.id] = '—'; continue; }
         const data = await res.json();
         map[l.id] = data.found ? 'Yes' : 'No';
       } catch { map[l.id] = '—'; }
