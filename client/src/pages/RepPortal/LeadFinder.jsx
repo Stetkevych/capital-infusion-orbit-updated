@@ -155,6 +155,7 @@ export default function LeadFinder() {
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     industries: [], locations: [], empRanges: ['11,50'], titles: ['Owner'], bizTypes: [], keyword: '',
+    emailFilter: '',
   });
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -184,10 +185,10 @@ export default function LeadFinder() {
           location: [p.city, p.state, p.country].filter(Boolean).join(', '),
           employee_count: p.organization?.estimated_num_employees || '',
           email: p.email || '', email_status: p.email_status || (p.has_email ? 'available' : 'unavailable'),
+          has_email: !!p.email || p.has_email === true,
           phone: p.phone_numbers?.[0]?.sanitized_number || '', has_phone: p.has_direct_phone === 'Yes',
           linkedin_url: p.linkedin_url || '', source: 'Apollo',
-        }))
-        .filter(p => p.email);
+        }));
       setLeads(mapped); setTotalEntries(data.total_entries || 0); setPage(pg);
       batchZohoCheck(mapped);
     } catch (e) { setError(e.message); }
@@ -246,9 +247,16 @@ export default function LeadFinder() {
     setZohoLoading(false);
   };
 
+  const filteredLeads = leads.filter(l => {
+    if (filters.emailFilter === 'has_email' && !l.has_email) return false;
+    if (filters.emailFilter === 'verified' && l.email_status !== 'verified') return false;
+    if (filters.emailFilter === 'no_email' && l.has_email) return false;
+    return true;
+  });
+
   // Selection
   const toggleCheck = (id) => setChecked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const selectAll = () => { if (checked.size === leads.length) setChecked(new Set()); else setChecked(new Set(leads.map(l => l.id))); };
+  const selectAll = () => { if (checked.size === filteredLeads.length) setChecked(new Set()); else setChecked(new Set(filteredLeads.map(l => l.id))); };
 
   const exportSelected = () => {
     const sel = leads.filter(l => checked.has(l.id));
@@ -311,6 +319,18 @@ export default function LeadFinder() {
                   className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
               </div>
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Has Email?</label>
+                <select value={filters.emailFilter} onChange={e => setFilters(p => ({ ...p, emailFilter: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                  <option value="">All Results</option>
+                  <option value="has_email">Has Email</option>
+                  <option value="verified">Verified Email Only</option>
+                  <option value="no_email">No Email</option>
+                </select>
+              </div>
+            </div>
             <button onClick={() => runSearch(1)} disabled={searching}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl flex items-center justify-center gap-2">
               {searching ? <><RefreshCw size={14} className="animate-spin" /> Searching Apollo...</> : <><Search size={14} /> Search Leads</>}
@@ -329,7 +349,7 @@ export default function LeadFinder() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-gray-900 font-semibold text-sm">{totalEntries.toLocaleString()} total matches</p>
-                <p className="text-gray-400 text-xs">Showing {leads.length} with email · Page {page}{checked.size > 0 ? ` · ${checked.size} selected` : ''}</p>
+                <p className="text-gray-400 text-xs">Showing {filteredLeads.length}{filteredLeads.length !== leads.length ? ` of ${leads.length}` : ''} · Page {page}{checked.size > 0 ? ` · ${checked.size} selected` : ''}</p>
               </div>
               <div className="flex gap-2">
                 {page > 1 && <button onClick={() => runSearch(page - 1)} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg">← Prev</button>}
@@ -342,7 +362,7 @@ export default function LeadFinder() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/50">
                       <th className="px-3 py-3 w-10">
-                        <input type="checkbox" checked={checked.size === leads.length && leads.length > 0} onChange={selectAll}
+                        <input type="checkbox" checked={checked.size === filteredLeads.length && filteredLeads.length > 0} onChange={selectAll}
                           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500/20" />
                       </th>
                       {['Contact', 'Company', 'In Zoho?', 'Industry', 'Location', 'Email', ''].map(h => (
@@ -351,7 +371,7 @@ export default function LeadFinder() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {leads.map(l => (
+                    {filteredLeads.map(l => (
                       <tr key={l.id} className={`hover:bg-gray-50/50 cursor-pointer ${checked.has(l.id) ? 'bg-blue-50/40' : ''}`}>
                         <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                           <input type="checkbox" checked={checked.has(l.id)} onChange={() => toggleCheck(l.id)}
