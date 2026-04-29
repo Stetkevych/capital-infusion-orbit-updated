@@ -206,7 +206,7 @@ export default function LeadFinder() {
       const savedIds = new Set(saved.map(s => s.id));
       const withObtained = mapped.map(l => ({ ...l, obtained: savedIds.has(l.id) }));
       setLeads(withObtained);
-      batchZohoCheck(withObtained);
+      // Zoho check is manual — click "Check Zoho" button in header
     } catch (e) { setError(e.message); }
     setSearching(false);
   };
@@ -344,6 +344,12 @@ export default function LeadFinder() {
           </div>
         </div>
         <div className="flex gap-2">
+          {leads.length > 0 && (
+            <button onClick={() => batchZohoCheck(leads)} disabled={zohoLoading}
+              className="px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
+              {zohoLoading ? <><Loader2 size={12} className="animate-spin" /> Checking Zoho...</> : <><Database size={12} /> Check Zoho</>}
+            </button>
+          )}
           {checked.size > 0 && !massEnriching && (
             <button onClick={massEnrich}
               className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">

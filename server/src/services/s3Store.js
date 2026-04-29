@@ -9,7 +9,7 @@ const cache = {};
 
 async function loadFromS3(fileName) {
   // Return cache if fresh (< 5 seconds old)
-  if (cache[fileName] && Date.now() - cache[fileName].ts < 5000) {
+  if (cache[fileName] && Date.now() - cache[fileName].ts < 30000) {
     return cache[fileName].data;
   }
   try {

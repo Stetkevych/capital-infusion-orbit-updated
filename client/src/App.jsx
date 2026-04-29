@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
@@ -32,9 +32,9 @@ import CILoc from './pages/RepPortal/CILoc';
 import ClientData from './pages/RepPortal/ClientData';
 import Messages from './pages/RepPortal/Messages';
 import NexusBot from './pages/RepPortal/NexusBot';
-import LeadFinder from './pages/RepPortal/LeadFinder';
-import Leads from './pages/RepPortal/Leads';
-import FundingBook from './pages/RepPortal/FundingBook';
+const LeadFinder = lazy(() => import('./pages/RepPortal/LeadFinder'));
+const Leads = lazy(() => import('./pages/RepPortal/Leads'));
+const FundingBook = lazy(() => import('./pages/RepPortal/FundingBook'));
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -68,7 +68,9 @@ function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
         <main className="flex-1 overflow-y-auto">
-          {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
+          <Suspense fallback={<div className="p-6 text-gray-400 text-sm">Loading...</div>}>
+            {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
+          </Suspense>
         </main>
       </div>
     </div>
