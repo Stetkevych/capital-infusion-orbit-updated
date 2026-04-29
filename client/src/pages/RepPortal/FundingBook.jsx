@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Plus, Save, Trash2, Download, Loader2, X, Edit3, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -10,7 +11,7 @@ const INDUSTRIES_LIST = ['', 'Construction', 'Medical', 'Restaurant', 'Trucking'
 const MA_POSITIONS = ['', 'N/A', 'State 1', 'State 2', 'State 3', 'State 4', 'State 5'];
 
 const COLS = [
-  { key: 'company', label: 'Company', type: 'text', w: 'w-40' },
+  { key: 'company', label: 'Company', type: 'text', w: 'w-40', clickable: true },
   { key: 'lender', label: 'Lender', type: 'select', opts: LENDERS, w: 'w-32' },
   { key: 'lead_source', label: 'Lead Source', type: 'select', opts: LEAD_SOURCES, w: 'w-32' },
   { key: 'funding', label: 'Funding', type: 'money', w: 'w-28' },
@@ -60,6 +61,7 @@ const emptyRow = () => COLS.reduce((o, c) => { if (c.type !== 'computed') o[c.ke
 
 export default function FundingBook() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -132,6 +134,9 @@ export default function FundingBook() {
     }
     if (!isEditing) {
       const v = row[col.key];
+      if (col.clickable && col.key === 'company' && row.rep_id) {
+        return <button onClick={(e) => { e.stopPropagation(); navigate(`/clients?rep=${row.rep_id}`); }} className="text-blue-600 text-xs font-medium hover:underline text-left">{v || '—'}</button>;
+      }
       if (col.type === 'money') return <span className="text-gray-700 text-xs">{fmt(v)}</span>;
       if (col.type === 'rate') return <span className="text-gray-700 text-xs">{v || '—'}</span>;
       return <span className="text-gray-700 text-xs">{v || '—'}</span>;
