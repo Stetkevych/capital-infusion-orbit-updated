@@ -171,7 +171,7 @@ export default function LeadFinder() {
       const kwParts = [...filters.industries, ...filters.bizTypes];
       if (filters.keyword) kwParts.push(filters.keyword);
       const body = {
-        page: pg, per_page: 500,
+        page: pg, per_page: 100,
         person_titles: filters.titles,
         person_locations: filters.locations,
         organization_num_employees_ranges: filters.empRanges,
