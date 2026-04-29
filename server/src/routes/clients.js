@@ -17,22 +17,34 @@ const TEAM_MEMBERS = {
 router.get('/', async (req, res) => {
   try {
     const user = req.user;
-    if (user.role === 'admin') return res.json(await ClientStore.getAll());
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+    let clients;
 
-    // Team lead: see own clients + all team members' clients
-    const teamMemberEmails = TEAM_MEMBERS[user.email?.toLowerCase()];
-    if (teamMemberEmails) {
-      const UserStore = require('../services/userStore');
-      const memberIds = [];
-      for (const email of teamMemberEmails) {
-        const member = await UserStore.findByEmail(email);
-        if (member) memberIds.push(member.id, member.rep_id, member.repId);
+    if (user.role === 'admin') {
+      clients = await ClientStore.getAll();
+    } else {
+      const teamMemberEmails = TEAM_MEMBERS[user.email?.toLowerCase()];
+      if (teamMemberEmails) {
+        const UserStore = require('../services/userStore');
+        const memberIds = [];
+        for (const email of teamMemberEmails) {
+          const member = await UserStore.findByEmail(email);
+          if (member) memberIds.push(member.id, member.rep_id, member.repId);
+        }
+        const allIds = [user.rep_id, user.repId, user.id, ...memberIds].filter(Boolean);
+        clients = await ClientStore.getByRep([...new Set(allIds)]);
+      } else {
+        clients = await ClientStore.getByRep([user.rep_id, user.repId, user.id].filter(Boolean));
       }
-      const allIds = [user.rep_id, user.repId, user.id, ...memberIds].filter(Boolean);
-      return res.json(await ClientStore.getByRep([...new Set(allIds)]));
     }
 
-    res.json(await ClientStore.getByRep([user.rep_id, user.repId, user.id].filter(Boolean)));
+    // Pagination — if page/limit provided, slice results
+    if (limit > 0) {
+      const start = (page > 0 ? page - 1 : 0) * limit;
+      return res.json({ total: clients.length, page: page || 1, limit, data: clients.slice(start, start + limit) });
+    }
+    res.json(clients);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

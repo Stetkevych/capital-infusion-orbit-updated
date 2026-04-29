@@ -11,8 +11,8 @@ async function logActivity(event) {
     ...event,
     timestamp: new Date().toISOString(),
   });
-  // Keep last 1000 events
-  if (logs.length > 1000) logs.length = 1000;
+  // Keep last 10000 events
+  if (logs.length > 10000) logs.length = 10000;
   await saveToS3(FILE, logs);
 }
 
@@ -20,6 +20,12 @@ async function logActivity(event) {
 router.get('/', async (req, res) => {
   try {
     const logs = await loadFromS3(FILE);
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+    if (limit > 0) {
+      const start = (page > 0 ? page - 1 : 0) * limit;
+      return res.json({ total: logs.length, page: page || 1, limit, data: logs.slice(start, start + limit) });
+    }
     res.json(logs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

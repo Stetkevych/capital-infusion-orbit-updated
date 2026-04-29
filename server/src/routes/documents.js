@@ -251,6 +251,12 @@ router.get('/financials/:clientId', async (req, res) => {
 router.get('/client/all', async (req, res) => {
   try {
     const docs = await loadDocs();
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 0;
+    if (limit > 0) {
+      const start = (page > 0 ? page - 1 : 0) * limit;
+      return res.json({ total: docs.length, page: page || 1, limit, data: docs.slice(start, start + limit) });
+    }
     res.json(docs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
