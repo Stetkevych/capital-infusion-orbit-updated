@@ -150,6 +150,8 @@ export default function LeadFinder() {
   const [totalEntries, setTotalEntries] = useState(0);
   const [searching, setSearching] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [massEnriching, setMassEnriching] = useState(false);
+  const [massProgress, setMassProgress] = useState({ done: 0, total: 0 });
   const [zohoChecking, setZohoChecking] = useState(false);
   const [zohoResult, setZohoResult] = useState(null);
   const [zohoMap, setZohoMap] = useState({});
@@ -277,6 +279,41 @@ export default function LeadFinder() {
   const toggleCheck = (id) => setChecked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectAll = () => { if (checked.size === filteredLeads.length) setChecked(new Set()); else setChecked(new Set(filteredLeads.map(l => l.id))); };
 
+  const massEnrich = async () => {
+    const sel = filteredLeads.filter(l => checked.has(l.id) && !l.obtained);
+    if (!sel.length) return;
+    setMassEnriching(true); setMassProgress({ done: 0, total: sel.length });
+    const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
+    let count = 0;
+    for (const lead of sel) {
+      try {
+        const res = await fetch(`${API}/apollo/enrich`, { method: 'POST', headers, body: JSON.stringify({ id: lead.id }) });
+        if (!res.ok) { count++; setMassProgress({ done: count, total: sel.length }); continue; }
+        const data = await res.json();
+        const p = data.person || {};
+        const updated = {
+          ...lead, contact_name: p.name || lead.contact_name, email: p.email || lead.email,
+          email_status: p.email_status || lead.email_status,
+          phone: p.contact?.phone_numbers?.[0]?.sanitized_number || lead.phone,
+          linkedin_url: p.linkedin_url || lead.linkedin_url,
+          location: [p.city, p.state, p.country].filter(Boolean).join(', ') || lead.location,
+          company_name: p.organization?.name || lead.company_name,
+          website: p.organization?.website_url || lead.website,
+          industry: p.organization?.industry || lead.industry,
+          employee_count: p.organization?.estimated_num_employees || lead.employee_count,
+          enriched: true, obtained: true, enriched_at: new Date().toISOString(),
+        };
+        setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
+        const idx = saved.findIndex(s => s.id === updated.id);
+        if (idx >= 0) saved[idx] = updated; else saved.unshift(updated);
+      } catch {}
+      count++;
+      setMassProgress({ done: count, total: sel.length });
+    }
+    localStorage.setItem('orbit_enriched_leads', JSON.stringify(saved.slice(0, 500)));
+    setMassEnriching(false); setChecked(new Set());
+  };
+
   const exportSelected = () => {
     const sel = leads.filter(l => checked.has(l.id));
     if (!sel.length) return;
@@ -307,6 +344,17 @@ export default function LeadFinder() {
           </div>
         </div>
         <div className="flex gap-2">
+          {checked.size > 0 && !massEnriching && (
+            <button onClick={massEnrich}
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
+              <Eye size={12} /> Reveal {checked.size} Selected
+            </button>
+          )}
+          {massEnriching && (
+            <div className="px-3 py-2 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" /> Revealing {massProgress.done}/{massProgress.total}...
+            </div>
+          )}
           {checked.size > 0 && (
             <button onClick={exportSelected} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
               <Download size={12} /> Download {checked.size} Selected
