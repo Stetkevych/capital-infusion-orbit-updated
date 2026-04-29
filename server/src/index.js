@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 
 const config = require('./config/runtime');
 const { initializeDb } = require('./config/database');
@@ -36,6 +37,7 @@ initializeDb().catch(err => {
 app.set('trust proxy', 1);
 
 app.use(helmet());
+app.use(compression());
 app.use(cors({
   origin: [
     'https://main.d2iq2t6ose4q0u.amplifyapp.com',
@@ -53,6 +55,7 @@ app.use('/api/', limiter);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use((req, res, next) => { res.set('Connection', 'keep-alive'); res.set('Keep-Alive', 'timeout=30'); next(); });
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
