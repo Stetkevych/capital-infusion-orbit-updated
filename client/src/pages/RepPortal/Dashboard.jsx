@@ -24,10 +24,13 @@ export default function RepDashboard() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setRealClients(data))
       .catch(() => {});
-    fetch(`${API}/documents/client/all`, { headers })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setRealDocs(data))
-      .catch(() => {});
+    // Defer docs fetch so dashboard renders instantly
+    setTimeout(() => {
+      fetch(`${API}/documents/client/all`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setRealDocs(Array.isArray(data) ? data : data?.data || []))
+        .catch(() => {});
+    }, 300);
   }, []);
 
   const mockClients = isAdmin ? CLIENTS : getClientsByRep(user.repId);

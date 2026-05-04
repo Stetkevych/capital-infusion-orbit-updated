@@ -35,6 +35,7 @@ export default function ClientsPage() {
   const [sendingReminder, setSendingReminder] = useState(false);
 
   const [sortBy, setSortBy] = useState('recent');
+  const [visibleCount, setVisibleCount] = useState(50);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const [reps, setReps] = useState([]);
@@ -50,14 +51,17 @@ export default function ClientsPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setDeletedClients(data))
       .catch(() => {});
-    fetch(`${API}/activity`, { headers })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setActivityLog(data))
-      .catch(() => {});
-    fetch(`${API}/documents/client/all`, { headers })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setAllDocs(data))
-      .catch(() => {});
+    // Defer heavy fetches so page renders fast
+    setTimeout(() => {
+      fetch(`${API}/activity`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setActivityLog(Array.isArray(data) ? data : data?.data || []))
+        .catch(() => {});
+      fetch(`${API}/documents/client/all`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setAllDocs(Array.isArray(data) ? data : data?.data || []))
+        .catch(() => {});
+    }, 500);
     if (user.role === 'admin' || user.role === 'team_lead') {
       fetch(`${API}/auth/users`, { headers })
         .then(r => r.ok ? r.json() : [])
@@ -119,6 +123,11 @@ export default function ClientsPage() {
       }
       return 0;
     });
+
+  // Reset visible count when filters change
+  useEffect(() => { setVisibleCount(50); }, [search, statusFilter, sortBy]);
+  const visibleClients = clients.slice(0, visibleCount);
+  const hasMore = visibleCount < clients.length;
 
   const handleStatusChange = async (client, newStatus) => {
     try {
@@ -410,7 +419,7 @@ export default function ClientsPage() {
             </tr>
           </thead>
           <tbody>
-            {clients.map(c => {
+            {visibleClients.map(c => {
               const docs = allDocs.filter(d => d.clientId === c.id);
               const uploadedCats = new Set(docs.map(d => d.category));
               const missing = DOC_CATEGORIES.filter(cat => cat.required && !uploadedCats.has(cat.id));
@@ -507,6 +516,13 @@ export default function ClientsPage() {
           <div className="text-center py-12">
             <p className="text-gray-400 text-sm">No clients found.</p>
             <button onClick={() => setShowAddForm(true)} className="mt-3 text-blue-600 text-sm font-medium hover:opacity-70">+ Add your first client</button>
+          </div>
+        )}
+        {hasMore && (
+          <div className="text-center py-4 border-t border-gray-50">
+            <button onClick={() => setVisibleCount(v => Math.min(v + 50, clients.length))} className="text-blue-600 text-sm font-medium hover:opacity-70">
+              Load more ({clients.length - visibleCount} remaining)
+            </button>
           </div>
         )}
       </div>
