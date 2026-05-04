@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BarChart2, Users, Upload, Clock, LogIn, Layers } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+const HOUR_LABELS = ['12a','1a','2a','3a','4a','5a','6a','7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p','8p','9p','10p','11p'];
 
 function StatCard({ icon: Icon, label, value, sub, color = 'text-blue-600', bg = 'bg-blue-50', wide = false }) {
   return (
@@ -29,12 +30,14 @@ function formatDuration(sec) {
 export default function ClientData() {
   const { token } = useAuth();
   const [data, setData] = useState(null);
+  const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/client-data/metrics`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setData(d))
+    Promise.all([
+      fetch(`${API}/client-data/metrics`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch(`${API}/documents/client/all`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : []),
+    ]).then(([metrics, allDocs]) => { setData(metrics); setDocs(Array.isArray(allDocs) ? allDocs : allDocs?.data || []); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
@@ -63,6 +66,19 @@ export default function ClientData() {
   const dailyAvgClients = (summary.totalClients / dayCount).toFixed(1);
   const dailyAvgLogins = (summary.uniqueLoggedIn / dayCount).toFixed(1);
   const dailyAvgUploads = (summary.totalUploads / dayCount).toFixed(1);
+
+  // Upload time-of-day by category
+  const catLabels = { bank_statements: 'Bank Statements', application: 'Application', drivers_license: 'ID', voided_check: 'Voided Check', other: 'Other' };
+  const catColors = { bank_statements: '#3b82f6', application: '#8b5cf6', drivers_license: '#f59e0b', voided_check: '#10b981', other: '#6b7280' };
+  const hourData = {};
+  docs.forEach(d => {
+    if (!d.uploadedAt) return;
+    const h = new Date(d.uploadedAt).getHours();
+    const cat = d.category || 'other';
+    if (!hourData[cat]) hourData[cat] = new Array(24).fill(0);
+    hourData[cat][h]++;
+  });
+  const maxHourVal = Math.max(1, ...Object.values(hourData).flatMap(a => a));
 
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
@@ -133,6 +149,50 @@ export default function ClientData() {
             );
           })}
         </div>
+      </div>
+
+      {/* Upload Time-of-Day Chart */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <h2 className="text-gray-900 font-semibold text-sm mb-2 flex items-center gap-2">
+          <Clock size={15} className="text-amber-600" /> Average Upload Time by Document Type
+        </h2>
+        <p className="text-gray-400 text-xs mb-4">When clients upload each type of document throughout the day</p>
+        {Object.keys(hourData).length === 0 ? (
+          <p className="text-gray-300 text-sm text-center py-8">No upload data yet</p>
+        ) : (
+          <div>
+            <div className="flex flex-wrap gap-3 mb-4">
+              {Object.keys(hourData).map(cat => (
+                <div key={cat} className="flex items-center gap-1.5">
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: catColors[cat] || '#6b7280' }} />
+                  <span className="text-xs text-gray-500">{catLabels[cat] || cat}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, minWidth: 600, height: 160 }}>
+                {HOUR_LABELS.map((label, h) => {
+                  const cats = Object.keys(hourData);
+                  return (
+                    <div key={h} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column-reverse', width: '100%', height: 130 }}>
+                        {cats.map(cat => {
+                          const val = hourData[cat][h] || 0;
+                          const pct = (val / maxHourVal) * 100;
+                          return pct > 0 ? (
+                            <div key={cat} title={`${catLabels[cat] || cat}: ${val}`}
+                              style={{ width: '100%', height: `${pct}%`, background: catColors[cat] || '#6b7280', borderRadius: '3px 3px 0 0', minHeight: 3 }} />
+                          ) : null;
+                        })}
+                      </div>
+                      <span style={{ fontSize: 9, color: '#9ca3af', marginTop: 4 }}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

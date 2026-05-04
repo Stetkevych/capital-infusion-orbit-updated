@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { CLIENTS, DOCUMENT_REQUESTS, ACTIVITY_LOG, DOC_CATEGORIES, getClientsByRep } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
-import { Users, FileText, AlertCircle, Clock, ArrowRight } from 'lucide-react';
+import { Users, FileText, AlertCircle, Clock, ArrowRight, Download } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
-function fmt(iso) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function fmtTime(iso) {
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 export default function RepDashboard() {
@@ -101,12 +101,21 @@ export default function RepDashboard() {
             {recentDocs.map(doc => {
               const client = myClients.find(c => c.id === doc.clientId);
               return (
-                <div key={doc.id} className="flex items-center justify-between px-5 py-3.5">
-                  <div className="min-w-0">
+                <div key={doc.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <div className="flex-1 min-w-0">
                     <p className="text-gray-800 text-sm font-medium truncate">{doc.fileName}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{client?.businessName} · {fmt(doc.uploadedAt)}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{client?.businessName}</p>
                   </div>
+                  <span className="text-gray-400 text-xs shrink-0 hidden sm:block">{fmtTime(doc.uploadedAt)}</span>
                   <StatusBadge status={doc.status} size="xs" />
+                  <button onClick={() => {
+                    fetch(`${API}/documents/download/${doc.id}`, { headers })
+                      .then(r => r.ok ? r.json() : null)
+                      .then(d => { if (d?.url) window.open(d.url, '_blank'); })
+                      .catch(() => {});
+                  }} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors shrink-0" title="Download">
+                    <Download size={14} />
+                  </button>
                 </div>
               );
             })}
@@ -127,7 +136,7 @@ export default function RepDashboard() {
                 <span className={`text-xs font-medium px-2 py-1 rounded-lg shrink-0 mt-0.5 ${typeColor}`}>{a.eventType.replace('_', ' ')}</span>
                 <div className="min-w-0">
                   <p className="text-gray-700 text-sm">{a.description}</p>
-                  <p className="text-gray-400 text-xs mt-0.5">{client?.businessName} · {fmt(a.createdAt)}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">{client?.businessName} · {fmtTime(a.createdAt)}</p>
                 </div>
               </div>
             );
