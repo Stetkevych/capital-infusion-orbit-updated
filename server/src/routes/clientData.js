@@ -61,6 +61,29 @@ router.get('/metrics', adminOnly, async (req, res) => {
     const uniqueLoggedIn = new Set(clientLogins.map(a => a.clientId || a.userId)).size;
     const recentLogins = clientLogins.filter(a => new Date(a.timestamp || a.createdAt).getTime() > thirtyDaysAgo);
 
+    // Average login time-of-day
+    const loginHours = clientLogins.map(a => new Date(a.timestamp || a.createdAt).getHours()).filter(h => !isNaN(h));
+    const avgLoginHour = loginHours.length > 0 ? Math.round(loginHours.reduce((s, h) => s + h, 0) / loginHours.length) : null;
+
+    // Average first login time (hours from account creation to first login)
+    const firstLoginTimes = [];
+    const loginsByUser = {};
+    clientLogins.forEach(a => {
+      const uid = a.clientId || a.userId;
+      const ts = new Date(a.timestamp || a.createdAt).getTime();
+      if (!loginsByUser[uid] || ts < loginsByUser[uid]) loginsByUser[uid] = ts;
+    });
+    clients.forEach(c => {
+      const createdAt = new Date(c.created_at).getTime();
+      const firstLogin = loginsByUser[c.client_id] || loginsByUser[c.id];
+      if (firstLogin && createdAt && firstLogin > createdAt) {
+        firstLoginTimes.push((firstLogin - createdAt) / 3600000); // hours
+      }
+    });
+    const avgFirstLoginHours = firstLoginTimes.length > 0
+      ? Math.round(firstLoginTimes.reduce((s, h) => s + h, 0) / firstLoginTimes.length * 10) / 10
+      : null;
+
     // Session duration from client_sessions.json
     const sessionList = Array.isArray(sessions) ? sessions : [];
     const validSessions = sessionList.filter(s => s.durationSec > 0);
@@ -103,6 +126,8 @@ router.get('/metrics', adminOnly, async (req, res) => {
         recentLogins30d: recentLogins.length,
         avgSessionSec,
         maxSessionSec,
+        avgLoginHour,
+        avgFirstLoginHours,
       },
       uploadsByCategory: byCat,
       uploadsByDay,
@@ -110,6 +135,62 @@ router.get('/metrics', adminOnly, async (req, res) => {
     });
   } catch (err) {
     console.error('[ClientData] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/client-data/rep-metrics ─────────────────────────────────────────
+router.get('/rep-metrics', adminOnly, async (req, res) => {
+  try {
+    const [clients, users, docs, activity, sessions] = await Promise.all([
+      loadFromS3('clients.json'),
+      loadFromS3('users.json'),
+      loadFromS3('documents.json'),
+      loadFromS3('activity_log.json'),
+      loadFromS3('client_sessions.json'),
+    ]);
+
+    const repUsers = users.filter(u => u.role === 'rep' && u.is_active);
+    const activeClients = clients.filter(c => !c.deleted);
+    const clientLogins = activity.filter(a => a.eventType === 'login');
+    const sessionList = Array.isArray(sessions) ? sessions : [];
+
+    const reps = repUsers.map(rep => {
+      const repIds = [rep.id, rep.rep_id].filter(Boolean);
+      const repClients = activeClients.filter(c => repIds.includes(c.assignedRepId));
+      const repClientIds = new Set(repClients.map(c => c.id));
+      const repClientEmails = new Set(repClients.map(c => c.email?.toLowerCase()).filter(Boolean));
+
+      const clientUploads = docs.filter(d => repClientIds.has(d.clientId));
+      const logins = clientLogins.filter(a => repClientIds.has(a.clientId) || repClientIds.has(a.userId));
+      const clientSessions = sessionList.filter(s => repClientIds.has(s.clientId) || repClientIds.has(s.userId));
+      const validSessions = clientSessions.filter(s => s.durationSec > 0);
+      const avgSec = validSessions.length > 0
+        ? Math.round(validSessions.reduce((sum, s) => sum + s.durationSec, 0) / validSessions.length)
+        : 0;
+
+      return {
+        id: rep.id,
+        name: rep.full_name,
+        email: rep.email,
+        clientCount: repClients.length,
+        totalUploads: clientUploads.length,
+        clientLogins: logins.length,
+        avgClientSessionSec: avgSec,
+      };
+    }).filter(r => r.clientCount > 0);
+
+    res.json({
+      reps,
+      totals: {
+        totalReps: reps.length,
+        totalClients: activeClients.length,
+        totalUploads: docs.length,
+        totalLogins: clientLogins.length,
+      },
+    });
+  } catch (err) {
+    console.error('[RepData] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

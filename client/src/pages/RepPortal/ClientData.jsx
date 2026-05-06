@@ -101,36 +101,20 @@ export default function ClientData() {
           color="text-indigo-600" bg="bg-indigo-50" />
       </div>
 
-      {/* Row 2: 3 boxes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Row 2: 4 boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard icon={Layers} label="Multi-Type Uploaders" value={multiTypeUploaders}
-          sub={`Uploaded 2+ doc types · includes all doc uploaders above *`}
+          sub={`Uploaded 2+ doc types`}
           color="text-purple-600" bg="bg-purple-50" />
-        <StatCard icon={Clock} label="Avg Logged-In Time" value={formatDuration(summary.avgSessionSec)}
+        <StatCard icon={Clock} label="Avg Session Duration" value={formatDuration(summary.avgSessionSec)}
           sub={summary.maxSessionSec > 0 ? `Longest: ${formatDuration(summary.maxSessionSec)}` : 'No session data yet'}
           color="text-amber-600" bg="bg-amber-50" />
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center">
-              <BarChart2 size={16} className="text-gray-600" />
-            </div>
-            <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">Daily Averages</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Clients/day</span>
-              <span className="text-gray-900 font-semibold">{dailyAvgClients}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Logins/day</span>
-              <span className="text-gray-900 font-semibold">{dailyAvgLogins}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Uploads/day</span>
-              <span className="text-gray-900 font-semibold">{dailyAvgUploads}</span>
-            </div>
-          </div>
-        </div>
+        <StatCard icon={Clock} label="Avg Login Time" value={summary.avgLoginHour !== null ? HOUR_LABELS[summary.avgLoginHour] : '—'}
+          sub="Average time-of-day clients log in"
+          color="text-teal-600" bg="bg-teal-50" />
+        <StatCard icon={LogIn} label="Avg First Login" value={summary.avgFirstLoginHours !== null ? `${summary.avgFirstLoginHours}h` : '—'}
+          sub="Hours from account creation to first login"
+          color="text-rose-600" bg="bg-rose-50" />
       </div>
 
       {/* Category Breakdown */}

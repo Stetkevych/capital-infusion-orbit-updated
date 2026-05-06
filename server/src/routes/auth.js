@@ -148,6 +148,24 @@ router.post('/change-password', authMiddleware, async (req, res) => {
   res.json({ message: 'Password changed successfully' });
 });
 
+// ─── GET /api/auth/client-logins (rep sees only their clients' logins) ────────
+router.get('/client-logins', authMiddleware, async (req, res) => {
+  if (req.user.role === 'client') return res.status(403).json({ message: 'Access denied' });
+  const allUsers = await UserStore.findAll();
+  const clientUsers = allUsers.filter(u => u.role === 'client' && (u.source === 'docusign' || u.source === 'manual'));
+  const format = u => ({ id: u.id, email: u.email, full_name: u.full_name, business_name: u.business_name || '', temp_password: u.temp_password || null, has_logged_in: u.has_logged_in || false, created_at: u.created_at });
+
+  if (req.user.role === 'admin') return res.json(clientUsers.map(format));
+
+  const ClientStore = require('../services/clientStore');
+  const repIds = [req.user.rep_id, req.user.repId, req.user.id].filter(Boolean);
+  const repClients = await ClientStore.getByRep(repIds);
+  const repClientEmails = new Set(repClients.map(c => c.email?.toLowerCase()).filter(Boolean));
+  const repClientIds = new Set(repClients.map(c => c.id));
+  const filtered = clientUsers.filter(u => repClientEmails.has(u.email?.toLowerCase()) || repClientIds.has(u.client_id));
+  res.json(filtered.map(format));
+});
+
 // ─── GET /api/auth/client-credentials (rep/admin only) ────────────────────────
 router.get('/client-credentials', authMiddleware, async (req, res) => {
   if (req.user.role === 'client') return res.status(403).json({ message: 'Access denied' });

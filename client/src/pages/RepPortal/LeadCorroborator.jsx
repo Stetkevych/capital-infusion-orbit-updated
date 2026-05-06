@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download, Trash2, Search, Sparkles } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download, Trash2, Search, Sparkles, Filter } from 'lucide-react';
 
 function isEmail(v) {
   return typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
@@ -92,6 +92,26 @@ export default function LeadCorroborator() {
   const [cleanerFile, setCleanerFile] = useState(null);
   const [cleanerResult, setCleanerResult] = useState(null);
 
+  const [gmailFile, setGmailFile] = useState(null);
+  const [gmailResult, setGmailResult] = useState(null);
+  const [gmailFiltered, setGmailFiltered] = useState(null);
+
+  const handleGmailFilter = (e) => {
+    const f = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
+    if (!f) return;
+    setGmailFile(f);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const result = extractEmails(sheet);
+      setGmailResult(result);
+      const filtered = result.emails.filter(e => !e.endsWith('@gmail.com'));
+      setGmailFiltered(filtered);
+    };
+    reader.readAsArrayBuffer(f);
+  };
+
   const parseFile = (file, cb) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -152,6 +172,10 @@ export default function LeadCorroborator() {
           <button onClick={() => setTab('cleaner')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${tab === 'cleaner' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
             Excel Cleaner
+          </button>
+          <button onClick={() => setTab('gmail-filter')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${tab === 'gmail-filter' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+            Gmail Filter
           </button>
         </div>
       </div>
@@ -284,6 +308,63 @@ export default function LeadCorroborator() {
                 <button onClick={exportCleaned}
                   className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm rounded-xl flex items-center justify-center gap-2">
                   <Download size={14} /> Download Clean Email CSV ({cleanerResult.emails.length} emails)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'gmail-filter' && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div>
+              <h2 className="text-gray-900 font-semibold text-lg mb-1">Gmail Filter</h2>
+              <p className="text-gray-400 text-sm">Upload a list and remove all @gmail.com addresses. Returns only business/corporate emails.</p>
+            </div>
+
+            <div onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleGmailFilter(e); }}
+              onClick={() => document.getElementById('gmail-filter-file').click()}
+              className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center cursor-pointer hover:border-red-400 hover:bg-red-50/30 transition-all">
+              <Filter size={28} className="mx-auto mb-3 text-red-400" />
+              <p className="text-gray-600 text-sm font-medium">Drop Excel/CSV to filter out @gmail.com</p>
+              <p className="text-gray-400 text-xs mt-1">.xlsx, .xls, .csv</p>
+              <input id="gmail-filter-file" type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleGmailFilter} />
+            </div>
+
+            {gmailFile && gmailResult && gmailFiltered && (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet size={16} className="text-green-600" />
+                    <span className="text-sm font-medium text-gray-800">{gmailFile.name}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-gray-900">{gmailResult.emails.length}</p>
+                    <p className="text-xs text-gray-500">Total Emails</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-red-600">{gmailResult.emails.length - gmailFiltered.length}</p>
+                    <p className="text-xs text-red-500">Gmail Removed</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-green-600">{gmailFiltered.length}</p>
+                    <p className="text-xs text-green-500">Business Emails Kept</p>
+                  </div>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto bg-gray-50 rounded-xl p-3 divide-y divide-gray-100">
+                  {gmailFiltered.slice(0, 50).map((e, i) => (
+                    <div key={i} className="py-1.5 text-xs text-gray-700 font-mono flex items-center gap-2">
+                      <CheckCircle2 size={11} className="text-green-500 shrink-0" /> {e}
+                    </div>
+                  ))}
+                  {gmailFiltered.length > 50 && <div className="py-2 text-xs text-gray-400">...and {gmailFiltered.length - 50} more</div>}
+                </div>
+
+                <button onClick={() => downloadCSV(['email', ...gmailFiltered], `filtered-no-gmail-${new Date().toISOString().slice(0,10)}.csv`)}
+                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-xl flex items-center justify-center gap-2">
+                  <Download size={14} /> Download Filtered List ({gmailFiltered.length} emails)
                 </button>
               </div>
             )}

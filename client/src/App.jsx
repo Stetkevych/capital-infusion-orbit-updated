@@ -30,6 +30,7 @@ import ActivityPage from './pages/RepPortal/Activity';
 import Training from './pages/RepPortal/Training';
 const CILoc = lazy(() => import('./pages/RepPortal/CILoc'));
 import ClientData from './pages/RepPortal/ClientData';
+import RepData from './pages/RepPortal/RepData';
 import Messages from './pages/RepPortal/Messages';
 const NexusBot = lazy(() => import('./pages/RepPortal/NexusBot'));
 const LeadFinder = lazy(() => import('./pages/RepPortal/LeadFinder'));
@@ -47,6 +48,7 @@ import ClientProfile from './pages/ClientPortal/Profile';
 import MyBusinesses from './pages/ClientPortal/MyBusinesses';
 import ClientLoc from './pages/ClientPortal/ClientLoc';
 import ClientCredentials from './pages/RepPortal/ClientCredentials';
+import ClientLogins from './pages/RepPortal/ClientLogins';
 
 function AppShell() {
   const { user, viewMode } = useAuth();
@@ -98,6 +100,7 @@ function RepRoutes() {
       <Route path="/training" element={<Training />} />
       <Route path="/ci-loc" element={<CILoc />} />
       <Route path="/client-data" element={<ClientData />} />
+      <Route path="/rep-data" element={<RepData />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/nexus-bot" element={<NexusBot />} />
       <Route path="/lead-finder" element={<LeadFinder />} />
@@ -107,6 +110,7 @@ function RepRoutes() {
       <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />
+      <Route path="/client-logins" element={<ClientLogins />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
