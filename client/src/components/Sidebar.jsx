@@ -18,7 +18,6 @@ const REP_LINKS = [
   { path: '/documents', label: 'Documents', icon: FolderOpen },
   { path: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   { path: '/underwriting', label: 'Underwriting', icon: Zap, adminOnly: true },
-  { path: '/analytics', label: 'Analytics', icon: BarChart2, adminOnly: true },
   { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
   { path: '/activity', label: 'Activity', icon: Activity, adminOnly: true },
   { path: '/training', label: 'Training', icon: GraduationCap },

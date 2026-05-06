@@ -23,7 +23,6 @@ const AutoUnderwriting = lazy(() => import('./pages/RepPortal/Underwriting/AutoU
 import DealLog from './pages/RepPortal/DealLog';
 const CommissionCalculator = lazy(() => import('./pages/RepPortal/CommissionCalculator'));
 import HelpPage from './pages/RepPortal/Help';
-import Analytics from './pages/RepPortal/Analytics';
 import RequestsPage from './pages/RepPortal/Requests';
 import NotesPage from './pages/RepPortal/Notes';
 import ActivityPage from './pages/RepPortal/Activity';
@@ -93,7 +92,6 @@ function RepRoutes() {
       <Route path="/deals" element={<DealLog />} />
       <Route path="/commissions" element={<CommissionCalculator />} />
       <Route path="/help" element={<HelpPage />} />
-      <Route path="/analytics" element={<Analytics />} />
       <Route path="/requests" element={<RequestsPage />} />
       <Route path="/notes" element={<NotesPage />} />
       <Route path="/activity" element={<ActivityPage />} />
