@@ -1,132 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { CLIENTS, DOC_CATEGORIES, getClientsByRep, getClientById } from '../../data/mockData';
-import StatusBadge from '../../components/shared/StatusBadge';
 import { Clock, Plus, X, Send, Bell, CheckCircle2, Mail } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 function fmt(iso) {
+  if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function RequestsPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ clientId: '', category: '', instructions: '', dueDate: '' });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(null);
-  const [requests, setRequests] = useState([
-    { id: 'req1', clientId: 'c1', category: 'bank_statements', instructions: 'Please upload the most recent 3 months of bank statements.', dueDate: '2025-06-15', status: 'Pending', createdAt: '2025-06-01T08:00:00Z' },
-    { id: 'req2', clientId: 'c2', category: 'bank_statements', instructions: 'Reupload October statement — pages 3-5 were missing.', dueDate: '2025-06-12', status: 'Pending', createdAt: '2025-06-06T14:00:00Z' },
-    { id: 'req3', clientId: 'c2', category: 'voided_check', instructions: 'Please provide a voided check for ACH setup.', dueDate: '2025-06-14', status: 'Pending', createdAt: '2025-06-06T14:05:00Z' },
-    { id: 'req4', clientId: 'c3', category: 'signed_agreement', instructions: 'Please sign and return the merchant agreement.', dueDate: '2025-06-18', status: 'Pending', createdAt: '2025-06-07T11:00:00Z' },
-    { id: 'req5', clientId: 'c4', category: 'funding_docs', instructions: 'Upload final funding authorization form.', dueDate: '2025-06-20', status: 'Completed', createdAt: '2025-06-05T09:00:00Z' },
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const myClients = user.role === 'admin' ? CLIENTS : getClientsByRep(user.repId);
-  const myClientIds = new Set(myClients.map(c => c.id));
-  const myRequests = requests.filter(r => myClientIds.has(r.clientId)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const pending = myRequests.filter(r => r.status === 'Pending');
-  const completed = myRequests.filter(r => r.status === 'Completed');
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API}/clients-api/requests/all`, { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`${API}/clients-api`, { headers }).then(r => r.ok ? r.json() : []),
+    ]).then(([reqs, cls]) => {
+      setRequests(Array.isArray(reqs) ? reqs : []);
+      setClients(Array.isArray(cls) ? cls : cls.data || []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  const pending = requests.filter(r => r.status === 'Pending').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const completed = requests.filter(r => r.status === 'Completed').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const handleSend = async (e) => {
     e.preventDefault();
     setSending(true);
     setSent(null);
-
-    const client = getClientById(form.clientId);
-    const cat = DOC_CATEGORIES.find(c => c.id === form.category);
-
+    const client = clients.find(c => c.id === form.clientId);
     try {
-      // Send email notification to client via server
-      await fetch(`${API}/docusign/request-document`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientEmail: client.email,
-          clientName: client.ownerName,
-          businessName: client.businessName,
-          category: cat.label,
-          instructions: form.instructions,
-          dueDate: form.dueDate,
-          repName: user.name,
-          portalUrl: window.location.origin,
-        }),
+      await fetch(`${API}/clients-api/${form.clientId}/reminder`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ category: form.category, categoryLabel: form.category, instructions: form.instructions, customMessage: form.instructions }),
       });
+      setSent({ client: client?.businessName || client?.ownerName, email: client?.email, category: form.category });
+      // Refresh requests
+      const reqs = await fetch(`${API}/clients-api/requests/all`, { headers }).then(r => r.ok ? r.json() : []);
+      setRequests(Array.isArray(reqs) ? reqs : []);
     } catch (err) {
-      // Continue even if email fails — add to local list
-      console.warn('Email notification failed:', err.message);
+      console.warn('Request failed:', err.message);
     }
-
-    // Add to local request list
-    const newReq = {
-      id: `req_${Date.now()}`,
-      clientId: form.clientId,
-      category: form.category,
-      instructions: form.instructions,
-      dueDate: form.dueDate,
-      status: 'Pending',
-      createdAt: new Date().toISOString(),
-    };
-    setRequests(prev => [newReq, ...prev]);
-    setSent({ client: client.businessName, email: client.email, category: cat.label });
     setShowForm(false);
     setForm({ clientId: '', category: '', instructions: '', dueDate: '' });
     setSending(false);
   };
 
-  const markComplete = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Completed' } : r));
+  const markComplete = async (id) => {
+    try {
+      await fetch(`${API}/clients-api/requests/${id}/status`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'Completed' }) });
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Completed' } : r));
+    } catch {}
   };
 
-  const RequestCard = ({ req }) => {
-    const client = getClientById(req.clientId);
-    const cat = DOC_CATEGORIES.find(c => c.id === req.category);
-    return (
-      <div className="px-5 py-4 border-b border-apple-gray7 last:border-0 hover:bg-apple-gray9 transition-colors">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-apple-gray1 font-medium text-sm">{cat?.icon} {cat?.label}</p>
-              <StatusBadge status={req.status} size="xs" />
-            </div>
-            <p className="text-apple-gray4 text-xs mb-1.5">{req.instructions}</p>
-            <div className="flex items-center gap-3 text-apple-gray5 text-xs">
-              <span className="font-medium text-apple-gray3">{client?.businessName}</span>
-              <span className="flex items-center gap-1"><Clock size={11} /> Due {fmt(req.dueDate)}</span>
-              <span className="flex items-center gap-1"><Mail size={11} /> {client?.email}</span>
-            </div>
-          </div>
-          {req.status === 'Pending' && (
-            <button
-              onClick={() => markComplete(req.id)}
-              className="flex items-center gap-1.5 text-xs text-green-600 hover:bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              <CheckCircle2 size={12} /> Mark Done
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
+  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading requests...</div>;
 
   return (
     <div className="p-6 space-y-5 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-apple-gray1 tracking-tight">Document Requests</h1>
-          <p className="text-apple-gray4 text-sm mt-0.5">{pending.length} pending</p>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Document Requests</h1>
+          <p className="text-gray-400 text-sm mt-0.5">{pending.length} pending</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setSent(null); }}
-          className="flex items-center gap-1.5 bg-apple-blue hover:bg-apple-bluehov text-white text-sm px-4 py-2 rounded-xl transition-colors shadow-apple-sm font-medium"
-        >
+        <button onClick={() => { setShowForm(true); setSent(null); }}
+          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl transition-colors font-medium">
           <Plus size={15} /> New Request
         </button>
       </div>
 
-      {/* Success banner */}
       {sent && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <CheckCircle2 size={16} className="text-green-600 shrink-0" />
@@ -138,95 +89,107 @@ export default function RequestsPage() {
         </div>
       )}
 
-      {/* New Request Form */}
       {showForm && (
-        <div className="bg-white rounded-apple-lg shadow-apple border border-apple-gray7 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-apple-gray1 font-semibold text-sm flex items-center gap-2">
-              <Bell size={15} className="text-apple-blue" /> New Document Request
+            <h2 className="text-gray-900 font-semibold text-sm flex items-center gap-2">
+              <Bell size={15} className="text-blue-600" /> New Document Request
             </h2>
-            <button onClick={() => setShowForm(false)} className="text-apple-gray4 hover:text-apple-gray1 transition-colors">
-              <X size={16} />
-            </button>
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-700"><X size={16} /></button>
           </div>
           <form onSubmit={handleSend} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-apple-gray3 mb-1.5 uppercase tracking-wide">Client</label>
-              <select
-                required
-                value={form.clientId}
-                onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
-                className="w-full bg-apple-gray9 border border-apple-gray7 text-apple-gray1 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-apple-blue/30"
-              >
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Client</label>
+              <select required value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                 <option value="">Select client...</option>
-                {myClients.map(c => <option key={c.id} value={c.id}>{c.businessName} — {c.ownerName}</option>)}
+                {clients.map(c => <option key={c.id} value={c.id}>{c.businessName || c.ownerName} — {c.email}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-apple-gray3 mb-1.5 uppercase tracking-wide">Document Type</label>
-              <select
-                required
-                value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                className="w-full bg-apple-gray9 border border-apple-gray7 text-apple-gray1 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-apple-blue/30"
-              >
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Document Type</label>
+              <select required value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                 <option value="">Select type...</option>
-                {DOC_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                <option value="Bank Statements">Bank Statements</option>
+                <option value="Driver's License">Driver's License</option>
+                <option value="Voided Check">Voided Check</option>
+                <option value="Tax Returns">Tax Returns</option>
+                <option value="Business License">Business License</option>
+                <option value="Proof of Ownership">Proof of Ownership</option>
+                <option value="Other">Other</option>
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-apple-gray3 mb-1.5 uppercase tracking-wide">Instructions to Client</label>
-              <textarea
-                value={form.instructions}
-                onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))}
-                rows={2}
-                className="w-full bg-apple-gray9 border border-apple-gray7 text-apple-gray1 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-apple-blue/30 resize-none"
-                placeholder="Describe exactly what you need from the client..."
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-apple-gray3 mb-1.5 uppercase tracking-wide">Due Date</label>
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                className="w-full bg-apple-gray9 border border-apple-gray7 text-apple-gray1 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-apple-blue/30"
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Instructions to Client</label>
+              <textarea value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))} rows={2}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                placeholder="Describe exactly what you need from the client..." />
             </div>
             <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={sending}
-                className="flex items-center gap-2 bg-apple-blue hover:bg-apple-bluehov disabled:opacity-50 text-white text-sm px-5 py-2.5 rounded-xl transition-colors font-medium shadow-apple-sm"
-              >
-                {sending ? <><span className="animate-spin">⟳</span> Sending...</> : <><Send size={14} /> Send Request & Notify Client</>}
+              <button type="submit" disabled={sending}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-5 py-2.5 rounded-xl transition-colors font-medium">
+                {sending ? 'Sending...' : <><Send size={14} /> Send Request & Notify Client</>}
               </button>
             </div>
           </form>
-          <p className="text-apple-gray5 text-xs mt-3 flex items-center gap-1.5">
+          <p className="text-gray-400 text-xs mt-3 flex items-center gap-1.5">
             <Mail size={11} /> Client will receive an email notification with a link to upload directly
           </p>
         </div>
       )}
 
       {/* Pending */}
-      <div className="bg-white rounded-apple-lg shadow-apple border border-apple-gray7 overflow-hidden">
-        <div className="px-5 py-4 border-b border-apple-gray7 bg-apple-gray9">
-          <h2 className="text-apple-gray1 font-semibold text-sm">Pending ({pending.length})</h2>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+          <h2 className="text-gray-900 font-semibold text-sm">Pending ({pending.length})</h2>
         </div>
         {pending.length === 0
-          ? <p className="text-apple-gray4 text-sm px-5 py-6 text-center">No pending requests.</p>
-          : pending.map(r => <RequestCard key={r.id} req={r} />)
+          ? <p className="text-gray-400 text-sm px-5 py-6 text-center">No pending requests.</p>
+          : pending.map(r => (
+            <div key={r.id} className="px-5 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-gray-900 font-medium text-sm">{r.category}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Pending</span>
+                  </div>
+                  <p className="text-gray-500 text-xs mb-1.5">{r.instructions}</p>
+                  <div className="flex items-center gap-3 text-gray-400 text-xs">
+                    <span className="font-medium text-gray-600">{r.businessName || r.clientName}</span>
+                    <span className="flex items-center gap-1"><Clock size={11} /> {fmt(r.createdAt)}</span>
+                    {r.clientEmail && <span className="flex items-center gap-1"><Mail size={11} /> {r.clientEmail}</span>}
+                    {r.repName && <span>by {r.repName}</span>}
+                  </div>
+                </div>
+                <button onClick={() => markComplete(r.id)}
+                  className="flex items-center gap-1.5 text-xs text-green-600 hover:bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+                  <CheckCircle2 size={12} /> Mark Done
+                </button>
+              </div>
+            </div>
+          ))
         }
       </div>
 
       {/* Completed */}
       {completed.length > 0 && (
-        <div className="bg-white rounded-apple-lg shadow-apple border border-apple-gray7 overflow-hidden">
-          <div className="px-5 py-4 border-b border-apple-gray7 bg-apple-gray9">
-            <h2 className="text-apple-gray4 font-semibold text-sm">Completed ({completed.length})</h2>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+            <h2 className="text-gray-500 font-semibold text-sm">Completed ({completed.length})</h2>
           </div>
-          {completed.map(r => <RequestCard key={r.id} req={r} />)}
+          {completed.map(r => (
+            <div key={r.id} className="px-5 py-3 border-b border-gray-50 last:border-0">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-700 text-sm">{r.category} — {r.businessName || r.clientName}</p>
+                  <p className="text-gray-400 text-xs">{r.instructions}</p>
+                </div>
+                <span className="text-gray-300 text-xs">{fmt(r.createdAt)}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

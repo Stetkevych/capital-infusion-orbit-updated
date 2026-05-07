@@ -131,18 +131,79 @@ router.post('/:id/reminder', async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Client not found' });
     const { category, categoryLabel, instructions, customMessage } = req.body;
     const user = req.user;
+    const message = customMessage || instructions || `Please upload your ${categoryLabel || category} at your earliest convenience.`;
     await sendDocumentRequestEmail({
       clientEmail: client.email, clientName: client.ownerName, businessName: client.businessName,
       category: categoryLabel || category,
-      instructions: customMessage || instructions || `Please upload your ${categoryLabel || category} at your earliest convenience.`,
+      instructions: message,
       repName: user.full_name,
       portalUrl: process.env.FRONTEND_URL || 'https://orbit-technology.com',
     });
+
+    // Persist request
+    const { loadFromS3, saveToS3 } = require('../services/s3Store');
+    const requests = await loadFromS3('requests.json').catch(() => []);
+    requests.push({
+      id: `req_${Date.now()}`,
+      clientId: req.params.id,
+      clientName: client.ownerName || client.businessName,
+      clientEmail: client.email,
+      businessName: client.businessName,
+      category: categoryLabel || category,
+      instructions: message,
+      repId: user.rep_id || user.repId || user.id,
+      repName: user.full_name,
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+    });
+    await saveToS3('requests.json', requests);
+
+    // Log to activity
+    try {
+      const { logActivity } = require('./activity');
+      await logActivity({
+        eventType: 'request',
+        clientId: req.params.id,
+        userId: user.id,
+        userName: user.full_name,
+        userEmail: user.email,
+        userRole: user.role,
+        description: `${user.full_name} sent document request: ${categoryLabel || category}`,
+        metadata: { category: categoryLabel || category, instructions: message },
+      });
+    } catch {}
+
     res.json({ sent: true, to: client.email });
   } catch (err) {
     console.error('[Reminder] Failed:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/clients-api/requests/all
+router.get('/requests/all', async (req, res) => {
+  try {
+    const { loadFromS3 } = require('../services/s3Store');
+    const requests = await loadFromS3('requests.json').catch(() => []);
+    const user = req.user;
+    if (user.role === 'admin') return res.json(requests);
+    const repIds = [user.rep_id, user.repId, user.id].filter(Boolean);
+    res.json(requests.filter(r => repIds.includes(r.repId)));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/clients-api/requests/:id/status
+router.patch('/requests/:id/status', async (req, res) => {
+  try {
+    const { loadFromS3, saveToS3 } = require('../services/s3Store');
+    const requests = await loadFromS3('requests.json').catch(() => []);
+    const idx = requests.findIndex(r => r.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    requests[idx].status = req.body.status;
+    requests[idx].updatedAt = new Date().toISOString();
+    await saveToS3('requests.json', requests);
+    res.json(requests[idx]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
