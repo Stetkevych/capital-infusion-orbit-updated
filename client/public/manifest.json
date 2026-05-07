@@ -1,0 +1,18 @@
+{
+  "name": "Capital Infusion Orbit",
+  "short_name": "Orbit",
+  "description": "Capital Infusion MCA Lending Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/orbit-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
