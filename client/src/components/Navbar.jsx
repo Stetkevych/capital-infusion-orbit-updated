@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
-import ThemeSelector from './ThemeSelector';
 
 export default function Navbar() {
   const { user, viewMode, canSwitchView, switchView, logout } = useAuth();
@@ -10,7 +9,7 @@ export default function Navbar() {
   const onLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <nav className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shrink-0">
+    <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-xs">CI</span>
@@ -23,7 +22,6 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <ThemeSelector />
         {canSwitchView && (
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
             <button

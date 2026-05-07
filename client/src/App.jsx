@@ -67,11 +67,11 @@ function AppShell() {
   }
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f4f5f7' }}>
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto" style={{ background: '#f4f5f7' }}>
           <Suspense fallback={<div className="p-6 text-gray-400 text-sm">Loading...</div>}>
             {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
           </Suspense>

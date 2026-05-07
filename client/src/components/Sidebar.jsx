@@ -82,7 +82,7 @@ export default function Sidebar() {
   const isClient = viewMode === 'client';
 
   return (
-    <div className="w-52 bg-white border-r border-gray-100 flex flex-col shrink-0">
+    <div className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm">
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <nav className="space-y-0.5">
           {links.map(({ path, label, icon: Icon, badge }) => {
