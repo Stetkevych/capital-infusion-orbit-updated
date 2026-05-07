@@ -30,6 +30,8 @@ import Training from './pages/RepPortal/Training';
 const CILoc = lazy(() => import('./pages/RepPortal/CILoc'));
 import ClientData from './pages/RepPortal/ClientData';
 import RepData from './pages/RepPortal/RepData';
+import LeadData from './pages/RepPortal/LeadData';
+import Portfolio from './pages/RepPortal/Portfolio';
 import Messages from './pages/RepPortal/Messages';
 const NexusBot = lazy(() => import('./pages/RepPortal/NexusBot'));
 const LeadFinder = lazy(() => import('./pages/RepPortal/LeadFinder'));
@@ -99,6 +101,8 @@ function RepRoutes() {
       <Route path="/ci-loc" element={<CILoc />} />
       <Route path="/client-data" element={<ClientData />} />
       <Route path="/rep-data" element={<RepData />} />
+      <Route path="/lead-data" element={<LeadData />} />
+      <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/nexus-bot" element={<NexusBot />} />
       <Route path="/lead-finder" element={<LeadFinder />} />

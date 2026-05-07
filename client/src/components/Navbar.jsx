@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
+import ThemeSelector from './ThemeSelector';
 
 export default function Navbar() {
   const { user, viewMode, canSwitchView, switchView, logout } = useAuth();
@@ -22,6 +23,7 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <ThemeSelector />
         {canSwitchView && (
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
             <button
