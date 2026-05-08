@@ -193,7 +193,7 @@ export default function LeadFinder() {
         if (!res.ok) { const txt = await res.text(); throw new Error(txt); }
         const data = await res.json();
         allPeople = data.people || [];
-        setTotalResults(data.pagination?.total_entries || allPeople.length);
+        setTotalEntries(data.pagination?.total_entries || allPeople.length);
       } else {
         // Multiple industries — parallel calls, merge & dedupe
         const calls = filters.industries.map(ind => {
@@ -209,7 +209,7 @@ export default function LeadFinder() {
             if (!seen.has(key)) { seen.add(key); allPeople.push(p); }
           });
         });
-        setTotalResults(allPeople.length);
+        setTotalEntries(allPeople.length);
       }
 
       const mapped = allPeople.map(p => ({
