@@ -258,7 +258,7 @@ export default function LeadFinder() {
       const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
       const exists = saved.findIndex(s => s.id === updated.id);
       if (exists >= 0) saved[exists] = updated; else saved.unshift(updated);
-      localStorage.setItem('orbit_enriched_leads', JSON.stringify(saved.slice(0, 500)));
+      localStorage.setItem('orbit_enriched_leads', JSON.stringify(saved));
     } catch (e) { setError(e.message); }
     setEnriching(false);
   };
@@ -333,7 +333,7 @@ export default function LeadFinder() {
       count++;
       setMassProgress({ done: count, total: sel.length });
     }
-    localStorage.setItem('orbit_enriched_leads', JSON.stringify(saved.slice(0, 500)));
+    localStorage.setItem('orbit_enriched_leads', JSON.stringify(saved));
     setMassEnriching(false); setChecked(new Set());
   };
 
