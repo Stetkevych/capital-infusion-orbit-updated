@@ -170,14 +170,17 @@ export default function LeadFinder() {
   const runSearch = async (pg = 1) => {
     setSearching(true); setError(''); setChecked(new Set());
     try {
-      const kwParts = [...filters.industries, ...filters.bizTypes];
+      const kwParts = [];
       if (filters.keyword) kwParts.push(filters.keyword);
+      const industryStr = filters.industries.length ? filters.industries.join(' OR ') : '';
+      const bizStr = filters.bizTypes.length ? filters.bizTypes.join(' OR ') : '';
+      const allKw = [industryStr, bizStr, ...kwParts].filter(Boolean).join(' ');
       const body = {
         page: pg, per_page: 100,
         person_titles: filters.titles,
         person_locations: filters.locations,
         organization_num_employees_ranges: filters.empRanges,
-        q_keywords: kwParts.join(' '),
+        q_keywords: allKw,
         person_seniorities: ['owner', 'founder', 'c_suite'],
       };
       const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
