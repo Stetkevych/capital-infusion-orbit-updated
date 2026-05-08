@@ -261,6 +261,41 @@ router.get('/client/all', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── GET /api/documents/client/:clientId/download-all — Zip all docs ─────────
+router.get('/client/:clientId/download-all', async (req, res) => {
+  try {
+    const archiver = require('archiver');
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const docs = (await loadDocs()).filter(d => d.clientId === req.params.clientId);
+    if (!docs.length) return res.status(404).json({ error: 'No documents found for this client' });
+
+    const ClientStore = require('../services/clientStore');
+    const client = await ClientStore.getById(req.params.clientId);
+    const zipName = `${(client?.businessName || client?.ownerName || req.params.clientId).replace(/[^a-zA-Z0-9]/g, '_')}_documents.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.pipe(res);
+    archive.on('error', (err) => { throw err; });
+
+    for (const doc of docs) {
+      try {
+        const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: doc.key }));
+        const stream = obj.Body;
+        const folder = doc.category || 'other';
+        archive.append(stream, { name: `${folder}/${doc.fileName}` });
+      } catch (e) { console.error(`[Zip] Skip ${doc.fileName}:`, e.message); }
+    }
+
+    await archive.finalize();
+  } catch (err) {
+    console.error('[Zip] Error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/documents/client/:clientId ──────────────────────────────────────
 router.get('/client/:clientId', async (req, res) => {
   try {

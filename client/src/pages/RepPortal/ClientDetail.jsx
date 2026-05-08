@@ -309,7 +309,15 @@ export default function ClientDetail() {
 
       {/* Documents Tab */}
       {activeTab === 'Documents' && (
-        <div className="grid grid-cols-[200px_1fr] gap-5">
+        <div>
+          <div className="flex justify-end mb-3">
+            <a href={`${API}/documents/client/${id}/download-all`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Download All
+            </a>
+          </div>
+          <div className="grid grid-cols-[200px_1fr] gap-5">
           {/* Folder tree — shows real doc counts */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-3">
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider px-2 mb-2">Folders</p>
@@ -400,6 +408,7 @@ export default function ClientDetail() {
 
             <DocumentTable documents={visibleDocs} canChangeStatus={can.seeInternalDocs} />
           </div>
+        </div>
         </div>
       )}
 
