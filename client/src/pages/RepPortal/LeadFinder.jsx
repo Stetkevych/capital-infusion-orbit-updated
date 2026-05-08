@@ -170,27 +170,49 @@ export default function LeadFinder() {
   const runSearch = async (pg = 1) => {
     setSearching(true); setError(''); setChecked(new Set());
     try {
-      const kwParts = [];
-      if (filters.keyword) kwParts.push(filters.keyword);
-      const industryStr = filters.industries.length ? filters.industries.join(' OR ') : '';
-      const bizStr = filters.bizTypes.length ? filters.bizTypes.join(' OR ') : '';
-      const allKw = [industryStr, bizStr, ...kwParts].filter(Boolean).join(' ');
-      const body = {
+      const baseBody = {
         page: pg, per_page: 100,
         person_titles: filters.titles,
         person_locations: filters.locations,
         organization_num_employees_ranges: filters.empRanges,
-        q_keywords: allKw,
         person_seniorities: ['owner', 'founder', 'c_suite'],
       };
-      const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
-      if (!res.ok) {
-        const txt = await res.text();
-        try { throw new Error(JSON.parse(txt).error || txt); } catch (e) { if (e.message) throw e; throw new Error(txt.slice(0, 100)); }
+
+      const kwParts = [...filters.bizTypes];
+      if (filters.keyword) kwParts.push(filters.keyword);
+      const baseKeyword = kwParts.join(' ');
+
+      let allPeople = [];
+      console.log('Selected industries:', filters.industries);
+
+      if (filters.industries.length <= 1) {
+        // Single or no industry — one call
+        const body = { ...baseBody, q_keywords: [filters.industries[0], baseKeyword].filter(Boolean).join(' ') };
+        console.log('Final search payload:', body);
+        const res = await fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!res.ok) { const txt = await res.text(); throw new Error(txt); }
+        const data = await res.json();
+        allPeople = data.people || [];
+        setTotalResults(data.pagination?.total_entries || allPeople.length);
+      } else {
+        // Multiple industries — parallel calls, merge & dedupe
+        const calls = filters.industries.map(ind => {
+          const body = { ...baseBody, q_keywords: [ind, baseKeyword].filter(Boolean).join(' ') };
+          return fetch(`${API}/apollo/search`, { method: 'POST', headers, body: JSON.stringify(body) }).then(r => r.ok ? r.json() : { people: [] });
+        });
+        console.log('Final search payload (multi):', filters.industries.map(ind => ({ ...baseBody, q_keywords: [ind, baseKeyword].filter(Boolean).join(' ') })));
+        const results = await Promise.all(calls);
+        const seen = new Set();
+        results.forEach(data => {
+          (data.people || []).forEach(p => {
+            const key = p.id || p.email || (p.first_name + p.last_name + p.organization?.name);
+            if (!seen.has(key)) { seen.add(key); allPeople.push(p); }
+          });
+        });
+        setTotalResults(allPeople.length);
       }
-      const data = await res.json();
-      const mapped = (data.people || [])
-        .map(p => ({
+
+      const mapped = allPeople.map(p => ({
           id: p.id,
           contact_name: `${p.first_name || ''} ${p.last_name || p.last_name_obfuscated || ''}`.trim(),
           title: p.title || '', company_name: p.organization?.name || '',
@@ -202,14 +224,12 @@ export default function LeadFinder() {
           obtained: false,
           phone: p.phone_numbers?.[0]?.sanitized_number || '', has_phone: p.has_direct_phone === 'Yes',
           linkedin_url: p.linkedin_url || '', source: 'Apollo',
-        }));
-      setLeads(mapped); setTotalEntries(data.total_entries || 0); setPage(pg);
-      // Cross-reference enriched leads from localStorage
+      }));
+      setLeads(mapped); setPage(pg);
       const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
       const savedIds = new Set(saved.map(s => s.id));
       const withObtained = mapped.map(l => ({ ...l, obtained: savedIds.has(l.id) }));
       setLeads(withObtained);
-      // Zoho check is manual — click "Check Zoho" button in header
     } catch (e) { setError(e.message); }
     setSearching(false);
   };
