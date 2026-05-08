@@ -150,7 +150,7 @@ router.get('/rep-metrics', adminOnly, async (req, res) => {
       loadFromS3('client_sessions.json'),
     ]);
 
-    const repUsers = users.filter(u => u.role === 'rep' && u.is_active);
+    const repUsers = users.filter(u => (u.role === 'rep' || u.role === 'team_lead') && u.is_active);
     const activeClients = clients.filter(c => !c.deleted);
     const clientLogins = activity.filter(a => a.eventType === 'login');
     const sessionList = Array.isArray(sessions) ? sessions : [];
