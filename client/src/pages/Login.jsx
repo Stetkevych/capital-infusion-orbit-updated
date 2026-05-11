@@ -14,8 +14,23 @@ export default function Login() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMsg, setForgotMsg] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+  React.useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,6 +81,14 @@ export default function Login() {
           </div>
 
           <p className="text-center text-gray-300 text-xs mt-8">Capital Infusion · Inc 5000 Company · Encrypted Software</p>
+
+          {isMobile && installPrompt && (
+            <button onClick={handleInstall}
+              className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Install Orbit App
+            </button>
+          )}
         </div>
       </div>
     );
