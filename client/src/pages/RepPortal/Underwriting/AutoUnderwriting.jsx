@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { Upload, FileText, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, Shield, Loader2, X } from 'lucide-react';
 
-const OCR_API = process.env.REACT_APP_OCR_URL || 'http://localhost:5000';
+const OCR_API = process.env.REACT_APP_OCR_URL || 'http://ocr-service-env.eba-edvt4p6e.us-east-1.elasticbeanstalk.com';
 
 function MetricCard({ label, value, sub, color = 'blue' }) {
   const colors = { blue: 'text-blue-600 bg-blue-50', green: 'text-green-600 bg-green-50', red: 'text-red-600 bg-red-50', purple: 'text-purple-600 bg-purple-50', amber: 'text-amber-600 bg-amber-50' };
