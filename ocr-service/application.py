@@ -213,9 +213,10 @@ def fallback_lender_detection_from_text(text):
     return rows, sum(r["Lender Debit Amount"] for r in rows)
 
 
+@application.route("/", methods=["GET"])
 @application.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "healthy", "service": "Capital Infusion Custom OCR"})
+    return "OK", 200
 
 
 @application.route("/analyze", methods=["POST"])

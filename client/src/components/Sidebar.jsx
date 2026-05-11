@@ -35,6 +35,7 @@ const REP_LINKS = [
   { path: '/funding-book', label: 'Funding Book', icon: BookOpen },
   { path: '/portfolio', label: 'Portfolio', icon: CreditCard },
   { path: '/lead-corroborator', label: 'Lead Corroborator', icon: GitCompare, adminOnly: true },
+  { path: '/puller-data', label: 'Puller Data', icon: BarChart2, adminOnly: true },
 ];
 
 const CLIENT_LINKS = [

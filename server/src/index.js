@@ -130,6 +130,10 @@ app.use('/api/zerobounce', zerobounceRoutes);
 const fundingBookRoutes = require('./routes/fundingBook');
 app.use('/api/funding-book', fundingBookRoutes);
 
+// Puller Data (BI analytics)
+const pullerDataRoutes = require('./routes/pullerData');
+app.use('/api/puller-data', pullerDataRoutes);
+
 // Email notifications (admin)
 const notifyRoutes = require('./routes/notify');
 app.use('/api/notify', notifyRoutes);
