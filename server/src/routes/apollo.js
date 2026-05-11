@@ -55,13 +55,14 @@ router.post('/enrich', async (req, res) => {
   }
 });
 
-// POST /api/apollo/enriched-leads — save enriched lead to server
+// POST /api/apollo/enriched-leads — save enriched lead to server (only if has email)
 router.post('/enriched-leads', async (req, res) => {
   try {
     const { loadFromS3, saveToS3 } = require('../services/s3Store');
     const leads = await loadFromS3('enriched_leads.json').catch(() => []);
     const lead = req.body;
     if (!lead || !lead.id) return res.status(400).json({ error: 'lead with id required' });
+    if (!lead.email) return res.status(400).json({ error: 'lead must have email to be saved' });
     const idx = leads.findIndex(l => l.id === lead.id);
     if (idx >= 0) leads[idx] = { ...leads[idx], ...lead };
     else leads.unshift(lead);
@@ -70,12 +71,23 @@ router.post('/enriched-leads', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/apollo/enriched-leads — get all enriched leads
+// GET /api/apollo/enriched-leads — get all enriched leads (only those with email)
 router.get('/enriched-leads', async (req, res) => {
   try {
     const { loadFromS3 } = require('../services/s3Store');
     const leads = await loadFromS3('enriched_leads.json').catch(() => []);
-    res.json(leads);
+    res.json(leads.filter(l => l.email));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/apollo/enriched-leads/cleanup — remove leads without email
+router.delete('/enriched-leads/cleanup', async (req, res) => {
+  try {
+    const { loadFromS3, saveToS3 } = require('../services/s3Store');
+    const leads = await loadFromS3('enriched_leads.json').catch(() => []);
+    const cleaned = leads.filter(l => l.email);
+    await saveToS3('enriched_leads.json', cleaned);
+    res.json({ before: leads.length, after: cleaned.length, removed: leads.length - cleaned.length });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
