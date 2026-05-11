@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -48,11 +48,10 @@ const CLIENT_LINKS = [
   { path: '/profile', label: 'Profile', icon: User },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onClose }) {
   const { viewMode, user, token } = useAuth();
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
-  const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
   const baseLinks = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
   const LOC_EMAILS = ['christopher.cranton@gmail.com'];
   const hasLoc = LOC_EMAILS.includes(user?.email?.toLowerCase());
@@ -84,17 +83,10 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile toggle button */}
-      <button onClick={() => setCollapsed(c => !c)}
-        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm"
-      >
-        <span className="text-gray-600 text-sm">{collapsed ? '☰' : '✕'}</span>
-      </button>
-
       {/* Overlay on mobile when open */}
-      {!collapsed && <div className="fixed inset-0 bg-black/20 z-30 md:hidden" onClick={() => setCollapsed(true)} />}
+      {mobileOpen && <div className="fixed inset-0 bg-black/20 z-30 md:hidden" onClick={onClose} />}
 
-      <div className={`${collapsed ? 'w-0 overflow-hidden md:w-52' : 'w-52'} bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm transition-all duration-200 fixed md:relative h-full z-40`}>
+      <div className={`${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm fixed md:relative h-full z-40 transition-transform duration-200`}>
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <nav className="space-y-0.5">
           {links.map(({ path, label, icon: Icon, badge }) => {
@@ -103,6 +95,7 @@ export default function Sidebar() {
               <Link
                 key={path}
                 to={path}
+                onClick={onClose}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-sm ${
                   active
                     ? 'bg-blue-50 text-blue-600 font-medium'

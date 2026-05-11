@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword';
 import Register from './pages/Register';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import BottomNav from './components/BottomNav';
 
 // Rep / Admin pages
 import RepDashboard from './pages/RepPortal/Dashboard';
@@ -53,6 +54,7 @@ import ClientLogins from './pages/RepPortal/ClientLogins';
 
 function AppShell() {
   const { user, viewMode } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!user) {
     return (
@@ -68,15 +70,16 @@ function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f4f5f7' }}>
-      <Sidebar />
+      <Sidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
-        <main id="orbit-main" className="flex-1 overflow-y-auto" style={{ background: '#f4f5f7' }}>
+        <main id="orbit-main" className="flex-1 overflow-y-auto pb-16 md:pb-0" style={{ background: '#f4f5f7' }}>
           <Suspense fallback={<div className="p-6 text-gray-400 text-sm">Loading...</div>}>
             {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
           </Suspense>
         </main>
       </div>
+      <BottomNav onMenuTap={() => setSidebarOpen(true)} />
     </div>
   );
 }
