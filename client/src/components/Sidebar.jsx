@@ -96,7 +96,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
                 key={path}
                 to={path}
                 onClick={onClose}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-sm ${
+                className={`flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg transition-all text-sm ${
                   active
                     ? 'bg-blue-50 text-blue-600 font-medium'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'

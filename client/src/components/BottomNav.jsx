@@ -17,8 +17,8 @@ export default function BottomNav({ onMenuTap }) {
   if (viewMode === 'client') return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-200 shadow-lg">
-      <div className="flex items-center justify-around h-14">
+    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-200 shadow-lg safe-area-bottom">
+      <div className="flex items-center justify-around h-16">
         {TABS.map(({ path, icon: Icon, label }) => {
           const active = location.pathname === path;
           return (

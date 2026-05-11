@@ -177,7 +177,8 @@ export default function FundingBook() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <p className="text-xs text-gray-400 mb-2 md:hidden">← Scroll horizontally to see all columns →</p>
+      <div className="flex-1 overflow-auto -webkit-overflow-scrolling-touch">
         <table className="w-max min-w-full text-xs">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">

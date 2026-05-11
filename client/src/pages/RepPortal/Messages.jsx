@@ -68,9 +68,9 @@ export default function Messages() {
         </button>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex" style={{ height: '500px' }}>
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row" style={{ height: '500px' }}>
         {/* Left panel */}
-        <div className="w-72 border-r border-gray-100 flex flex-col shrink-0">
+        <div className="w-full md:w-72 border-b md:border-b-0 md:border-r border-gray-100 flex flex-col shrink-0 max-h-[200px] md:max-h-none">
           <div className="p-3 border-b border-gray-100">
             <p className="text-gray-500 text-xs font-medium uppercase tracking-wide px-1 mb-2">Conversations</p>
           </div>
