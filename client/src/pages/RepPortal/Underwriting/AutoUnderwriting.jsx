@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { Upload, FileText, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, Shield, Loader2, X } from 'lucide-react';
 
-const OCR_API = process.env.REACT_APP_OCR_URL || 'http://ocr-service-env.eba-edvt4p6e.us-east-1.elasticbeanstalk.com';
+const OCR_API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 function MetricCard({ label, value, sub, color = 'blue' }) {
   const colors = { blue: 'text-blue-600 bg-blue-50', green: 'text-green-600 bg-green-50', red: 'text-red-600 bg-red-50', purple: 'text-purple-600 bg-purple-50', amber: 'text-amber-600 bg-amber-50' };
@@ -44,7 +44,7 @@ export default function AutoUnderwriting() {
     try {
       const fd = new FormData();
       files.forEach(f => fd.append('files', f));
-      const res = await fetch(`${OCR_API}/analyze`, { method: 'POST', body: fd });
+      const res = await fetch(`${OCR_API}/ocr/analyze`, { method: 'POST', body: fd });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Analysis failed'); }
       setResults(await res.json());
     } catch (e) { setError(e.message); }

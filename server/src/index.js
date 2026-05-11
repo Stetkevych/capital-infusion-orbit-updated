@@ -134,6 +134,24 @@ app.use('/api/funding-book', fundingBookRoutes);
 const notifyRoutes = require('./routes/notify');
 app.use('/api/notify', notifyRoutes);
 
+// OCR Proxy — forwards to OCR service (avoids mixed content)
+const multerOcr = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+app.post('/api/ocr/analyze', multerOcr.array('files', 20), async (req, res) => {
+  try {
+    const FormData = require('form-data');
+    const axios = require('axios');
+    const form = new FormData();
+    (req.files || []).forEach(f => form.append('files', f.buffer, { filename: f.originalname, contentType: f.mimetype }));
+    const ocrRes = await axios.post('http://ocr-service-env.eba-edvt4p6e.us-east-1.elasticbeanstalk.com/analyze', form, {
+      headers: form.getHeaders(), maxContentLength: Infinity, timeout: 120000,
+    });
+    res.json(ocrRes.data);
+  } catch (e) {
+    console.error('[OCR Proxy]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
