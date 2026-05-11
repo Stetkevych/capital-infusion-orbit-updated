@@ -52,6 +52,7 @@ export default function Sidebar() {
   const { viewMode, user, token } = useAuth();
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
+  const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
   const baseLinks = viewMode === 'client' ? CLIENT_LINKS : REP_LINKS;
   const LOC_EMAILS = ['christopher.cranton@gmail.com'];
   const hasLoc = LOC_EMAILS.includes(user?.email?.toLowerCase());
@@ -82,7 +83,18 @@ export default function Sidebar() {
   const isClient = viewMode === 'client';
 
   return (
-    <div className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm">
+    <>
+      {/* Mobile toggle button */}
+      <button onClick={() => setCollapsed(c => !c)}
+        className="fixed top-3 left-3 z-50 md:hidden w-9 h-9 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm"
+      >
+        <span className="text-gray-600 text-sm">{collapsed ? '☰' : '✕'}</span>
+      </button>
+
+      {/* Overlay on mobile when open */}
+      {!collapsed && <div className="fixed inset-0 bg-black/20 z-30 md:hidden" onClick={() => setCollapsed(true)} />}
+
+      <div className={`${collapsed ? 'w-0 overflow-hidden md:w-52' : 'w-52'} bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm transition-all duration-200 fixed md:relative h-full z-40`}>
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <nav className="space-y-0.5">
           {links.map(({ path, label, icon: Icon, badge }) => {
@@ -118,6 +130,7 @@ export default function Sidebar() {
           <p className="text-gray-400 text-xs leading-relaxed">Contact your rep or email support@capital-infusion.com</p>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

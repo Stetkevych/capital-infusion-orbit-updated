@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogOut } from 'lucide-react';
@@ -6,7 +6,13 @@ import { LogOut } from 'lucide-react';
 export default function Navbar() {
   const { user, viewMode, canSwitchView, switchView, logout } = useAuth();
   const navigate = useNavigate();
+  const [zoom, setZoom] = useState(100);
   const onLogout = () => { logout(); navigate('/login'); };
+
+  const changeZoom = (val) => {
+    setZoom(val);
+    document.getElementById('orbit-main')?.style.setProperty('zoom', val / 100);
+  };
 
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 shadow-sm">
@@ -22,6 +28,12 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Zoom control */}
+        <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg px-1.5 py-0.5">
+          <button onClick={() => changeZoom(Math.max(70, zoom - 10))} className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 text-sm font-bold rounded">−</button>
+          <span className="text-xs text-gray-500 w-8 text-center">{zoom}%</span>
+          <button onClick={() => changeZoom(Math.min(130, zoom + 10))} className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-800 text-sm font-bold rounded">+</button>
+        </div>
         {canSwitchView && (
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
             <button
