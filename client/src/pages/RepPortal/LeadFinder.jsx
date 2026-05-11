@@ -166,6 +166,22 @@ export default function LeadFinder() {
   });
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  const [serverEnrichedIds, setServerEnrichedIds] = useState(new Set());
+
+  // Sync enriched leads from server on mount
+  useEffect(() => {
+    fetch(`${API}/apollo/enriched-leads`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setServerEnrichedIds(new Set(data.map(l => l.id)));
+          localStorage.setItem('orbit_enriched_leads', JSON.stringify(data));
+        }
+      }).catch(() => {
+        const local = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
+        setServerEnrichedIds(new Set(local.map(l => l.id)));
+      });
+  }, []);
 
   const runSearch = async (pg = 1) => {
     setSearching(true); setError(''); setChecked(new Set());
@@ -226,9 +242,8 @@ export default function LeadFinder() {
           linkedin_url: p.linkedin_url || '', source: 'Apollo',
       }));
       setLeads(mapped); setPage(pg);
-      const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
-      const savedIds = new Set(saved.map(s => s.id));
-      const withObtained = mapped.map(l => ({ ...l, obtained: savedIds.has(l.id) }));
+      // Cross-reference with server-side enriched leads
+      const withObtained = mapped.map(l => ({ ...l, obtained: serverEnrichedIds.has(l.id) }));
       setLeads(withObtained);
     } catch (e) { setError(e.message); }
     setSearching(false);
@@ -255,6 +270,9 @@ export default function LeadFinder() {
       };
       setSelected(updated);
       setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
+      // Save to server
+      fetch(`${API}/apollo/enriched-leads`, { method: 'POST', headers, body: JSON.stringify(updated) }).catch(() => {});
+      // Also save to localStorage for offline access
       const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
       const exists = saved.findIndex(s => s.id === updated.id);
       if (exists >= 0) saved[exists] = updated; else saved.unshift(updated);
@@ -329,6 +347,8 @@ export default function LeadFinder() {
         setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
         const idx = saved.findIndex(s => s.id === updated.id);
         if (idx >= 0) saved[idx] = updated; else saved.unshift(updated);
+        // Save to server
+        fetch(`${API}/apollo/enriched-leads`, { method: 'POST', headers, body: JSON.stringify(updated) }).catch(() => {});
       } catch {}
       count++;
       setMassProgress({ done: count, total: sel.length });

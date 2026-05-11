@@ -55,4 +55,37 @@ router.post('/enrich', async (req, res) => {
   }
 });
 
+// POST /api/apollo/enriched-leads — save enriched lead to server
+router.post('/enriched-leads', async (req, res) => {
+  try {
+    const { loadFromS3, saveToS3 } = require('../services/s3Store');
+    const leads = await loadFromS3('enriched_leads.json').catch(() => []);
+    const lead = req.body;
+    if (!lead || !lead.id) return res.status(400).json({ error: 'lead with id required' });
+    const idx = leads.findIndex(l => l.id === lead.id);
+    if (idx >= 0) leads[idx] = { ...leads[idx], ...lead };
+    else leads.unshift(lead);
+    await saveToS3('enriched_leads.json', leads);
+    res.json({ count: leads.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/apollo/enriched-leads — get all enriched leads
+router.get('/enriched-leads', async (req, res) => {
+  try {
+    const { loadFromS3 } = require('../services/s3Store');
+    const leads = await loadFromS3('enriched_leads.json').catch(() => []);
+    res.json(leads);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/apollo/enriched-leads/count — just the count
+router.get('/enriched-leads/count', async (req, res) => {
+  try {
+    const { loadFromS3 } = require('../services/s3Store');
+    const leads = await loadFromS3('enriched_leads.json').catch(() => []);
+    res.json({ count: leads.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

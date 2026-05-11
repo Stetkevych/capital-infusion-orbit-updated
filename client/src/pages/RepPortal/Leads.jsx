@@ -15,13 +15,26 @@ function Badge({ status }) {
 }
 
 export default function Leads() {
+  const { token } = useAuth();
   const [leads, setLeads] = useState([]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]');
-    setLeads(saved);
+    // Pull from server first, fall back to localStorage
+    fetch(`${API}/apollo/enriched-leads`, { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          setLeads(data);
+          localStorage.setItem('orbit_enriched_leads', JSON.stringify(data));
+        } else {
+          setLeads(JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]'));
+        }
+      })
+      .catch(() => setLeads(JSON.parse(localStorage.getItem('orbit_enriched_leads') || '[]')));
   }, []);
 
   const removeLead = (id) => {
