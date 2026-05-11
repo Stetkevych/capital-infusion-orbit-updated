@@ -317,7 +317,7 @@ export default function ClientDetail() {
               Download All
             </a>
           </div>
-          <div className="grid grid-cols-[200px_1fr] gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-5">
           {/* Folder tree — shows real doc counts */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-3">
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider px-2 mb-2">Folders</p>

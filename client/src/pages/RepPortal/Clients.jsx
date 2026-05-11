@@ -391,7 +391,7 @@ export default function ClientsPage() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients..." className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all" />
@@ -409,7 +409,8 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white border border-gray-100 rounded-2xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
@@ -524,6 +525,39 @@ export default function ClientsPage() {
               Load more ({clients.length - visibleCount} remaining)
             </button>
           </div>
+        )}
+      </div>
+
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {visibleClients.map(c => {
+          const docs = allDocs.filter(d => d.clientId === c.id);
+          return (
+            <Link key={c.id} to={`/clients/${c.id}`} className="block bg-white border border-gray-100 rounded-xl p-4 shadow-sm active:bg-gray-50 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-900 font-semibold text-sm truncate">{c.businessName}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">{c.ownerName}</p>
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border shrink-0 ml-2 ${
+                  c.status === 'Complete' ? 'bg-green-50 border-green-200 text-green-700'
+                  : c.status === 'Inactive' ? 'bg-gray-50 border-gray-200 text-gray-500'
+                  : 'bg-blue-50 border-blue-200 text-blue-700'
+                }`}>{c.status || 'Working'}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                {c.industry && <span>{c.industry}</span>}
+                {c.state && <span>{c.state}</span>}
+                <span>{docs.length} docs</span>
+              </div>
+            </Link>
+          );
+        })}
+        {clients.length === 0 && <p className="text-center text-gray-400 text-sm py-8">No clients found.</p>}
+        {hasMore && (
+          <button onClick={() => setVisibleCount(v => Math.min(v + 50, clients.length))} className="w-full py-3 text-blue-600 text-sm font-medium">
+            Load more ({clients.length - visibleCount} remaining)
+          </button>
         )}
       </div>
 

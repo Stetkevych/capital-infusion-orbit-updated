@@ -61,7 +61,7 @@ export default function RepDashboard() {
         <p className="text-gray-400 text-sm mt-0.5">Welcome back, {user.name}{isAdmin && <span className="ml-2 text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">Admin</span>}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
           <Link key={s.label} to={s.link} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:border-gray-200 hover:shadow-md transition-all cursor-pointer">
             <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-4`}>
