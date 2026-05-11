@@ -75,7 +75,9 @@ function AppShell() {
         <Navbar />
         <main id="orbit-main" className="flex-1 overflow-y-auto pb-16 md:pb-0 px-3 md:px-0" style={{ background: '#f4f5f7' }}>
           <Suspense fallback={<div className="p-6 text-gray-400 text-sm">Loading...</div>}>
-            {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
+            <div className="animate-fadeIn">
+              {viewMode === 'client' ? <ClientRoutes /> : <RepRoutes />}
+            </div>
           </Suspense>
         </main>
       </div>

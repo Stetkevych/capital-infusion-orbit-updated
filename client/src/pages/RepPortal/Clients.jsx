@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CLIENTS, getClientsByRep, getMissingCategories, getDocumentsByClient, getRepById, DOC_CATEGORIES } from '../../data/mockData';
 import StatusBadge from '../../components/shared/StatusBadge';
 import { Search, AlertCircle, FileText, ArrowRight, Plus, X, CheckCircle2, Send, Bell, Trash2, RotateCcw } from 'lucide-react';
+import { SkeletonClients } from '../../components/Skeleton';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -24,6 +25,7 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState(null);
   const [realClients, setRealClients] = useState([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [deletedClients, setDeletedClients] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
   const [allDocs, setAllDocs] = useState([]);
@@ -45,8 +47,8 @@ export default function ClientsPage() {
   useEffect(() => {
     fetch(`${API}/clients-api`, { headers })
       .then(r => r.ok ? r.json() : [])
-      .then(data => setRealClients(data))
-      .catch(() => {});
+      .then(data => { setRealClients(data); setInitialLoading(false); })
+      .catch(() => setInitialLoading(false));
     fetch(`${API}/clients-api/deleted/all`, { headers })
       .then(r => r.ok ? r.json() : [])
       .then(data => setDeletedClients(data))
@@ -237,6 +239,8 @@ export default function ClientsPage() {
     setPermDeleteConfirm(null);
     setTimeout(() => setNotification(null), 4000);
   };
+
+  if (initialLoading) return <SkeletonClients />;
 
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
