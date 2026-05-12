@@ -36,6 +36,7 @@ const REP_LINKS = [
   { path: '/portfolio', label: 'Portfolio', icon: CreditCard },
   { path: '/lead-corroborator', label: 'Lead Corroborator', icon: GitCompare, adminOnly: true },
   { path: '/puller-data', label: 'Puller Data', icon: BarChart2, adminOnly: true },
+  { path: '/rocketreach', label: 'RocketReach', icon: Search, adminOnly: true },
 ];
 
 const CLIENT_LINKS = [

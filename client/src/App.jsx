@@ -40,6 +40,7 @@ const Leads = lazy(() => import('./pages/RepPortal/Leads'));
 const FundingBook = lazy(() => import('./pages/RepPortal/FundingBook'));
 const LeadCorroborator = lazy(() => import('./pages/RepPortal/LeadCorroborator'));
 const PullerData = lazy(() => import('./pages/RepPortal/PullerData'));
+const RocketReach = lazy(() => import('./pages/RepPortal/RocketReach'));
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -116,6 +117,7 @@ function RepRoutes() {
       <Route path="/funding-book" element={<FundingBook />} />
       <Route path="/lead-corroborator" element={<LeadCorroborator />} />
       <Route path="/puller-data" element={<PullerData />} />
+      <Route path="/rocketreach" element={<RocketReach />} />
       <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />

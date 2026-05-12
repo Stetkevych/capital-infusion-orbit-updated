@@ -138,6 +138,10 @@ app.use('/api/puller-data', pullerDataRoutes);
 const notifyRoutes = require('./routes/notify');
 app.use('/api/notify', notifyRoutes);
 
+// RocketReach email lookup
+const rocketreachRoutes = require('./routes/rocketreach');
+app.use('/api/rocketreach', rocketreachRoutes);
+
 // OCR results storage (per client)
 const ocrResultsRoutes = require('./routes/ocrResults');
 app.use('/api/ocr', ocrResultsRoutes);
