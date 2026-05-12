@@ -13,15 +13,13 @@ router.post('/lookup', async (req, res) => {
     const { name, company, linkedin_url } = req.body;
     if (!name && !linkedin_url) return res.status(400).json({ error: 'name or linkedin_url required' });
 
-    const body = {};
-    if (linkedin_url) body.linkedin_url = linkedin_url;
-    if (name) body.name = name;
-    if (company) body.current_employer = company;
+    const params = new URLSearchParams();
+    if (linkedin_url) params.append('linkedin_url', linkedin_url);
+    if (name) params.append('name', name);
+    if (company) params.append('current_employer', company);
 
-    const response = await fetch(`${BASE}/lookupProfile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Api-Key': RR_KEY },
-      body: JSON.stringify(body),
+    const response = await fetch(`${BASE}/lookupProfile?${params.toString()}`, {
+      headers: { 'Api-Key': RR_KEY },
     });
 
     if (!response.ok) {
