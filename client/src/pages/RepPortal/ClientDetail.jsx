@@ -502,15 +502,10 @@ export default function ClientDetail() {
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="text-center"><p className="text-xs text-gray-400">Revenue</p><p className="text-lg font-bold text-green-600">${Number(entry.results.summary.total_revenue || 0).toLocaleString()}</p></div>
-                  <div className="text-center"><p className="text-xs text-gray-400">Debits</p><p className="text-lg font-bold text-red-600">${Number(entry.results.summary.total_debits || 0).toLocaleString()}</p></div>
-                  <div className="text-center"><p className="text-xs text-gray-400">Cash Flow</p><p className={`text-lg font-bold ${entry.results.summary.cash_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>${Number(entry.results.summary.cash_flow || 0).toLocaleString()}</p></div>
-                  <div className="text-center"><p className="text-xs text-gray-400">Risk</p><p className={`text-lg font-bold ${entry.results.summary.risk_score > 60 ? 'text-red-600' : entry.results.summary.risk_score > 30 ? 'text-amber-600' : 'text-green-600'}`}>{entry.results.summary.risk_score} — {entry.results.summary.risk_level}</p></div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div><p className="text-xs text-gray-400">Withholding</p><p className="text-sm font-semibold text-gray-700">{entry.results.summary.withholding_rate?.toFixed(1)}%</p></div>
-                  <div><p className="text-xs text-gray-400">NSF Count</p><p className="text-sm font-semibold text-gray-700">{entry.results.summary.nsf_count}</p></div>
-                  <div><p className="text-xs text-gray-400">Lender Debits</p><p className="text-sm font-semibold text-purple-600">${Number(entry.results.summary.total_lender_debits || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Monthly Revenue</p><p className="text-lg font-bold text-green-600">${Number(entry.results.summary.monthly_revenue || entry.results.summary.total_revenue || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Total Credits</p><p className="text-lg font-bold text-blue-600">${Number(entry.results.summary.total_credits || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Total Debits</p><p className="text-lg font-bold text-red-600">${Number(entry.results.summary.total_debits || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Cash Flow</p><p className={`text-lg font-bold ${(entry.results.summary.cash_flow || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${Number(entry.results.summary.cash_flow || 0).toLocaleString()}</p></div>
                 </div>
                 {entry.results.lenders && entry.results.lenders.length > 0 && (
                   <div>

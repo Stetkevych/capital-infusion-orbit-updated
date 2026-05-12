@@ -14,7 +14,7 @@ export default function AutoUnderwriting() {
   const [saved, setSaved] = useState(false);
   const [showSave, setShowSave] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ revenue: '', debits: '', nsfs: '', withholding_rate: '' });
+  const [form, setForm] = useState({ monthly_revenue: '', total_credits: '', total_debits: '', cash_flow: '' });
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
@@ -44,11 +44,10 @@ export default function AutoUnderwriting() {
     try {
       const results = {
         summary: {
-          total_revenue: parseFloat(form.revenue) || 0,
-          total_debits: parseFloat(form.debits) || 0,
-          nsf_count: parseInt(form.nsfs) || 0,
-          withholding_rate: parseFloat(form.withholding_rate) || 0,
-          cash_flow: (parseFloat(form.revenue) || 0) - (parseFloat(form.debits) || 0),
+          monthly_revenue: parseFloat(form.monthly_revenue) || 0,
+          total_credits: parseFloat(form.total_credits) || 0,
+          total_debits: parseFloat(form.total_debits) || 0,
+          cash_flow: parseFloat(form.cash_flow) || 0,
         }
       };
       const res = await fetch(`${API}/ocr/results`, {
@@ -90,7 +89,7 @@ export default function AutoUnderwriting() {
           {saved ? (
             <div className="flex items-center gap-2 text-green-600 text-sm">
               <CheckCircle2 size={14} /> Saved successfully
-              <button onClick={() => { setSaved(false); setShowSave(false); setForm({ revenue: '', debits: '', nsfs: '', withholding_rate: '' }); setSelectedClient(''); }} className="ml-auto text-gray-400 hover:text-gray-600"><X size={14} /></button>
+              <button onClick={() => { setSaved(false); setShowSave(false); setForm({ monthly_revenue: '', total_credits: '', total_debits: '', cash_flow: '' }); setSelectedClient(''); }} className="ml-auto text-gray-400 hover:text-gray-600"><X size={14} /></button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -108,23 +107,23 @@ export default function AutoUnderwriting() {
               </select>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Revenue</label>
-                  <input type="number" value={form.revenue} onChange={e => setForm(f => ({ ...f, revenue: e.target.value }))} placeholder="0.00"
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Monthly Revenue</label>
+                  <input type="number" value={form.monthly_revenue} onChange={e => setForm(f => ({ ...f, monthly_revenue: e.target.value }))} placeholder="0.00"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Debits</label>
-                  <input type="number" value={form.debits} onChange={e => setForm(f => ({ ...f, debits: e.target.value }))} placeholder="0.00"
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Total Credits</label>
+                  <input type="number" value={form.total_credits} onChange={e => setForm(f => ({ ...f, total_credits: e.target.value }))} placeholder="0.00"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">NSFs</label>
-                  <input type="number" value={form.nsfs} onChange={e => setForm(f => ({ ...f, nsfs: e.target.value }))} placeholder="0"
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Total Debits</label>
+                  <input type="number" value={form.total_debits} onChange={e => setForm(f => ({ ...f, total_debits: e.target.value }))} placeholder="0.00"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Withholding %</label>
-                  <input type="number" value={form.withholding_rate} onChange={e => setForm(f => ({ ...f, withholding_rate: e.target.value }))} placeholder="0.0"
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Cash Flow</label>
+                  <input type="number" value={form.cash_flow} onChange={e => setForm(f => ({ ...f, cash_flow: e.target.value }))} placeholder="0.00"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20" />
                 </div>
               </div>
