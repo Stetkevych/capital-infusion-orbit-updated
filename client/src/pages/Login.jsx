@@ -82,7 +82,7 @@ export default function Login() {
 
           <p className="text-center text-gray-300 text-xs mt-8">Capital Infusion · Inc 5000 Company · Encrypted Software</p>
 
-          {isMobile && installPrompt && (
+          {installPrompt && (
             <button onClick={handleInstall}
               className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
