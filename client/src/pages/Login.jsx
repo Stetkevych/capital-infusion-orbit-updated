@@ -82,11 +82,22 @@ export default function Login() {
 
           <p className="text-center text-gray-300 text-xs mt-8">Capital Infusion · Inc 5000 Company · Encrypted Software</p>
 
-          {installPrompt && (
+          {installPrompt ? (
             <button onClick={handleInstall}
-              className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-colors">
+              className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              Install Orbit App
+              Download Mobile App
+            </button>
+          ) : isMobile && (
+            <button onClick={() => {
+              if (/iPhone|iPad/i.test(navigator.userAgent)) {
+                alert('To install Orbit: tap the Share button (box with arrow) at the bottom of Safari, then tap "Add to Home Screen"');
+              } else {
+                alert('To install Orbit: tap the browser menu (⋮) and select "Add to Home Screen" or "Install App"');
+              }
+            }} className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Download Mobile App
             </button>
           )}
         </div>
