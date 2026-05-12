@@ -20,7 +20,7 @@ function fmt(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const TABS = ['Documents', 'Requests', 'Activity', 'Notes'];
+const TABS = ['Documents', 'Requests', 'Activity', 'Notes', 'Underwriting'];
 
 export default function ClientDetail() {
   const { id } = useParams();
@@ -40,6 +40,7 @@ export default function ClientDetail() {
   const [sendingCustom, setSendingCustom] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [clientActivity, setClientActivity] = useState([]);
+  const [ocrResults, setOcrResults] = useState([]);
 
   const mockClient = getClientById(id);
   const client = mockClient || apiClient;
@@ -73,6 +74,11 @@ export default function ClientDetail() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setClientActivity(data.filter(a => a.clientId === id)))
       .catch(() => setClientActivity([]));
+
+    fetch(`${API}/ocr/results/${id}`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setOcrResults(data))
+      .catch(() => setOcrResults([]));
   }, [id]);
 
   if (!client) {
@@ -480,6 +486,51 @@ export default function ClientDetail() {
           {allDocs.filter(d => d.visibility === 'internal' && d.note).length === 0 && (
             <p className="text-gray-400 text-sm">No internal notes.</p>
           )}
+        </div>
+      )}
+
+      {/* Underwriting Tab */}
+      {activeTab === 'Underwriting' && (
+        <div className="space-y-4">
+          {ocrResults.length === 0 ? (
+            <p className="text-gray-400 text-sm">No underwriting data saved for this client.</p>
+          ) : ocrResults.map((entry, idx) => (
+            <div key={idx} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-900">Analysis #{ocrResults.length - idx}</span>
+                <span className="text-xs text-gray-400">{new Date(entry.analyzedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center"><p className="text-xs text-gray-400">Revenue</p><p className="text-lg font-bold text-green-600">${Number(entry.results.summary.total_revenue || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Debits</p><p className="text-lg font-bold text-red-600">${Number(entry.results.summary.total_debits || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Cash Flow</p><p className={`text-lg font-bold ${entry.results.summary.cash_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>${Number(entry.results.summary.cash_flow || 0).toLocaleString()}</p></div>
+                  <div className="text-center"><p className="text-xs text-gray-400">Risk</p><p className={`text-lg font-bold ${entry.results.summary.risk_score > 60 ? 'text-red-600' : entry.results.summary.risk_score > 30 ? 'text-amber-600' : 'text-green-600'}`}>{entry.results.summary.risk_score} — {entry.results.summary.risk_level}</p></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div><p className="text-xs text-gray-400">Withholding</p><p className="text-sm font-semibold text-gray-700">{entry.results.summary.withholding_rate?.toFixed(1)}%</p></div>
+                  <div><p className="text-xs text-gray-400">NSF Count</p><p className="text-sm font-semibold text-gray-700">{entry.results.summary.nsf_count}</p></div>
+                  <div><p className="text-xs text-gray-400">Lender Debits</p><p className="text-sm font-semibold text-purple-600">${Number(entry.results.summary.total_lender_debits || 0).toLocaleString()}</p></div>
+                </div>
+                {entry.results.lenders && entry.results.lenders.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-2">Detected Lenders</p>
+                    <div className="flex flex-wrap gap-2">
+                      {entry.results.lenders.map((l, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs rounded-lg border border-purple-100">{l['Detected Lender']} — ${Number(l['Lender Debit Amount'] || 0).toLocaleString()}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {entry.results.summary.notes && entry.results.summary.notes.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Notes</p>
+                    {entry.results.summary.notes.map((n, i) => <p key={i} className="text-xs text-gray-600">• {n}</p>)}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

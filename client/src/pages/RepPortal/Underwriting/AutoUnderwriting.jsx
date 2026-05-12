@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { Upload, FileText, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, Shield, Loader2, X } from 'lucide-react';
+import { Upload, FileText, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, Shield, Loader2, X, Save, Users } from 'lucide-react';
 
-const OCR_API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
+const OCR_URL = 'https://capital-infusion-ocr.onrender.com';
+const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
 function MetricCard({ label, value, sub, color = 'blue' }) {
   const colors = { blue: 'text-blue-600 bg-blue-50', green: 'text-green-600 bg-green-50', red: 'text-red-600 bg-red-50', purple: 'text-purple-600 bg-purple-50', amber: 'text-amber-600 bg-amber-50' };
@@ -26,30 +27,61 @@ export default function AutoUnderwriting() {
   const [analyzing, setAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [searchClient, setSearchClient] = useState('');
+
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetch(`${API}/clients-api/list`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setClients(Array.isArray(data) ? data : data.clients || []))
+      .catch(() => {});
+  }, []);
 
   const handleFiles = (e) => {
     const selected = Array.from(e.target.files || e.dataTransfer?.files || []);
     setFiles(prev => [...prev, ...selected]);
-    setResults(null);
-    setError('');
+    setResults(null); setError(''); setSaved(false);
   };
 
   const removeFile = (idx) => setFiles(prev => prev.filter((_, i) => i !== idx));
 
   const analyze = async () => {
     if (!files.length) return;
-    setAnalyzing(true);
-    setError('');
-    setResults(null);
+    setAnalyzing(true); setError(''); setResults(null); setSaved(false);
     try {
       const fd = new FormData();
       files.forEach(f => fd.append('files', f));
-      const res = await fetch(`${OCR_API}/ocr/analyze`, { method: 'POST', body: fd });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Analysis failed'); }
+      const res = await fetch(`${OCR_URL}/analyze`, { method: 'POST', body: fd });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Analysis failed'); }
       setResults(await res.json());
     } catch (e) { setError(e.message); }
     setAnalyzing(false);
   };
+
+  const saveToClient = async () => {
+    if (!selectedClient || !results) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/ocr/results`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ clientId: selectedClient, results, analyzedAt: new Date().toISOString() })
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      setSaved(true);
+    } catch (e) { setError(e.message); }
+    setSaving(false);
+  };
+
+  const filteredClients = clients.filter(c => {
+    if (!searchClient) return true;
+    const q = searchClient.toLowerCase();
+    return (c.business_name || '').toLowerCase().includes(q) || (c.full_name || '').toLowerCase().includes(q);
+  });
 
   const fmt = (n) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -102,6 +134,36 @@ export default function AutoUnderwriting() {
       {/* Results */}
       {results && (
         <div className="space-y-5">
+          {/* Save to Client */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Save size={14} className="text-blue-600" /> Save to Client
+            </h2>
+            {saved ? (
+              <div className="flex items-center gap-2 text-green-600 text-sm">
+                <CheckCircle2 size={14} /> Results saved to client successfully
+              </div>
+            ) : (
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <input value={searchClient} onChange={e => setSearchClient(e.target.value)} placeholder="Search clients..."
+                    className="w-full px-3 py-2 mb-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  <select value={selectedClient} onChange={e => setSelectedClient(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                    <option value="">Select a client...</option>
+                    {filteredClients.map(c => (
+                      <option key={c.id} value={c.id}>{c.business_name || c.full_name} {c.business_name && c.full_name ? `(${c.full_name})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <button onClick={saveToClient} disabled={!selectedClient || saving}
+                  className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl flex items-center gap-2">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <MetricCard label="Total Revenue" value={fmt(results.summary.total_revenue)} color="green" />

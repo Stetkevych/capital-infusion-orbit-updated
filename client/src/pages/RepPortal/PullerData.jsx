@@ -10,6 +10,7 @@ import { Database, TrendingUp, Filter, RefreshCw, Loader2, Download, Users, Chec
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 const STATUS_COLORS = { approved: '#10b981', declined: '#ef4444', default: '#f59e0b', fraud: '#dc2626', pending: '#6b7280' };
+const LEAD_SOURCES = ['Apple','Avocado','BMW','Business Loan AI','BusinessLoans','Chevy','Dodge','Employee','Facebook','Ferrari','Funnel','Hidden','ISO','Lending','Mailer','PHIL','Porsche','Referral','ROKUS','SPO','T&E','Toyota - Camry','Toyota - Yaris','Website','Waymo'];
 
 function StatCard({ label, value, sub, icon: Icon, color = 'blue' }) {
   const bg = { blue: 'bg-blue-50', green: 'bg-green-50', red: 'bg-red-50', amber: 'bg-amber-50', purple: 'bg-purple-50' };
@@ -132,7 +133,6 @@ export default function PullerData() {
 
   // Unique values for filters
   const reps = useMemo(() => [...new Set((data?.deals || []).map(d => d.rep_name).filter(Boolean))].sort(), [data]);
-  const leadSources = useMemo(() => [...new Set((data?.deals || []).map(d => d.lead_source).filter(Boolean))].sort(), [data]);
 
   const exportCSV = () => {
     if (!filtered.length) return;
@@ -191,7 +191,7 @@ export default function PullerData() {
           <select value={filters.leadSource} onChange={e => setFilters(p => ({ ...p, leadSource: e.target.value }))}
             className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
             <option value="">All Lead Sources</option>
-            {leadSources.map(s => <option key={s} value={s}>{s}</option>)}
+            {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <select value={filters.dateRange} onChange={e => setFilters(p => ({ ...p, dateRange: e.target.value }))}
             className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
