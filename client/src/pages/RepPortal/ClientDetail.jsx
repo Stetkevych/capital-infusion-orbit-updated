@@ -79,6 +79,11 @@ export default function ClientDetail() {
       .then(r => r.ok ? r.json() : [])
       .then(data => setOcrResults(data))
       .catch(() => setOcrResults([]));
+
+    fetch(`${API}/clients-api/requests/all`, { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPendingRequests(data.filter(r => r.clientId === id && r.status !== 'fulfilled')))
+      .catch(() => {});
   }, [id]);
 
   if (!client) {

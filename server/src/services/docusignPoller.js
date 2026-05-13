@@ -97,8 +97,16 @@ async function pollCompletedEnvelopes() {
 
         // Only create portal accounts for envelopes sent from @capital-infusion.com
         const isCapitalInfusion = senderEmail.toLowerCase().endsWith('@capital-infusion.com');
+        const EXCLUDED_SENDERS = ['jasmin@capital-infusion.com'];
+        const isExcluded = EXCLUDED_SENDERS.includes(senderEmail.toLowerCase());
         if (!isCapitalInfusion) {
           console.log(`[DocuSign Poll] Skipping account creation — sender ${senderEmail} is not @capital-infusion.com`);
+        }
+        if (isExcluded) {
+          console.log(`[DocuSign Poll] Skipping entirely — sender ${senderEmail} is excluded (HR/confidential)`);
+          processed.push({ envelopeId: env.envelopeId, processedAt: new Date().toISOString(), email: merchantEmail, skipped: true, reason: 'excluded_sender' });
+          await saveToS3('processed_envelopes.json', processed);
+          continue;
         }
 
         // 1. Create client (always — regardless of sender)
