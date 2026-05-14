@@ -4,7 +4,7 @@ const { authMiddleware } = require('./auth');
 
 router.use(authMiddleware);
 
-const RR_KEY = process.env.ROCKETREACH_API_KEY || '1e7ced2k0aaad4e6e1bc6436e76d188e5a4cf69d';
+const RR_KEY = process.env.ROCKETREACH_API_KEY || '1e7ced2k91ddcf7a0665cc3f075cdd330ce14938';
 const BASE = 'https://api.rocketreach.co/api/v2';
 
 // POST /api/rocketreach/lookup
@@ -40,6 +40,30 @@ router.post('/lookup', async (req, res) => {
     });
   } catch (e) {
     console.error('[RocketReach]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/rocketreach/search - Bulk search for people by title/location
+router.post('/search', async (req, res) => {
+  try {
+    const { titles = ['Founder', 'Co-Founder'], page_size = 10 } = req.body;
+    const response = await fetch(`${BASE}/search`, {
+      method: 'POST',
+      headers: { 'Api-Key': RR_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: { current_title: titles, location: ['United States'] },
+        page_size: Math.min(page_size, 100),
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.text().catch(() => '');
+      throw new Error(`RocketReach ${response.status}: ${err.slice(0, 300)}`);
+    }
+    const data = await response.json();
+    res.json({ profiles: data.profiles || [] });
+  } catch (e) {
+    console.error('[RocketReach Search]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, FolderOpen, FileText, Bell,
   StickyNote, Activity, Settings, Upload, User, CheckSquare,
-  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap, CreditCard, MessageSquare, Search, BookOpen, GitCompare
+  Zap, BarChart2, TrendingUp, HelpCircle, Key, Building2, Calculator, GraduationCap, CreditCard, MessageSquare, Search, BookOpen, GitCompare, Mail
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
@@ -30,13 +30,12 @@ const REP_LINKS = [
   { path: '/client-logins', label: 'Client Logins', icon: Key },
   { path: '/my-orbit', label: 'My Orbit', icon: User },
   { path: '/nexus-bot', label: 'Nexus Bot', icon: Zap, adminOnly: true },
-  { path: '/lead-finder', label: 'Lead Finder', icon: Search, adminOnly: true },
-  { path: '/leads', label: 'Leads', icon: Users, adminOnly: true },
+
   { path: '/funding-book', label: 'Funding Book', icon: BookOpen },
   { path: '/portfolio', label: 'Portfolio', icon: CreditCard },
   { path: '/lead-corroborator', label: 'Lead Corroborator', icon: GitCompare, adminOnly: true },
   { path: '/puller-data', label: 'Puller Data', icon: BarChart2, adminOnly: true },
-  { path: '/rocketreach', label: 'RocketReach', icon: Search, adminOnly: true },
+  { path: '/email-eagle', label: 'Email Eagle', icon: Mail, adminOnly: true },
 ];
 
 const CLIENT_LINKS = [

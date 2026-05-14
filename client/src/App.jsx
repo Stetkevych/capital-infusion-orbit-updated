@@ -35,12 +35,10 @@ import LeadData from './pages/RepPortal/LeadData';
 import Portfolio from './pages/RepPortal/Portfolio';
 import Messages from './pages/RepPortal/Messages';
 const NexusBot = lazy(() => import('./pages/RepPortal/NexusBot'));
-const LeadFinder = lazy(() => import('./pages/RepPortal/LeadFinder'));
-const Leads = lazy(() => import('./pages/RepPortal/Leads'));
+const RocketReach = lazy(() => import('./pages/RepPortal/RocketReach'));
 const FundingBook = lazy(() => import('./pages/RepPortal/FundingBook'));
 const LeadCorroborator = lazy(() => import('./pages/RepPortal/LeadCorroborator'));
 const PullerData = lazy(() => import('./pages/RepPortal/PullerData'));
-const RocketReach = lazy(() => import('./pages/RepPortal/RocketReach'));
 
 // Client pages
 import ClientDashboard from './pages/ClientPortal/Dashboard';
@@ -112,12 +110,10 @@ function RepRoutes() {
       <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/nexus-bot" element={<NexusBot />} />
-      <Route path="/lead-finder" element={<LeadFinder />} />
-      <Route path="/leads" element={<Leads />} />
       <Route path="/funding-book" element={<FundingBook />} />
       <Route path="/lead-corroborator" element={<LeadCorroborator />} />
       <Route path="/puller-data" element={<PullerData />} />
-      <Route path="/rocketreach" element={<RocketReach />} />
+      <Route path="/email-eagle" element={<RocketReach />} />
       <Route path="/my-orbit" element={<MyOrbitPage />} />
       <Route path="/users" element={<UserManagement />} />
       <Route path="/client-credentials" element={<ClientCredentials />} />
