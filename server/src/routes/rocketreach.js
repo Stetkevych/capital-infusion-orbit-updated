@@ -48,7 +48,7 @@ router.post('/lookup', async (req, res) => {
 router.post('/search', async (req, res) => {
   try {
     const { titles = ['Founder', 'Co-Founder'], page_size = 10 } = req.body;
-    const response = await fetch(`${BASE}/search`, {
+    const response = await fetch('https://api.rocketreach.co/v2/api/search', {
       method: 'POST',
       headers: { 'Api-Key': RR_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
