@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 const { authMiddleware } = require('./auth');
 
@@ -18,16 +19,11 @@ router.post('/lookup', async (req, res) => {
     if (name) params.append('name', name);
     if (company) params.append('current_employer', company);
 
-    const response = await fetch(`${BASE}/lookupProfile?${params.toString()}`, {
+    const response = await axios.get(`${BASE}/lookupProfile?${params.toString()}`, {
       headers: { 'Api-Key': RR_KEY },
     });
 
-    if (!response.ok) {
-      const err = await response.text().catch(() => '');
-      throw new Error(`RocketReach ${response.status}: ${err.slice(0, 300)}`);
-    }
-
-    const data = await response.json();
+    const data = response.data;
     res.json({
       name: data.name || data.first_name + ' ' + data.last_name,
       email: data.current_personal_email || data.current_work_email || (data.emails || [])[0]?.email || '',
@@ -48,19 +44,13 @@ router.post('/lookup', async (req, res) => {
 router.post('/search', async (req, res) => {
   try {
     const { titles = ['Founder', 'Co-Founder'], page_size = 10 } = req.body;
-    const response = await fetch('https://api.rocketreach.co/v2/api/search', {
-      method: 'POST',
+    const response = await axios.post('https://api.rocketreach.co/v2/api/search', {
+      query: { current_title: titles, location: ['United States'] },
+      page_size: Math.min(page_size, 100),
+    }, {
       headers: { 'Api-Key': RR_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: { current_title: titles, location: ['United States'] },
-        page_size: Math.min(page_size, 100),
-      }),
     });
-    if (!response.ok) {
-      const err = await response.text().catch(() => '');
-      throw new Error(`RocketReach ${response.status}: ${err.slice(0, 300)}`);
-    }
-    const data = await response.json();
+    const data = response.data;
     // Map profiles to include available info
     const profiles = (data.profiles || []).map(p => ({
       id: p.id,
