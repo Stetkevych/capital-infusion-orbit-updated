@@ -61,7 +61,20 @@ router.post('/search', async (req, res) => {
       throw new Error(`RocketReach ${response.status}: ${err.slice(0, 300)}`);
     }
     const data = await response.json();
-    res.json({ profiles: data.profiles || [] });
+    // Map profiles to include available info
+    const profiles = (data.profiles || []).map(p => ({
+      id: p.id,
+      name: p.name || '',
+      current_title: p.current_title || '',
+      current_employer: p.current_employer || '',
+      location: p.location || '',
+      linkedin_url: p.linkedin_url || '',
+      teaser_emails: p.teaser?.emails || [],
+      teaser_phones: p.teaser?.phones || [],
+      personal_emails: p.teaser?.personal_emails || [],
+      professional_emails: p.teaser?.professional_emails || [],
+    }));
+    res.json({ profiles, total: data.pagination?.total || 0 });
   } catch (e) {
     console.error('[RocketReach Search]', e.message);
     res.status(500).json({ error: e.message });

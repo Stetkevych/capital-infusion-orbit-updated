@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Mail, Building2, MapPin, Loader2, Copy, CheckCircle2, Download, User } from 'lucide-react';
+import { Search, Mail, Loader2, Copy, CheckCircle2, Download, Eye } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -9,7 +9,9 @@ export default function RocketReach() {
   const [titles, setTitles] = useState('Founder,Co-Founder');
   const [pageSize, setPageSize] = useState(10);
   const [results, setResults] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [revealing, setRevealing] = useState(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -22,15 +24,32 @@ export default function RocketReach() {
         method: 'POST', headers,
         body: JSON.stringify({ titles: titles.split(',').map(t => t.trim()), page_size: pageSize }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Search failed'); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Search failed'); }
       const data = await res.json();
       setResults(data.profiles || []);
+      setTotal(data.total || 0);
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
 
+  const revealEmail = async (profile, idx) => {
+    setRevealing(idx);
+    try {
+      const res = await fetch(`${API}/rocketreach/lookup`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ name: profile.name, company: profile.current_employer, linkedin_url: profile.linkedin_url }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Lookup failed'); }
+      const data = await res.json();
+      setResults(prev => prev.map((p, i) => i === idx ? { ...p, revealed_email: data.email, revealed_phone: data.phone } : p));
+    } catch (e) { setError(e.message); }
+    setRevealing(null);
+  };
+
+  const getEmail = (p) => p.revealed_email || p.personal_emails?.[0] || p.professional_emails?.[0] || p.teaser_emails?.[0] || '';
+
   const copyEmails = () => {
-    const emails = results.map(p => p.current_personal_email || p.current_work_email || (p.emails?.[0]?.email) || '').filter(Boolean);
+    const emails = results.map(getEmail).filter(Boolean);
     if (!emails.length) return;
     navigator.clipboard.writeText(emails.join('\n'));
     setCopied(true);
@@ -39,12 +58,9 @@ export default function RocketReach() {
 
   const exportCSV = () => {
     if (!results.length) return;
-    const cols = ['name', 'title', 'company', 'email', 'location'];
-    const rows = results.map(p => {
-      const email = p.current_personal_email || p.current_work_email || (p.emails?.[0]?.email) || '';
-      return [p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(), p.current_title || '', p.current_employer || '', email, p.location || '']
-        .map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
-    });
+    const cols = ['name', 'title', 'company', 'email', 'location', 'linkedin_url'];
+    const rows = results.map(p => [p.name, p.current_title, p.current_employer, getEmail(p), p.location, p.linkedin_url]
+      .map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
     const blob = new Blob([[cols.join(','), ...rows].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `email-eagle-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
@@ -95,7 +111,7 @@ export default function RocketReach() {
       {results.length > 0 && (
         <>
           <div className="flex items-center justify-between">
-            <p className="text-gray-600 text-sm font-medium">{results.length} result{results.length !== 1 ? 's' : ''}</p>
+            <p className="text-gray-600 text-sm font-medium">{results.length} shown · {total.toLocaleString()} total matches</p>
             <div className="flex gap-2">
               <button onClick={copyEmails}
                 className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
@@ -113,18 +129,18 @@ export default function RocketReach() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
-                    {['Name', 'Title', 'Company', 'Email', 'Location'].map(h => (
+                    {['Name', 'Title', 'Company', 'Email', 'Location', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {results.map((p, i) => {
-                    const email = p.current_personal_email || p.current_work_email || (p.emails?.[0]?.email) || '';
+                    const email = getEmail(p);
                     return (
                       <tr key={p.id || i} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3">
-                          <p className="text-gray-900 font-medium">{p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim()}</p>
+                          <p className="text-gray-900 font-medium">{p.name}</p>
                         </td>
                         <td className="px-4 py-3">
                           <span className="inline-flex px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full font-medium border border-amber-100">
@@ -133,9 +149,21 @@ export default function RocketReach() {
                         </td>
                         <td className="px-4 py-3 text-gray-700">{p.current_employer || '—'}</td>
                         <td className="px-4 py-3">
-                          {email ? <span className="text-green-700 font-medium">{email}</span> : <span className="text-gray-300">N/A</span>}
+                          {email ? <span className="text-green-700 font-medium">{email}</span>
+                            : <span className="text-gray-300">Hidden</span>}
                         </td>
                         <td className="px-4 py-3 text-gray-500">{p.location || '—'}</td>
+                        <td className="px-4 py-3">
+                          {!p.revealed_email && (
+                            <button onClick={() => revealEmail(p, i)} disabled={revealing === i}
+                              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg flex items-center gap-1">
+                              {revealing === i ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />} Reveal
+                            </button>
+                          )}
+                          {p.revealed_email && (
+                            <span className="text-green-600 text-xs flex items-center gap-1"><CheckCircle2 size={11} /> Done</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
