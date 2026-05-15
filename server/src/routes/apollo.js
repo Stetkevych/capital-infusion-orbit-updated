@@ -99,4 +99,33 @@ router.get('/enriched-leads/count', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/apollo/rr-search — RocketReach person search (proxied here to avoid EB redeploy)
+router.post('/rr-search', async (req, res) => {
+  try {
+    const { titles = ['Founder', 'Co-Founder'], page_size = 10 } = req.body;
+    const RR_KEY = process.env.ROCKETREACH_API_KEY || '1e7ced2k91ddcf7a0665cc3f075cdd330ce14938';
+    const response = await fetch('https://api.rocketreach.co/v2/api/search', {
+      method: 'POST',
+      headers: { 'Api-Key': RR_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { current_title: titles, location: ['United States'] }, page_size: Math.min(page_size, 100) }),
+    });
+    if (!response.ok) {
+      const err = await response.text().catch(() => '');
+      throw new Error(`RocketReach ${response.status}: ${err.slice(0, 300)}`);
+    }
+    const data = await response.json();
+    const profiles = (data.profiles || []).map(p => ({
+      id: p.id, name: p.name || '', current_title: p.current_title || '',
+      current_employer: p.current_employer || '', location: p.location || '',
+      linkedin_url: p.linkedin_url || '',
+      teaser_emails: p.teaser?.emails || [], personal_emails: p.teaser?.personal_emails || [],
+      professional_emails: p.teaser?.professional_emails || [],
+    }));
+    res.json({ profiles, total: data.pagination?.total || 0 });
+  } catch (e) {
+    console.error('[RR Search]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

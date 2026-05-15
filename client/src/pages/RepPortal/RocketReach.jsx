@@ -20,22 +20,14 @@ export default function RocketReach() {
   const search = async () => {
     setLoading(true); setError(''); setResults([]);
     try {
-      const res = await fetch('https://api.rocketreach.co/v2/api/search', {
-        method: 'POST',
-        headers: { 'Api-Key': '1e7ced2k91ddcf7a0665cc3f075cdd330ce14938', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: { current_title: titles.split(',').map(t => t.trim()), location: ['United States'] }, page_size: pageSize }),
+      const res = await fetch(`${API}/apollo/rr-search`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ titles: titles.split(',').map(t => t.trim()), page_size: pageSize }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || d.error || 'Search failed'); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Search failed'); }
       const data = await res.json();
-      const profiles = (data.profiles || []).map(p => ({
-        id: p.id, name: p.name || '', current_title: p.current_title || '',
-        current_employer: p.current_employer || '', location: p.location || '',
-        linkedin_url: p.linkedin_url || '',
-        teaser_emails: p.teaser?.emails || [], personal_emails: p.teaser?.personal_emails || [],
-        professional_emails: p.teaser?.professional_emails || [],
-      }));
-      setResults(profiles);
-      setTotal(data.pagination?.total || 0);
+      setResults(data.profiles || []);
+      setTotal(data.total || 0);
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
