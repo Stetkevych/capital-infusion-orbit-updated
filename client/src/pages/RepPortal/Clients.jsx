@@ -507,6 +507,9 @@ export default function ClientsPage() {
                   </td>
                   <td className="py-3.5 px-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
+                      <button onClick={(e) => { e.preventDefault(); setDeleteConfirm(c); }} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Delete client">
+                        <Trash2 size={13} />
+                      </button>
                       <Link to={`/clients/${c.id}`} className="flex items-center gap-1 text-blue-600 text-xs font-medium hover:opacity-70">
                         Open <ArrowRight size={12} />
                       </Link>
