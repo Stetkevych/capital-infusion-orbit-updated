@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { BarChart2, Calendar, Users, XCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { BarChart2, Calendar, Users, XCircle, RefreshCw, Loader2, DollarSign, TrendingUp } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'https://api.orbit-technology.com/api';
 
@@ -8,7 +8,7 @@ export default function LeadData() {
   const { token } = useAuth();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(90);
   const [error, setError] = useState('');
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -25,21 +25,11 @@ export default function LeadData() {
 
   useEffect(() => { loadMetrics(days); }, [days]);
 
-  const StatCard = ({ icon: Icon, label, value, sub, color = 'blue' }) => (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-9 h-9 bg-${color}-50 rounded-xl flex items-center justify-center`}>
-          <Icon size={16} className={`text-${color}-600`} />
-        </div>
-        <p className="text-gray-400 text-xs font-medium">{label}</p>
-      </div>
-      <p className="text-gray-900 text-2xl font-bold">{value}</p>
-      {sub && <p className="text-gray-400 text-xs mt-1">{sub}</p>}
-    </div>
-  );
+  const pct = (v) => v != null ? `${v}%` : '—';
+  const money = (v) => v != null ? `$${v.toLocaleString()}` : '—';
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
@@ -47,11 +37,11 @@ export default function LeadData() {
           </div>
           <div>
             <h1 className="text-gray-900 font-semibold text-lg">Waymo Data</h1>
-            <p className="text-gray-400 text-xs">Calendly scheduling metrics & analytics</p>
+            <p className="text-gray-400 text-xs">Calendly + Zoho CRM · Per-rep funnel metrics</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {[7, 14, 30, 60, 90].map(d => (
+          {[30, 60, 90, 180, 365].map(d => (
             <button key={d} onClick={() => setDays(d)}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg ${days === d ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {d}d
@@ -69,66 +59,91 @@ export default function LeadData() {
         <div className="text-center py-20"><Loader2 size={24} className="mx-auto animate-spin text-gray-300" /></div>
       ) : metrics && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard icon={Calendar} label="Total Scheduled" value={metrics.totals.scheduled} sub={`Last ${days} days`} color="indigo" />
-            <StatCard icon={Calendar} label="Active" value={metrics.totals.active} sub="Confirmed meetings" color="green" />
-            <StatCard icon={XCircle} label="Canceled" value={metrics.totals.canceled} sub={`${metrics.totals.cancel_rate}% cancel rate`} color="red" />
-            <StatCard icon={Users} label="Team Members" value={Object.keys(metrics.by_member).length} sub="Active on Calendly" color="blue" />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-              <h3 className="text-gray-900 font-semibold text-sm mb-4">By Team Member</h3>
-              <div className="space-y-3">
-                {Object.entries(metrics.by_member).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
-                  <div key={name} className="flex items-center justify-between">
-                    <span className="text-gray-700 text-sm">{name}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, (count / Math.max(...Object.values(metrics.by_member))) * 100)}%` }} />
-                      </div>
-                      <span className="text-gray-900 text-sm font-semibold w-8 text-right">{count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+              <p className="text-gray-400 text-xs font-medium mb-1">Meetings Scheduled</p>
+              <p className="text-gray-900 text-2xl font-bold">{metrics.totals.calendly_scheduled}</p>
             </div>
-
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-              <h3 className="text-gray-900 font-semibold text-sm mb-4">By Event Type</h3>
-              <div className="space-y-3">
-                {Object.entries(metrics.by_type).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
-                  <div key={name} className="flex items-center justify-between">
-                    <span className="text-gray-700 text-sm">{name}</span>
-                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded-full font-medium">{count}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+              <p className="text-gray-400 text-xs font-medium mb-1">Show-Up Rate</p>
+              <p className="text-green-600 text-2xl font-bold">{metrics.totals.show_up_rate}%</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+              <p className="text-gray-400 text-xs font-medium mb-1">Waymo Leads</p>
+              <p className="text-gray-900 text-2xl font-bold">{metrics.totals.waymo_leads_total}</p>
+              <p className="text-gray-400 text-xs">{metrics.totals.waymo_house_transfers} no-shows</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+              <p className="text-gray-400 text-xs font-medium mb-1">Funding Rate</p>
+              <p className="text-blue-600 text-2xl font-bold">{metrics.totals.funding_rate}%</p>
+              <p className="text-gray-400 text-xs">{metrics.totals.deals_won} / {metrics.totals.deals_total} deals</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+              <p className="text-gray-400 text-xs font-medium mb-1">Avg Deal Size</p>
+              <p className="text-gray-900 text-2xl font-bold">{money(metrics.totals.avg_deal_size)}</p>
+              <p className="text-gray-400 text-xs">{money(metrics.totals.total_funded_amount)} total</p>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-            <h3 className="text-gray-900 font-semibold text-sm mb-4">Daily Activity</h3>
-            <div className="overflow-x-auto">
-              <div className="flex gap-1 items-end min-w-max" style={{ height: '120px' }}>
-                {Object.entries(metrics.by_day).sort().slice(-30).map(([day, count]) => {
-                  const max = Math.max(...Object.values(metrics.by_day));
-                  const height = max > 0 ? (count / max) * 100 : 0;
-                  return (
-                    <div key={day} className="flex flex-col items-center gap-1" style={{ minWidth: '20px' }}>
-                      <span className="text-xs text-gray-400">{count}</span>
-                      <div className="w-4 bg-indigo-500 rounded-sm" style={{ height: `${Math.max(4, height)}px` }} />
-                      <span className="text-xs text-gray-300 rotate-45 origin-left whitespace-nowrap">{day.slice(5)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
+          {/* Per-Rep Table */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="text-gray-900 font-semibold text-sm">Recent Events</h3>
+              <h3 className="text-gray-900 font-semibold text-sm">Rep Breakdown</h3>
+              <p className="text-gray-400 text-xs mt-0.5">Last {days} days · Calendly + Zoho CRM</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    {['Rep', 'Meetings', 'Show-Up %', 'Waymo Leads', 'Lead→App %', 'Deals Won', 'Funding %', 'Avg Deal', 'Total Funded'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {Object.entries(metrics.rep_breakdown || {})
+                    .sort((a, b) => (b[1].deals_won || 0) - (a[1].deals_won || 0))
+                    .map(([name, s]) => (
+                    <tr key={name} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap">{name}</td>
+                      <td className="px-4 py-3 text-gray-700">{s.calendly_scheduled || 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                          s.show_up_rate >= 80 ? 'bg-green-50 text-green-600' :
+                          s.show_up_rate >= 60 ? 'bg-amber-50 text-amber-600' :
+                          s.show_up_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'
+                        }`}>{pct(s.show_up_rate)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{s.waymo_leads || 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                          s.lead_to_app_rate >= 50 ? 'bg-green-50 text-green-600' :
+                          s.lead_to_app_rate >= 25 ? 'bg-amber-50 text-amber-600' :
+                          s.lead_to_app_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'
+                        }`}>{pct(s.lead_to_app_rate)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 font-semibold">{s.deals_won || 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                          s.funding_rate >= 70 ? 'bg-green-50 text-green-600' :
+                          s.funding_rate >= 40 ? 'bg-amber-50 text-amber-600' :
+                          s.funding_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'
+                        }`}>{pct(s.funding_rate)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{money(s.avg_deal_size)}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Events */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-gray-900 font-semibold text-sm">Recent Calendly Events</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
