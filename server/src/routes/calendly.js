@@ -37,11 +37,11 @@ const COST_PER_MEETING = 200;
 // GET /api/calendly/metrics
 router.get('/metrics', async (req, res) => {
   try {
-    const { days = 90 } = req.query;
+    const { days = 365 } = req.query;
     const minDate = new Date(Date.now() - days * 86400000).toISOString();
     const maxDate = new Date().toISOString();
 
-    // ─── Calendly ────────────────────────────────────────────────────────
+    // ─── Calendly: source of truth for total meetings ────────────────────
     const calHdrs = { Authorization: `Bearer ${CALENDLY_TOKEN}` };
     let calEvents = [], calCanceled = [];
     let next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&min_start_time=${minDate}&max_start_time=${maxDate}&status=active`;
@@ -49,41 +49,64 @@ router.get('/metrics', async (req, res) => {
     next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&status=canceled&min_start_time=${minDate}&max_start_time=${maxDate}`;
     while (next) { try { const r = await axios.get(next, { headers: calHdrs }); calCanceled = calCanceled.concat(r.data.collection || []); next = r.data.pagination?.next_page || null; } catch { break; } }
 
-    // ─── Zoho Waymo Leads ────────────────────────────────────────────────
+    // ─── Zoho Leads (Waymo) ──────────────────────────────────────────────
     let waymoLeads = [];
     let page = 1, more = true;
     while (more && page <= 10) { const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`); waymoLeads = waymoLeads.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
-    // ─── Zoho Waymo Deals (funded) ───────────────────────────────────────
+    // ─── Zoho Deals (Waymo funded) ───────────────────────────────────────
     let waymoDeals = [];
     page = 1; more = true;
     while (more && page <= 5) { const d = await zohoGet(`/crm/v2/Deals/search?criteria=(Lead_Source2:equals:Waymo)&per_page=200&page=${page}`); waymoDeals = waymoDeals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
-    // ─── Compute ─────────────────────────────────────────────────────────
+    // ─── Compute totals ──────────────────────────────────────────────────
+    // Total meetings from Calendly (source of truth — captures DNQ/Not Interested that Zoho loses)
     const totalMeetings = calEvents.length + calCanceled.length;
+
+    // Future appointments = Leads with Disposition "Calendly" (scheduled, not yet happened)
+    const futureAppts = waymoLeads.filter(l => l.Disposition === 'Calendly').length;
+
+    // Past appointments = Total - Future
+    const pastAppts = totalMeetings - futureAppts;
+
+    // No shows from Zoho disposition
     const noShows = waymoLeads.filter(l => l.Disposition === 'No Show').length;
-    const netMeetings = totalMeetings - noShows; // showed up
-    const apps = waymoLeads.filter(l => l.Disposition === 'Interested').length; // 49
+
+    // Net meetings = Past - No Shows (people who actually showed up)
+    const netMeetings = pastAppts - noShows;
+
+    // Apps = Leads with Disposition "Interested" (submitted app + bank statements, made it to pipeline)
+    const apps = waymoLeads.filter(l => l.Disposition === 'Interested').length;
+
+    // Approved = Apps that are NOT decline/default/fraud
+    // Since none of the current "Interested" leads have those statuses, approved = apps
+    // Future: if a field tracks decline/default/fraud on leads, subtract those
+    const declined = 0; // placeholder — update if field identified
+    const defaulted = 0;
+    const fraud = 0;
+    const approved = apps - declined - defaulted - fraud;
+
+    // Funded = Waymo deals in Deals module with Funded_Amount > 0
     const funded = waymoDeals.filter(d => d.Funded_Amount > 0).length;
     const totalFundedAmt = waymoDeals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
     const totalPts = waymoDeals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0);
-    const cost = totalMeetings * COST_PER_MEETING;
+    const totalRevenue = waymoDeals.reduce((s, d) => s + (d.Total_rev || d.Commission || 0), 0);
 
-    // Show-up rate = net / total
-    const showUpRate = totalMeetings > 0 ? Math.round((netMeetings / totalMeetings) * 100) : 0;
-    // Lead to app = apps / net (denominator = those who showed up)
-    const leadToAppRate = netMeetings > 0 ? Math.round((apps / netMeetings) * 100) : 0;
-    // Funding rate = funded / apps
+    // Rates
+    const showUpRate = pastAppts > 0 ? Math.round((netMeetings / pastAppts) * 100) : 0;
+    const meetingToAppRate = netMeetings > 0 ? Math.round((apps / netMeetings) * 100) : 0;
+    const approvalRate = apps > 0 ? Math.round((approved / apps) * 100) : 0;
     const fundingRate = apps > 0 ? Math.round((funded / apps) * 100) : 0;
     const avgDealSize = funded > 0 ? Math.round(totalFundedAmt / funded) : 0;
     const avgPts = funded > 0 ? Math.round((totalPts / funded) * 10) / 10 : 0;
+    const cost = totalMeetings * COST_PER_MEETING;
 
     // ─── Per-rep breakdown ───────────────────────────────────────────────
     const repMap = {};
     const ensure = (rawName) => {
       const key = normKey(rawName);
       if (!key || SKIP_KEYS.has(key)) return null;
-      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, no_show: 0, showed: 0, apps: 0, deals: 0, funded_amt: 0, pts: 0 };
+      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, showed: 0, apps: 0, deals: 0, funded_amt: 0, pts: 0, revenue: 0 };
       return key;
     };
 
@@ -91,13 +114,12 @@ router.get('/metrics', async (req, res) => {
     calEvents.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_active++; }));
     calCanceled.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_canceled++; }));
 
-    // Waymo leads per rep
+    // Waymo leads per rep (only count showed-up leads — no-shows get reassigned away)
     waymoLeads.forEach(l => {
       const owner = l.Owner?.name || '';
       const k = ensure(owner);
       if (!k) return;
-      if (l.Disposition === 'No Show') repMap[k].no_show++;
-      else repMap[k].showed++;
+      if (l.Disposition !== 'No Show' && l.Disposition !== 'Calendly') repMap[k].showed++;
       if (l.Disposition === 'Interested') repMap[k].apps++;
     });
 
@@ -109,27 +131,25 @@ router.get('/metrics', async (req, res) => {
       repMap[k].deals++;
       repMap[k].funded_amt += (d.Funded_Amount || 0);
       repMap[k].pts += (parseFloat(d.pts) || 0);
+      repMap[k].revenue += (d.Total_rev || d.Commission || 0);
     });
 
     const rep_breakdown = {};
     Object.values(repMap).forEach(s => {
       const calTotal = s.cal_active + s.cal_canceled;
-      const repTotal = s.showed + s.no_show;
-      if (calTotal === 0 && repTotal === 0 && s.deals === 0) return;
-      const repShowUp = repTotal > 0 ? Math.round((s.showed / repTotal) * 100) : null;
-      const repLeadToApp = s.showed > 0 ? Math.round((s.apps / s.showed) * 100) : null;
-      const repFundingRate = s.apps > 0 ? Math.round((s.deals / s.apps) * 100) : null;
-      const repAvgDeal = s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null;
-      const repAvgPts = s.deals > 0 ? Math.round((s.pts / s.deals) * 10) / 10 : null;
-
+      if (calTotal === 0 && s.showed === 0 && s.deals === 0) return;
       rep_breakdown[s.display] = {
-        calendly_scheduled: calTotal, calendly_active: s.cal_active, calendly_canceled: s.cal_canceled,
+        calendly_scheduled: calTotal,
         net_meetings: s.showed,
-        show_up_rate: repShowUp,
-        apps: s.apps, lead_to_app_rate: repLeadToApp,
-        deals_funded: s.deals, funding_rate: repFundingRate,
-        avg_deal_size: repAvgDeal, total_funded_amount: s.funded_amt,
-        avg_pts: repAvgPts, total_pts: s.pts,
+        apps: s.apps,
+        meeting_to_app_rate: s.showed > 0 ? Math.round((s.apps / s.showed) * 100) : null,
+        deals_funded: s.deals,
+        funding_rate: s.apps > 0 ? Math.round((s.deals / s.apps) * 100) : null,
+        avg_deal_size: s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null,
+        total_funded_amount: s.funded_amt,
+        avg_pts: s.deals > 0 ? Math.round((s.pts / s.deals) * 10) / 10 : null,
+        total_pts: s.pts,
+        revenue: s.revenue,
       };
     });
 
@@ -137,16 +157,21 @@ router.get('/metrics', async (req, res) => {
       period: { days: parseInt(days), from: minDate, to: maxDate },
       totals: {
         total_meetings: totalMeetings,
+        future_appointments: futureAppts,
+        past_appointments: pastAppts,
         no_shows: noShows,
         net_meetings: netMeetings,
         show_up_rate: showUpRate,
         apps,
-        lead_to_app_rate: leadToAppRate,
+        approved,
+        meeting_to_app_rate: meetingToAppRate,
+        approval_rate: approvalRate,
         funded,
         funding_rate: fundingRate,
         total_funded_amount: totalFundedAmt,
         avg_deal_size: avgDealSize,
         avg_pts: avgPts,
+        revenue: totalRevenue,
         cost,
       },
       rep_breakdown,
@@ -166,7 +191,7 @@ router.get('/full-data', async (req, res) => {
     while (more && page <= 20) { const d = await zohoGet(`/crm/v2/Deals?per_page=200&page=${page}`); deals = deals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
     const repStats = {};
-    const ensure = (name) => { const key = normKey(name); if (!key || SKIP_KEYS.has(key)) return null; if (!repStats[key]) repStats[key] = { display: norm(name), deals: 0, funded_amt: 0, pts: 0, sources: {}, stages: {} }; return key; };
+    const ensure = (name) => { const key = normKey(name); if (!key || SKIP_KEYS.has(key)) return null; if (!repStats[key]) repStats[key] = { display: norm(name), deals: 0, funded_amt: 0, pts: 0, revenue: 0, sources: {}, stages: {} }; return key; };
 
     deals.forEach(d => {
       const owner = d.Package_Owner?.name || d.Owner?.name || '';
@@ -175,6 +200,7 @@ router.get('/full-data', async (req, res) => {
       repStats[k].deals++;
       repStats[k].funded_amt += (d.Funded_Amount || 0);
       repStats[k].pts += (parseFloat(d.pts) || 0);
+      repStats[k].revenue += (d.Total_rev || d.Commission || 0);
       const src = d.Lead_Source2 || d.Lead_Master || 'Unknown';
       repStats[k].sources[src] = (repStats[k].sources[src] || 0) + 1;
       const stage = d.Stage || 'Unknown';
@@ -188,19 +214,13 @@ router.get('/full-data', async (req, res) => {
         deals_total: s.deals, total_funded_amount: s.funded_amt,
         avg_deal_size: Math.round(s.funded_amt / s.deals),
         total_pts: s.pts, avg_pts: Math.round((s.pts / s.deals) * 10) / 10,
-        sources: s.sources, stages: s.stages,
-        deals_won: s.stages['Closed Won'] || 0,
-        deals_in_pipeline: s.stages['Qualification'] || 0,
-        funding_rate: s.deals > 0 ? Math.round(((s.stages['Closed Won'] || 0) / s.deals) * 100) : 0,
+        revenue: s.revenue, sources: s.sources, stages: s.stages,
       };
     });
 
-    const totalDeals = deals.length;
     const totalFunded = deals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
-    const totalWon = deals.filter(d => d.Stage === 'Closed Won').length;
-
     res.json({
-      totals: { deals: totalDeals, funded_amount: totalFunded, avg_deal_size: totalDeals > 0 ? Math.round(totalFunded / totalDeals) : 0, total_pts: deals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0), deals_won: totalWon, funding_rate: totalDeals > 0 ? Math.round((totalWon / totalDeals) * 100) : 0 },
+      totals: { deals: deals.length, funded_amount: totalFunded, avg_deal_size: deals.length > 0 ? Math.round(totalFunded / deals.length) : 0, total_pts: deals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0), revenue: deals.reduce((s, d) => s + (d.Total_rev || d.Commission || 0), 0) },
       rep_data,
     });
   } catch (e) {
