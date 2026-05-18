@@ -77,7 +77,7 @@ export default function LeadData() {
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
               <p className="text-gray-400 text-xs font-medium mb-1">Funding Rate</p>
               <p className="text-blue-600 text-2xl font-bold">{metrics.totals.funding_rate}%</p>
-              <p className="text-gray-400 text-xs">{metrics.totals.deals_won} / {metrics.totals.deals_total} deals</p>
+              <p className="text-gray-400 text-xs">{metrics.totals.deals_funded} / {metrics.totals.deals_total} deals</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
               <p className="text-gray-400 text-xs font-medium mb-1">Avg Deal Size</p>
@@ -96,14 +96,14 @@ export default function LeadData() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
-                    {['Rep', 'Meetings', 'Show-Up %', 'Waymo Leads', 'Lead→App %', 'Deals Won', 'Funding %', 'Avg Deal', 'Total Funded'].map(h => (
+                    {['Rep', 'Meetings', 'Show-Up %', 'Waymo Leads', 'Lead→App %', 'Deals Funded', 'Funding %', 'Avg Deal', 'Avg Pts', 'Total Funded'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-gray-400 text-xs font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {Object.entries(metrics.rep_breakdown || {})
-                    .sort((a, b) => (b[1].deals_won || 0) - (a[1].deals_won || 0))
+                    .sort((a, b) => (b[1].deals_funded || 0) - (a[1].deals_funded || 0))
                     .map(([name, s]) => (
                     <tr key={name} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap">{name}</td>
@@ -123,7 +123,7 @@ export default function LeadData() {
                           s.lead_to_app_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'
                         }`}>{pct(s.lead_to_app_rate)}</span>
                       </td>
-                      <td className="px-4 py-3 text-gray-900 font-semibold">{s.deals_won || 0}</td>
+                      <td className="px-4 py-3 text-gray-900 font-semibold">{s.deals_funded || 0}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                           s.funding_rate >= 70 ? 'bg-green-50 text-green-600' :
@@ -132,6 +132,7 @@ export default function LeadData() {
                         }`}>{pct(s.funding_rate)}</span>
                       </td>
                       <td className="px-4 py-3 text-gray-700">{money(s.avg_deal_size)}</td>
+                      <td className="px-4 py-3 text-gray-700">{s.avg_pts || '—'}</td>
                       <td className="px-4 py-3 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
                     </tr>
                   ))}
