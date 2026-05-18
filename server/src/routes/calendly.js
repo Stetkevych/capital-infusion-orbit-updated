@@ -60,8 +60,10 @@ router.get('/metrics', async (req, res) => {
     while (more && page <= 5) { const d = await zohoGet(`/crm/v2/Deals/search?criteria=(Lead_Source2:equals:Waymo)&per_page=200&page=${page}`); waymoDeals = waymoDeals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
     // ─── Compute totals ──────────────────────────────────────────────────
-    // Total meetings from Calendly (source of truth — captures DNQ/Not Interested that Zoho loses)
-    const totalMeetings = calEvents.length + calCanceled.length;
+    // Total meetings = active Calendly events (reschedules create new active events, so active = net unique)
+    // Canceled = includes reschedules + true cancellations (shown separately)
+    const totalMeetings = calEvents.length; // 336 completed/scheduled
+    const rescheduled = calCanceled.length; // 45 rescheduled/canceled (don't affect stats)
 
     // Future appointments = Leads with Disposition "Calendly" (scheduled, not yet happened)
     const futureAppts = waymoLeads.filter(l => l.Disposition === 'Calendly').length;
@@ -157,6 +159,7 @@ router.get('/metrics', async (req, res) => {
       period: { days: parseInt(days), from: minDate, to: maxDate },
       totals: {
         total_meetings: totalMeetings,
+        rescheduled,
         future_appointments: futureAppts,
         past_appointments: pastAppts,
         no_shows: noShows,
