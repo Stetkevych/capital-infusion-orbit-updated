@@ -14,7 +14,6 @@ const ZOHO_REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN || '1000.ff5ae025d0908
 const ZOHO_API = 'https://www.zohoapis.com';
 
 let zohoToken = '', zohoExpiry = 0;
-
 async function getZohoToken() {
   if (zohoToken && Date.now() < zohoExpiry) return zohoToken;
   const params = new URLSearchParams({ grant_type: 'refresh_token', client_id: ZOHO_CLIENT_ID, client_secret: ZOHO_CLIENT_SECRET, refresh_token: ZOHO_REFRESH_TOKEN });
@@ -24,27 +23,25 @@ async function getZohoToken() {
   zohoExpiry = Date.now() + (res.data.expires_in - 60) * 1000;
   return zohoToken;
 }
-
 async function zohoGet(path) {
   const token = await getZohoToken();
   try { const res = await axios.get(`${ZOHO_API}${path}`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } }); return res.data; }
-  catch (e) { return { data: [] }; }
+  catch { return { data: [] }; }
 }
 
-// Normalize name: collapse spaces, title case
 function norm(name) { return (name || '').replace(/\s+/g, ' ').trim(); }
 function normKey(name) { return norm(name).toLowerCase(); }
-
 const SKIP_KEYS = new Set(['house .', 'convoso dialer', 'ruth vergel', 'assigning leads', 'capital infusion', 'text', 'marketing', 'the fund zone', 'get funding solutions', 'phil', 'manager .'].map(s => s.toLowerCase()));
+const COST_PER_MEETING = 200;
 
-// GET /api/calendly/metrics — Waymo-scoped funnel per rep
+// GET /api/calendly/metrics
 router.get('/metrics', async (req, res) => {
   try {
     const { days = 90 } = req.query;
     const minDate = new Date(Date.now() - days * 86400000).toISOString();
     const maxDate = new Date().toISOString();
 
-    // ─── Calendly org-wide ───────────────────────────────────────────────
+    // ─── Calendly ────────────────────────────────────────────────────────
     const calHdrs = { Authorization: `Bearer ${CALENDLY_TOKEN}` };
     let calEvents = [], calCanceled = [];
     let next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&min_start_time=${minDate}&max_start_time=${maxDate}&status=active`;
@@ -52,48 +49,59 @@ router.get('/metrics', async (req, res) => {
     next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&status=canceled&min_start_time=${minDate}&max_start_time=${maxDate}`;
     while (next) { try { const r = await axios.get(next, { headers: calHdrs }); calCanceled = calCanceled.concat(r.data.collection || []); next = r.data.pagination?.next_page || null; } catch { break; } }
 
-    // ─── Zoho: Waymo leads ───────────────────────────────────────────────
+    // ─── Zoho Waymo Leads ────────────────────────────────────────────────
     let waymoLeads = [];
     let page = 1, more = true;
     while (more && page <= 10) { const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`); waymoLeads = waymoLeads.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
-    // ─── Zoho: Waymo deals ───────────────────────────────────────────────
+    // ─── Zoho Waymo Deals (funded) ───────────────────────────────────────
     let waymoDeals = [];
     page = 1; more = true;
     while (more && page <= 5) { const d = await zohoGet(`/crm/v2/Deals/search?criteria=(Lead_Source2:equals:Waymo)&per_page=200&page=${page}`); waymoDeals = waymoDeals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
-    // ─── Per-rep computation (keyed by normalized name) ──────────────────
-    const repMap = {}; // normKey -> { displayName, ... }
+    // ─── Compute ─────────────────────────────────────────────────────────
+    const totalMeetings = calEvents.length + calCanceled.length;
+    const noShows = waymoLeads.filter(l => l.Disposition === 'No Show').length;
+    const netMeetings = totalMeetings - noShows; // showed up
+    const apps = waymoLeads.filter(l => l.Disposition === 'Interested').length; // 49
+    const funded = waymoDeals.filter(d => d.Funded_Amount > 0).length;
+    const totalFundedAmt = waymoDeals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
+    const totalPts = waymoDeals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0);
+    const cost = totalMeetings * COST_PER_MEETING;
+
+    // Show-up rate = net / total
+    const showUpRate = totalMeetings > 0 ? Math.round((netMeetings / totalMeetings) * 100) : 0;
+    // Lead to app = apps / net (denominator = those who showed up)
+    const leadToAppRate = netMeetings > 0 ? Math.round((apps / netMeetings) * 100) : 0;
+    // Funding rate = funded / apps
+    const fundingRate = apps > 0 ? Math.round((funded / apps) * 100) : 0;
+    const avgDealSize = funded > 0 ? Math.round(totalFundedAmt / funded) : 0;
+    const avgPts = funded > 0 ? Math.round((totalPts / funded) * 10) / 10 : 0;
+
+    // ─── Per-rep breakdown ───────────────────────────────────────────────
+    const repMap = {};
     const ensure = (rawName) => {
       const key = normKey(rawName);
       if (!key || SKIP_KEYS.has(key)) return null;
-      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, leads: 0, showed: 0, no_show: 0, interested: 0, dnq: 0, not_interested: 0, deals: 0, funded_amt: 0, pts: 0 };
+      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, no_show: 0, showed: 0, apps: 0, deals: 0, funded_amt: 0, pts: 0 };
       return key;
     };
 
-    // Calendly
+    // Calendly per rep
     calEvents.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_active++; }));
     calCanceled.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_canceled++; }));
 
-    // Waymo leads
-    let totalNoShows = 0;
+    // Waymo leads per rep
     waymoLeads.forEach(l => {
       const owner = l.Owner?.name || '';
-      const disp = l.Disposition || '';
-      if (disp === 'No Show') totalNoShows++;
-      const key = normKey(owner);
-      if (!key || SKIP_KEYS.has(key)) return;
       const k = ensure(owner);
       if (!k) return;
-      repMap[k].leads++;
-      if (disp === 'No Show') repMap[k].no_show++;
+      if (l.Disposition === 'No Show') repMap[k].no_show++;
       else repMap[k].showed++;
-      if (disp === 'Interested' || disp === 'SBA - Interested') repMap[k].interested++;
-      if (disp === 'DNQ') repMap[k].dnq++;
-      if (disp === 'Not Interested') repMap[k].not_interested++;
+      if (l.Disposition === 'Interested') repMap[k].apps++;
     });
 
-    // Waymo deals
+    // Waymo deals per rep
     waymoDeals.forEach(d => {
       const owner = d.Package_Owner?.name || d.Owner?.name || '';
       const k = ensure(owner);
@@ -103,51 +111,43 @@ router.get('/metrics', async (req, res) => {
       repMap[k].pts += (parseFloat(d.pts) || 0);
     });
 
-    // Build breakdown
     const rep_breakdown = {};
-    Object.entries(repMap).forEach(([key, s]) => {
+    Object.values(repMap).forEach(s => {
       const calTotal = s.cal_active + s.cal_canceled;
-      if (calTotal === 0 && s.leads === 0 && s.deals === 0) return;
-      // Show-up rate: leads that showed / total leads for this rep
-      const showUp = s.leads > 0 ? Math.round((s.showed / s.leads) * 100) : null;
-      // Lead to app: deals / showed (out of those who showed up)
-      const leadToApp = s.showed > 0 ? Math.round((s.deals / s.showed) * 100) : null;
-      // Funding rate: same as lead to app for Waymo (all Waymo deals are funded)
-      const fundingRate = s.showed > 0 ? Math.round((s.deals / s.showed) * 100) : null;
-      const avgDeal = s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null;
-      const avgPts = s.deals > 0 ? Math.round((s.pts / s.deals) * 10) / 10 : null;
+      const repTotal = s.showed + s.no_show;
+      if (calTotal === 0 && repTotal === 0 && s.deals === 0) return;
+      const repShowUp = repTotal > 0 ? Math.round((s.showed / repTotal) * 100) : null;
+      const repLeadToApp = s.showed > 0 ? Math.round((s.apps / s.showed) * 100) : null;
+      const repFundingRate = s.apps > 0 ? Math.round((s.deals / s.apps) * 100) : null;
+      const repAvgDeal = s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null;
+      const repAvgPts = s.deals > 0 ? Math.round((s.pts / s.deals) * 10) / 10 : null;
 
       rep_breakdown[s.display] = {
         calendly_scheduled: calTotal, calendly_active: s.cal_active, calendly_canceled: s.cal_canceled,
-        waymo_leads: s.leads, waymo_showed: s.showed, waymo_no_show: s.no_show,
-        show_up_rate: showUp,
-        lead_to_app_rate: leadToApp,
-        funding_rate: fundingRate,
-        deals_funded: s.deals, avg_deal_size: avgDeal, total_funded_amount: s.funded_amt,
-        avg_pts: avgPts, total_pts: s.pts,
+        net_meetings: s.showed,
+        show_up_rate: repShowUp,
+        apps: s.apps, lead_to_app_rate: repLeadToApp,
+        deals_funded: s.deals, funding_rate: repFundingRate,
+        avg_deal_size: repAvgDeal, total_funded_amount: s.funded_amt,
+        avg_pts: repAvgPts, total_pts: s.pts,
       };
     });
-
-    const totalWaymo = waymoLeads.length;
-    const totalShowed = totalWaymo - totalNoShows;
-    const totalFunded = waymoDeals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
 
     res.json({
       period: { days: parseInt(days), from: minDate, to: maxDate },
       totals: {
-        calendly_scheduled: calEvents.length + calCanceled.length,
-        calendly_active: calEvents.length,
-        calendly_canceled: calCanceled.length,
-        waymo_leads_total: totalWaymo,
-        waymo_showed: totalShowed,
-        waymo_no_shows: totalNoShows,
-        show_up_rate: totalWaymo > 0 ? Math.round((totalShowed / totalWaymo) * 100) : 0,
-        lead_to_app_rate: totalShowed > 0 ? Math.round((waymoDeals.length / totalShowed) * 100) : 0,
-        funding_rate: totalShowed > 0 ? Math.round((waymoDeals.length / totalShowed) * 100) : 0,
-        waymo_deals: waymoDeals.length,
-        total_funded_amount: totalFunded,
-        avg_deal_size: waymoDeals.length > 0 ? Math.round(totalFunded / waymoDeals.length) : 0,
-        avg_pts: waymoDeals.length > 0 ? Math.round((waymoDeals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0) / waymoDeals.length) * 10) / 10 : 0,
+        total_meetings: totalMeetings,
+        no_shows: noShows,
+        net_meetings: netMeetings,
+        show_up_rate: showUpRate,
+        apps,
+        lead_to_app_rate: leadToAppRate,
+        funded,
+        funding_rate: fundingRate,
+        total_funded_amount: totalFundedAmt,
+        avg_deal_size: avgDealSize,
+        avg_pts: avgPts,
+        cost,
       },
       rep_breakdown,
       events: calEvents.slice(0, 50),
