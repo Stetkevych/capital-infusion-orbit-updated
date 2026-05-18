@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const router = express.Router();
 const { authMiddleware } = require('./auth');
 
@@ -19,8 +20,8 @@ let zohoExpiry = 0;
 async function getZohoToken() {
   if (zohoToken && Date.now() < zohoExpiry) return zohoToken;
   const params = new URLSearchParams({ grant_type: 'refresh_token', client_id: ZOHO_CLIENT_ID, client_secret: ZOHO_CLIENT_SECRET, refresh_token: ZOHO_REFRESH_TOKEN });
-  const res = await fetch(`https://accounts.zoho.com/oauth/v2/token?${params}`, { method: 'POST' });
-  const data = await res.json();
+  const res = await axios.post(`https://accounts.zoho.com/oauth/v2/token?${params}`);
+  const data = res.data;
   if (data.error) throw new Error(`Zoho auth: ${data.error}`);
   zohoToken = data.access_token;
   zohoExpiry = Date.now() + (data.expires_in - 60) * 1000;
@@ -29,10 +30,13 @@ async function getZohoToken() {
 
 async function zohoGet(path) {
   const token = await getZohoToken();
-  const res = await fetch(`${ZOHO_API}${path}`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
-  if (res.status === 204) return { data: [] };
-  if (!res.ok) return { data: [] };
-  return res.json();
+  try {
+    const res = await axios.get(`${ZOHO_API}${path}`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+    return res.data;
+  } catch (e) {
+    if (e.response?.status === 204) return { data: [] };
+    return { data: [] };
+  }
 }
 
 // Known reps (not House, not system accounts)
@@ -52,20 +56,20 @@ router.get('/metrics', async (req, res) => {
 
     let nextPage = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&min_start_time=${minDate}&max_start_time=${maxDate}&status=active`;
     while (nextPage) {
-      const r = await fetch(nextPage, { headers: calHdrs });
-      if (!r.ok) break;
-      const d = await r.json();
-      calEvents = calEvents.concat(d.collection || []);
-      nextPage = d.pagination?.next_page || null;
+      try {
+        const r = await axios.get(nextPage, { headers: calHdrs });
+        calEvents = calEvents.concat(r.data.collection || []);
+        nextPage = r.data.pagination?.next_page || null;
+      } catch { break; }
     }
 
     let cancelPage = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&status=canceled&min_start_time=${minDate}&max_start_time=${maxDate}`;
     while (cancelPage) {
-      const r = await fetch(cancelPage, { headers: calHdrs });
-      if (!r.ok) break;
-      const d = await r.json();
-      calCanceled = calCanceled.concat(d.collection || []);
-      cancelPage = d.pagination?.next_page || null;
+      try {
+        const r = await axios.get(cancelPage, { headers: calHdrs });
+        calCanceled = calCanceled.concat(r.data.collection || []);
+        cancelPage = r.data.pagination?.next_page || null;
+      } catch { break; }
     }
 
     // ─── Zoho: Waymo leads (all pages) ───────────────────────────────────
