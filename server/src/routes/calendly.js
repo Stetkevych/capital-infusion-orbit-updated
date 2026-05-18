@@ -37,161 +37,167 @@ async function zohoGet(path) {
   }
 }
 
-// GET /api/calendly/metrics
+const SKIP_OWNERS = ['House .', 'Convoso Dialer', 'Ruth Vergel', 'Assigning Leads', 'Capital Infusion', 'Text', 'Marketing', 'The Fund Zone', 'Get Funding Solutions', 'PHIL', 'Manager .'];
+
+// GET /api/calendly/metrics — Waymo-scoped funnel per rep
 router.get('/metrics', async (req, res) => {
   try {
     const { days = 90 } = req.query;
     const minDate = new Date(Date.now() - days * 86400000).toISOString();
     const maxDate = new Date().toISOString();
 
-    // ─── Calendly: org-wide events ───────────────────────────────────────
-    const calHdrs = { Authorization: `Bearer ${CALENDLY_TOKEN}`, 'Content-Type': 'application/json' };
-    let calEvents = [];
-    let calCanceled = [];
+    // ─── Calendly org-wide ───────────────────────────────────────────────
+    const calHdrs = { Authorization: `Bearer ${CALENDLY_TOKEN}` };
+    let calEvents = [], calCanceled = [];
 
-    let nextPage = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&min_start_time=${minDate}&max_start_time=${maxDate}&status=active`;
-    while (nextPage) {
-      try {
-        const r = await axios.get(nextPage, { headers: calHdrs });
-        calEvents = calEvents.concat(r.data.collection || []);
-        nextPage = r.data.pagination?.next_page || null;
-      } catch { break; }
-    }
+    let next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&min_start_time=${minDate}&max_start_time=${maxDate}&status=active`;
+    while (next) { try { const r = await axios.get(next, { headers: calHdrs }); calEvents = calEvents.concat(r.data.collection || []); next = r.data.pagination?.next_page || null; } catch { break; } }
 
-    let cancelPage = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&status=canceled&min_start_time=${minDate}&max_start_time=${maxDate}`;
-    while (cancelPage) {
-      try {
-        const r = await axios.get(cancelPage, { headers: calHdrs });
-        calCanceled = calCanceled.concat(r.data.collection || []);
-        cancelPage = r.data.pagination?.next_page || null;
-      } catch { break; }
-    }
-
-    // ─── Zoho: Deals (all pages) ─────────────────────────────────────────
-    let deals = [];
-    let page = 1;
-    let more = true;
-    while (more && page <= 20) {
-      const d = await zohoGet(`/crm/v2/Deals?per_page=200&page=${page}&sort_by=Modified_Time&sort_order=desc`);
-      deals = deals.concat(d.data || []);
-      more = d.info?.more_records || false;
-      page++;
-    }
+    next = `https://api.calendly.com/scheduled_events?organization=${CALENDLY_ORG}&count=100&status=canceled&min_start_time=${minDate}&max_start_time=${maxDate}`;
+    while (next) { try { const r = await axios.get(next, { headers: calHdrs }); calCanceled = calCanceled.concat(r.data.collection || []); next = r.data.pagination?.next_page || null; } catch { break; } }
 
     // ─── Zoho: Waymo leads ───────────────────────────────────────────────
     let waymoLeads = [];
+    let page = 1, more = true;
+    while (more && page <= 10) { const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`); waymoLeads = waymoLeads.concat(d.data || []); more = d.info?.more_records || false; page++; }
+
+    // ─── Zoho: Waymo deals (Lead_Source2 = Waymo) ────────────────────────
+    let waymoDeals = [];
     page = 1; more = true;
-    while (more && page <= 10) {
-      const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`);
-      waymoLeads = waymoLeads.concat(d.data || []);
-      more = d.info?.more_records || false;
-      page++;
-    }
+    while (more && page <= 5) { const d = await zohoGet(`/crm/v2/Deals/search?criteria=(Lead_Source2:equals:Waymo)&per_page=200&page=${page}`); waymoDeals = waymoDeals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
-    // ─── Compute per-rep stats ───────────────────────────────────────────
+    // ─── Per-rep computation ─────────────────────────────────────────────
     const repStats = {};
+    const ensure = (name) => { if (!name || SKIP_OWNERS.includes(name)) return null; if (!repStats[name]) repStats[name] = { cal_active: 0, cal_canceled: 0, leads: 0, showed: 0, no_show: 0, interested: 0, dnq: 0, not_interested: 0, deals: 0, funded_amt: 0, pts: 0 }; return name; };
 
-    const ensureRep = (name) => {
-      if (!name || name === 'House .' || name === 'Convoso Dialer') return null;
-      if (!repStats[name]) repStats[name] = { calendly_active: 0, calendly_canceled: 0, waymo_leads: 0, deals_total: 0, deals_funded: 0, funded_amount: 0, total_pts: 0, deal_count_for_pts: 0 };
-      return name;
-    };
+    // Calendly
+    calEvents.forEach(e => (e.event_memberships || []).forEach(m => { const n = ensure(m.user_name); if (n) repStats[n].cal_active++; }));
+    calCanceled.forEach(e => (e.event_memberships || []).forEach(m => { const n = ensure(m.user_name); if (n) repStats[n].cal_canceled++; }));
 
-    // Calendly by member
-    calEvents.forEach(e => {
-      (e.event_memberships || []).forEach(m => {
-        const name = ensureRep(m.user_name);
-        if (name) repStats[name].calendly_active++;
-      });
-    });
-    calCanceled.forEach(e => {
-      (e.event_memberships || []).forEach(m => {
-        const name = ensureRep(m.user_name);
-        if (name) repStats[name].calendly_canceled++;
-      });
-    });
-
-    // Waymo leads by owner (if still with rep = showed up, if House = no-show)
-    const waymoHouseCount = waymoLeads.filter(l => (l.Owner?.name || '').includes('House')).length;
+    // Waymo leads — disposition-based no-show tracking
+    let totalNoShows = 0;
     waymoLeads.forEach(l => {
       const owner = l.Owner?.name || '';
-      const name = ensureRep(owner);
-      if (name) repStats[name].waymo_leads++;
+      const disp = l.Disposition || '';
+      // Count no-shows globally (including those in House)
+      if (disp === 'No Show') totalNoShows++;
+      // Skip system owners
+      if (SKIP_OWNERS.includes(owner)) return;
+      const n = ensure(owner);
+      if (!n) return;
+      repStats[n].leads++;
+      if (disp === 'No Show') repStats[n].no_show++;
+      else repStats[n].showed++;
+      if (disp === 'Interested' || disp === 'SBA - Interested') repStats[n].interested++;
+      if (disp === 'DNQ') repStats[n].dnq++;
+      if (disp === 'Not Interested') repStats[n].not_interested++;
     });
 
-    // Deals by Package_Owner (the actual rep), using Funded_Amount and pts
-    deals.forEach(d => {
+    // Waymo deals
+    waymoDeals.forEach(d => {
       const owner = d.Package_Owner?.name || d.Owner?.name || '';
-      const name = ensureRep(owner);
-      if (!name) return;
-      repStats[name].deals_total++;
-      if (d.Stage === 'Closed Won' || d.Funded_Amount > 0 || d.Date_Funded) {
-        repStats[name].deals_funded++;
-        repStats[name].funded_amount += (d.Funded_Amount || d.Amount || 0);
-        const pts = parseFloat(d.pts) || 0;
-        if (pts > 0) {
-          repStats[name].total_pts += pts;
-          repStats[name].deal_count_for_pts++;
-        }
-      }
+      const n = ensure(owner);
+      if (!n) return;
+      repStats[n].deals++;
+      repStats[n].funded_amt += (d.Funded_Amount || 0);
+      repStats[n].pts += (parseFloat(d.pts) || 0);
     });
 
-    // Build response
-    const repBreakdown = {};
+    // Build breakdown
+    const rep_breakdown = {};
     Object.entries(repStats).forEach(([name, s]) => {
-      const calTotal = s.calendly_active + s.calendly_canceled;
-      const showUpRate = calTotal > 0 ? Math.round((s.calendly_active / calTotal) * 100) : null;
-      const leadToApp = (s.waymo_leads > 0 && s.deals_total > 0) ? Math.min(100, Math.round((s.deals_total / s.waymo_leads) * 100)) : null;
-      const fundingRate = s.deals_total > 0 ? Math.round((s.deals_funded / s.deals_total) * 100) : null;
-      const avgDealSize = s.deals_funded > 0 ? Math.round(s.funded_amount / s.deals_funded) : null;
-      const avgPts = s.deal_count_for_pts > 0 ? Math.round((s.total_pts / s.deal_count_for_pts) * 10) / 10 : null;
-
-      if (calTotal > 0 || s.waymo_leads > 0 || s.deals_total > 0) {
-        repBreakdown[name] = {
-          calendly_scheduled: calTotal,
-          calendly_active: s.calendly_active,
-          calendly_canceled: s.calendly_canceled,
-          show_up_rate: showUpRate,
-          waymo_leads: s.waymo_leads,
-          deals_total: s.deals_total,
-          deals_funded: s.deals_funded,
-          lead_to_app_rate: leadToApp,
-          funding_rate: fundingRate,
-          avg_deal_size: avgDealSize,
-          total_funded_amount: s.funded_amount,
-          avg_pts: avgPts,
-          total_pts: s.total_pts,
-        };
-      }
+      const calTotal = s.cal_active + s.cal_canceled;
+      if (calTotal === 0 && s.leads === 0 && s.deals === 0) return;
+      const showUp = s.leads > 0 ? Math.round(((s.leads - s.no_show) / s.leads) * 100) : null;
+      const leadToApp = s.showed > 0 ? Math.round((s.deals / s.showed) * 100) : null;
+      const avgDeal = s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null;
+      const avgPts = s.deals > 0 ? Math.round((s.pts / s.deals) * 10) / 10 : null;
+      rep_breakdown[name] = {
+        calendly_scheduled: calTotal, calendly_active: s.cal_active, calendly_canceled: s.cal_canceled,
+        waymo_leads: s.leads, waymo_showed: s.showed, waymo_no_show: s.no_show,
+        waymo_interested: s.interested, waymo_dnq: s.dnq, waymo_not_interested: s.not_interested,
+        show_up_rate: showUp, lead_to_app_rate: leadToApp,
+        deals_funded: s.deals, avg_deal_size: avgDeal, total_funded_amount: s.funded_amt,
+        avg_pts: avgPts, total_pts: s.pts,
+      };
     });
 
-    // Totals
-    const totalCalScheduled = calEvents.length + calCanceled.length;
-    const totalFunded = deals.filter(d => d.Stage === 'Closed Won' || d.Funded_Amount > 0).length;
-    const totalFundedAmt = deals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
-    const totalPts = deals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0);
+    const totalWaymo = waymoLeads.length;
+    const totalFunded = waymoDeals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
 
     res.json({
       period: { days: parseInt(days), from: minDate, to: maxDate },
       totals: {
-        calendly_scheduled: totalCalScheduled,
-        calendly_active: calEvents.length,
-        calendly_canceled: calCanceled.length,
-        show_up_rate: totalCalScheduled > 0 ? Math.round((calEvents.length / totalCalScheduled) * 100) : 0,
-        waymo_leads_total: waymoLeads.length,
-        waymo_house_transfers: waymoHouseCount,
-        deals_total: deals.length,
-        deals_funded: totalFunded,
-        funding_rate: deals.length > 0 ? Math.round((totalFunded / deals.length) * 100) : 0,
-        total_funded_amount: totalFundedAmt,
-        avg_deal_size: totalFunded > 0 ? Math.round(totalFundedAmt / totalFunded) : 0,
-        total_pts: totalPts,
+        calendly_scheduled: calEvents.length + calCanceled.length, calendly_active: calEvents.length, calendly_canceled: calCanceled.length,
+        waymo_leads_total: totalWaymo, waymo_no_shows: totalNoShows,
+        show_up_rate: totalWaymo > 0 ? Math.round(((totalWaymo - totalNoShows) / totalWaymo) * 100) : 0,
+        waymo_deals: waymoDeals.length, total_funded_amount: totalFunded,
+        avg_deal_size: waymoDeals.length > 0 ? Math.round(totalFunded / waymoDeals.length) : 0,
+        total_pts: waymoDeals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0),
       },
-      rep_breakdown: repBreakdown,
+      rep_breakdown,
       events: calEvents.slice(0, 50),
     });
   } catch (e) {
     console.error('[Waymo Metrics]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/calendly/full-data — ALL Zoho deals (all sources) for Full Client Data page
+router.get('/full-data', async (req, res) => {
+  try {
+    // All deals (up to 4000)
+    let deals = [];
+    let page = 1, more = true;
+    while (more && page <= 20) { const d = await zohoGet(`/crm/v2/Deals?per_page=200&page=${page}`); deals = deals.concat(d.data || []); more = d.info?.more_records || false; page++; }
+
+    // Per-rep stats across ALL sources
+    const repStats = {};
+    const ensure = (name) => { if (!name || SKIP_OWNERS.includes(name)) return null; if (!repStats[name]) repStats[name] = { deals: 0, funded_amt: 0, pts: 0, sources: {}, stages: {} }; return name; };
+
+    deals.forEach(d => {
+      const owner = d.Package_Owner?.name || d.Owner?.name || '';
+      const n = ensure(owner);
+      if (!n) return;
+      repStats[n].deals++;
+      repStats[n].funded_amt += (d.Funded_Amount || 0);
+      repStats[n].pts += (parseFloat(d.pts) || 0);
+      const src = d.Lead_Source2 || d.Lead_Master || 'Unknown';
+      repStats[n].sources[src] = (repStats[n].sources[src] || 0) + 1;
+      const stage = d.Stage || 'Unknown';
+      repStats[n].stages[stage] = (repStats[n].stages[stage] || 0) + 1;
+    });
+
+    const rep_data = {};
+    Object.entries(repStats).forEach(([name, s]) => {
+      if (s.deals === 0) return;
+      rep_data[name] = {
+        deals_total: s.deals,
+        total_funded_amount: s.funded_amt,
+        avg_deal_size: Math.round(s.funded_amt / s.deals),
+        total_pts: s.pts,
+        avg_pts: Math.round((s.pts / s.deals) * 10) / 10,
+        sources: s.sources,
+        stages: s.stages,
+        deals_won: s.stages['Closed Won'] || 0,
+        deals_in_pipeline: s.stages['Qualification'] || 0,
+        funding_rate: s.deals > 0 ? Math.round(((s.stages['Closed Won'] || 0) / s.deals) * 100) : 0,
+      };
+    });
+
+    // Org-wide totals
+    const totalDeals = deals.length;
+    const totalFunded = deals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
+    const totalPts = deals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0);
+    const totalWon = deals.filter(d => d.Stage === 'Closed Won').length;
+
+    res.json({
+      totals: { deals: totalDeals, funded_amount: totalFunded, avg_deal_size: totalDeals > 0 ? Math.round(totalFunded / totalDeals) : 0, total_pts: totalPts, deals_won: totalWon, funding_rate: totalDeals > 0 ? Math.round((totalWon / totalDeals) * 100) : 0 },
+      rep_data,
+    });
+  } catch (e) {
+    console.error('[Full Data]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

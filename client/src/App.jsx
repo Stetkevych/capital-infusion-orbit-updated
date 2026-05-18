@@ -36,6 +36,7 @@ import Portfolio from './pages/RepPortal/Portfolio';
 import Messages from './pages/RepPortal/Messages';
 const NexusBot = lazy(() => import('./pages/RepPortal/NexusBot'));
 const RocketReach = lazy(() => import('./pages/RepPortal/RocketReach'));
+const FullClientData = lazy(() => import('./pages/RepPortal/FullClientData'));
 const FundingBook = lazy(() => import('./pages/RepPortal/FundingBook'));
 const LeadCorroborator = lazy(() => import('./pages/RepPortal/LeadCorroborator'));
 const PullerData = lazy(() => import('./pages/RepPortal/PullerData'));
@@ -107,6 +108,7 @@ function RepRoutes() {
       <Route path="/client-data" element={<ClientData />} />
       <Route path="/rep-data" element={<RepData />} />
       <Route path="/waymo-data" element={<LeadData />} />
+      <Route path="/full-client-data" element={<FullClientData />} />
       <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/nexus-bot" element={<NexusBot />} />
