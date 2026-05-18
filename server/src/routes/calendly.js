@@ -219,9 +219,26 @@ router.get('/full-data', async (req, res) => {
     });
 
     const totalFunded = deals.reduce((s, d) => s + (d.Funded_Amount || 0), 0);
+
+    // Time series: deals by month with source breakdown
+    const byMonth = {};
+    deals.forEach(d => {
+      const date = d.Date_Funded || d.Created_Time?.slice(0, 10);
+      if (!date) return;
+      const month = date.slice(0, 7); // YYYY-MM
+      if (!byMonth[month]) byMonth[month] = { total: 0, funded_amt: 0, pts: 0, revenue: 0, sources: {} };
+      byMonth[month].total++;
+      byMonth[month].funded_amt += (d.Funded_Amount || 0);
+      byMonth[month].pts += (parseFloat(d.pts) || 0);
+      byMonth[month].revenue += (d.Total_rev || d.Commission || 0);
+      const src = d.Lead_Source2 || d.Lead_Master || 'Unknown';
+      byMonth[month].sources[src] = (byMonth[month].sources[src] || 0) + 1;
+    });
+
     res.json({
       totals: { deals: deals.length, funded_amount: totalFunded, avg_deal_size: deals.length > 0 ? Math.round(totalFunded / deals.length) : 0, total_pts: deals.reduce((s, d) => s + (parseFloat(d.pts) || 0), 0), revenue: deals.reduce((s, d) => s + (d.Total_rev || d.Commission || 0), 0) },
       rep_data,
+      by_month: byMonth,
     });
   } catch (e) {
     console.error('[Full Data]', e.message);

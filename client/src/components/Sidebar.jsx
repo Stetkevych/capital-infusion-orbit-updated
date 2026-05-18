@@ -25,7 +25,7 @@ const REP_LINKS = [
   { path: '/client-data', label: 'Client Data', icon: BarChart2, adminOnly: true },
   { path: '/rep-data', label: 'Orbit Rep Data', icon: TrendingUp, adminOnly: true },
   { path: '/waymo-data', label: 'Waymo Data', icon: BarChart2, adminOnly: true },
-  { path: '/full-client-data', label: 'Full Client Data', icon: TrendingUp, adminOnly: true },
+  { path: '/full-client-data', label: 'Full Rep Data', icon: TrendingUp, adminOnly: true },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/client-credentials', label: 'Client Credentials', icon: Key, adminOnly: true },
   { path: '/client-logins', label: 'Client Logins', icon: Key },
