@@ -106,7 +106,7 @@ function RepRoutes() {
       <Route path="/ci-loc" element={<CILoc />} />
       <Route path="/client-data" element={<ClientData />} />
       <Route path="/rep-data" element={<RepData />} />
-      <Route path="/lead-data" element={<LeadData />} />
+      <Route path="/waymo-data" element={<LeadData />} />
       <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/nexus-bot" element={<NexusBot />} />

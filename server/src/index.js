@@ -142,6 +142,10 @@ app.use('/api/notify', notifyRoutes);
 const rocketreachRoutes = require('./routes/rocketreach');
 app.use('/api/rocketreach', rocketreachRoutes);
 
+// Calendly integration
+const calendlyRoutes = require('./routes/calendly');
+app.use('/api/calendly', calendlyRoutes);
+
 // OCR results storage (per client)
 const ocrResultsRoutes = require('./routes/ocrResults');
 app.use('/api/ocr', ocrResultsRoutes);

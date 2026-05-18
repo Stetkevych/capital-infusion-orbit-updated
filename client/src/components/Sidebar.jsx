@@ -24,7 +24,7 @@ const REP_LINKS = [
   { path: '/ci-loc', label: 'CI LOC', icon: CreditCard, adminOnly: true },
   { path: '/client-data', label: 'Client Data', icon: BarChart2, adminOnly: true },
   { path: '/rep-data', label: 'Rep Data', icon: TrendingUp, adminOnly: true },
-  { path: '/lead-data', label: 'Lead Data', icon: BarChart2, adminOnly: true },
+  { path: '/waymo-data', label: 'Waymo Data', icon: BarChart2, adminOnly: true },
   { path: '/users', label: 'User Management', icon: Users, adminOnly: true },
   { path: '/client-credentials', label: 'Client Credentials', icon: Key, adminOnly: true },
   { path: '/client-logins', label: 'Client Logins', icon: Key },
