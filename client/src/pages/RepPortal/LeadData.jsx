@@ -144,12 +144,12 @@ export default function LeadData() {
                     <SortHeader col="app_pct" label="App %" />
                     <SortHeader col="deals_funded" label="Approvals" />
                     <SortHeader col="funding_pct" label="Funding %" />
+                    <SortHeader col="total_funded_amount" label="Total Funded" />
                     <SortHeader col="avg_pts" label="Avg Pts" />
                     <SortHeader col="avg_deal_size" label="Avg Deal" />
                     <SortHeader col="revenue" label="Revenue" />
                     <SortHeader col="cost" label="Cost" />
                     <SortHeader col="margin" label="Margin" />
-                    <SortHeader col="total_funded_amount" label="Total Funded" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -162,12 +162,12 @@ export default function LeadData() {
                       <td className="px-3 py-2.5">{badge(s.app_pct)}</td>
                       <td className="px-3 py-2.5 text-gray-900 font-semibold">{s.deals_funded || 0}</td>
                       <td className="px-3 py-2.5">{badge(s.funding_pct)}</td>
+                      <td className="px-3 py-2.5 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
                       <td className="px-3 py-2.5 text-gray-700">{s.avg_pts || '—'}</td>
                       <td className="px-3 py-2.5 text-gray-700">{money(s.avg_deal_size)}</td>
                       <td className="px-3 py-2.5 text-green-600 font-medium">{money(s.revenue)}</td>
                       <td className="px-3 py-2.5 text-red-500">{money(s.cost)}</td>
                       <td className="px-3 py-2.5"><span className={`font-medium ${s.margin >= 0 ? 'text-green-600' : 'text-red-500'}`}>{money(s.margin)}</span></td>
-                      <td className="px-3 py-2.5 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -84,12 +84,15 @@ router.get('/metrics', async (req, res) => {
     const apps = waymoLeads.filter(l => l.Disposition === 'Interested').length;
 
     // Approved = Apps that are NOT decline/default/fraud
-    // Since none of the current "Interested" leads have those statuses, approved = apps
-    // Future: if a field tracks decline/default/fraud on leads, subtract those
-    const declined = 0; // placeholder — update if field identified
-    const defaulted = 0;
-    const fraud = 0;
-    const approved = apps - declined - defaulted - fraud;
+    // Check both: deals with Closed Lost/Default AND leads with negative pipeline outcomes
+    const declinedDeals = waymoDeals.filter(d => d.Stage === 'Closed Lost' || d.Clawback === 'Default').length;
+    // Also check leads that made it to pipeline but got declined (Disposition contains decline indicators)
+    const declinedLeads = waymoLeads.filter(l => {
+      const d = (l.Disposition || '').toLowerCase();
+      return d.includes('decline') || d.includes('default') || d.includes('fraud');
+    }).length;
+    const totalDeclined = declinedDeals + declinedLeads;
+    const approved = Math.max(0, apps - totalDeclined);
 
     // Funded = Waymo deals in Deals module with Funded_Amount > 0
     const funded = waymoDeals.filter(d => d.Funded_Amount > 0).length;
