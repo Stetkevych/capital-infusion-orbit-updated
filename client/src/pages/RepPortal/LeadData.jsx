@@ -37,7 +37,7 @@ export default function LeadData() {
     .map(([name, s]) => {
       const cost = (s.net_meetings || 0) * 200;
       const revenue = s.revenue || s.total_funded_amount || 0;
-      const margin = revenue - cost;
+      const margin = cost - revenue;
       const appPct = s.net_meetings > 0 ? Math.round((s.apps / s.net_meetings) * 100) : null;
       const fundingPct = s.apps > 0 ? Math.round((s.deals_funded / s.apps) * 100) : null;
       return [name, { ...s, cost, revenue, margin, app_pct: appPct, funding_pct: fundingPct }];
@@ -47,7 +47,7 @@ export default function LeadData() {
 
   const t = metrics?.totals || {};
   const totalCost = (t.net_meetings || 0) * 200;
-  const totalMargin = (t.revenue || 0) - totalCost;
+  const totalMargin = totalCost - (t.revenue || 0);
 
   return (
     <div className="p-6 max-w-full mx-auto space-y-5">

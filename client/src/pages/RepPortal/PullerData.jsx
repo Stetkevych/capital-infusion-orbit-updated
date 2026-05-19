@@ -71,10 +71,12 @@ export default function PullerData() {
     const total = filtered.length;
     const approved = filtered.filter(d => d.status === 'approved').length;
     const declined = filtered.filter(d => ['declined', 'default', 'fraud'].includes(d.status)).length;
+    const funded = filtered.filter(d => d.status === 'approved' && d.amount > 0).length;
     const pending = filtered.filter(d => d.status === 'pending').length;
     const approvalRate = total > 0 ? ((approved / total) * 100).toFixed(1) : 0;
-    const avgAmount = filtered.reduce((s, d) => s + (d.amount || 0), 0) / total;
-    return { total, approved, declined, pending, approvalRate, avgAmount };
+    const fundingRate = total > 0 ? ((funded / total) * 100).toFixed(1) : 0;
+    const totalRevenue = filtered.reduce((s, d) => s + (d.status === 'approved' ? (d.amount || 0) : 0), 0);
+    return { total, approved, declined, funded, pending, approvalRate, fundingRate, totalRevenue };
   }, [filtered]);
 
   // Rep breakdown
@@ -143,6 +145,15 @@ export default function PullerData() {
     a.download = `puller-data-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
   };
 
+  const syncZoho = async () => {
+    setLoading(true);
+    try {
+      await fetch(`${API}/puller-data/sync`, { headers });
+      await fetchData();
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <Loader2 size={24} className="animate-spin text-blue-600" />
@@ -161,6 +172,9 @@ export default function PullerData() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={syncZoho} className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg flex items-center gap-1.5">
+            <RefreshCw size={12} /> Sync Zoho
+          </button>
           <button onClick={fetchData} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg flex items-center gap-1.5">
             <RefreshCw size={12} /> Refresh
           </button>
@@ -207,12 +221,13 @@ export default function PullerData() {
       {metrics && (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <StatCard label="Total Pulls" value={metrics.total} icon={Database} color="blue" />
-            <StatCard label="Approved" value={metrics.approved} icon={CheckCircle2} color="green" />
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <StatCard label="Applications" value={metrics.total} icon={Database} color="blue" />
+            <StatCard label="Approvals" value={`${metrics.approved} / ${metrics.total}`} icon={CheckCircle2} color="green" />
             <StatCard label="Declined/Default/Fraud" value={metrics.declined} icon={XCircle} color="red" />
-            <StatCard label="Approval Rate" value={`${metrics.approvalRate}%`} icon={TrendingUp} color="purple" />
-            <StatCard label="Avg Amount" value={`$${Math.round(metrics.avgAmount).toLocaleString()}`} icon={Users} color="amber" />
+            <StatCard label="Approval Rate" value={`${metrics.approvalRate}%`} sub={`${metrics.approved} of ${metrics.total} apps`} icon={TrendingUp} color="purple" />
+            <StatCard label="App to Funding" value={`${metrics.fundingRate}%`} sub={`${metrics.funded} funded`} icon={TrendingUp} color="amber" />
+            <StatCard label="Total Revenue" value={`$${metrics.totalRevenue.toLocaleString()}`} icon={Users} color="green" />
           </div>
 
           {/* Row 1: Status Pie + Time Series */}

@@ -50,9 +50,39 @@ router.get('/metrics', async (req, res) => {
     while (next) { try { const r = await axios.get(next, { headers: calHdrs }); calCanceled = calCanceled.concat(r.data.collection || []); next = r.data.pagination?.next_page || null; } catch { break; } }
 
     // ─── Zoho Leads (Waymo) ──────────────────────────────────────────────
+    // Get ALL leads with Waymo as source (no disposition filter - get everything)
     let waymoLeads = [];
     let page = 1, more = true;
-    while (more && page <= 10) { const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`); waymoLeads = waymoLeads.concat(d.data || []); more = d.info?.more_records || false; page++; }
+    while (more && page <= 20) { 
+      const d = await zohoGet(`/crm/v2/Leads/search?criteria=(Lead_Source:equals:Waymo)&per_page=200&page=${page}`); 
+      waymoLeads = waymoLeads.concat(d.data || []); 
+      more = d.info?.more_records || false; 
+      page++; 
+    }
+    
+    // Also get leads where Lead_Source contains "waymo" (case insensitive) to catch any variations
+    let waymoLeadsAlt = [];
+    page = 1; more = true;
+    while (more && page <= 20) { 
+      try {
+        const d = await zohoGet(`/crm/v2/Leads?per_page=200&page=${page}`);
+        const filtered = (d.data || []).filter(l => (l.Lead_Source || '').toLowerCase().includes('waymo'));
+        waymoLeadsAlt = waymoLeadsAlt.concat(filtered);
+        more = d.info?.more_records || false;
+        page++;
+      } catch { break; }
+    }
+    
+    // Merge and dedupe by lead ID
+    const leadIds = new Set();
+    const allWaymoLeads = [];
+    [...waymoLeads, ...waymoLeadsAlt].forEach(l => {
+      if (!leadIds.has(l.id)) {
+        leadIds.add(l.id);
+        allWaymoLeads.push(l);
+      }
+    });
+    waymoLeads = allWaymoLeads;
 
     // ─── Zoho Deals (Waymo funded) ───────────────────────────────────────
     let waymoDeals = [];
@@ -60,13 +90,12 @@ router.get('/metrics', async (req, res) => {
     while (more && page <= 5) { const d = await zohoGet(`/crm/v2/Deals/search?criteria=(Lead_Source2:equals:Waymo)&per_page=200&page=${page}`); waymoDeals = waymoDeals.concat(d.data || []); more = d.info?.more_records || false; page++; }
 
     // ─── Compute totals ──────────────────────────────────────────────────
-    // Total meetings = Zoho Waymo Leads + Waymo Deals (pipeline) = full universe of appointments
-    // This corroborates both APIs: Zoho tracks all leads, Calendly fills gaps for DNQ/Not Interested
-    // Use the HIGHER of Calendly active or Zoho total to capture everything
+    // Total meetings = ALL Zoho Waymo Leads + Waymo Deals
+    // This is the source of truth for the funnel
     const zohoTotal = waymoLeads.length + waymoDeals.length;
     const calendlyActive = calEvents.length;
     const totalMeetings = Math.max(zohoTotal, calendlyActive);
-    const rescheduled = calCanceled.length; // shown separately, don't affect stats
+    const rescheduled = calCanceled.length;
 
     // Future appointments = Leads with Disposition "Calendly" (scheduled, not yet happened)
     const futureAppts = waymoLeads.filter(l => l.Disposition === 'Calendly').length;
@@ -80,8 +109,17 @@ router.get('/metrics', async (req, res) => {
     // Net meetings = Past - No Shows (people who actually showed up)
     const netMeetings = pastAppts - noShows;
 
-    // Apps = Leads with Disposition "Interested" (submitted app + bank statements, made it to pipeline)
-    const apps = waymoLeads.filter(l => l.Disposition === 'Interested').length;
+    // Apps = Leads where Disposition is "Interested" OR has an application submitted
+    // Pull from Zoho CRM exclusively - check multiple fields that indicate an application
+    const apps = waymoLeads.filter(l => {
+      const disp = (l.Disposition || '').toLowerCase();
+      // Count as app if: Interested, Submitted, Application, or has Deal_Amount (means moved to deals)
+      return disp === 'interested' || 
+             disp === 'submitted' || 
+             disp.includes('application') ||
+             l.Deal_Amount > 0 ||
+             l.Sub_Stage === 'Application Submitted';
+    }).length;
 
     // Approved = Apps that are NOT decline/default/fraud
     // Check both: deals with Closed Lost/Default AND leads with negative pipeline outcomes
@@ -122,12 +160,21 @@ router.get('/metrics', async (req, res) => {
     calEvents.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_active++; }));
     calCanceled.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_canceled++; }));
 
-    // Waymo leads per rep (only count apps — net meetings comes from Calendly)
+    // Waymo leads per rep - pull apps EXCLUSIVELY from Zoho
     waymoLeads.forEach(l => {
       const owner = l.Owner?.name || '';
       const k = ensure(owner);
       if (!k) return;
-      if (l.Disposition === 'Interested') repMap[k].apps++;
+      
+      // Count as app if Disposition is Interested, Submitted, Application, or has Deal_Amount
+      const disp = (l.Disposition || '').toLowerCase();
+      if (disp === 'interested' || 
+          disp === 'submitted' || 
+          disp.includes('application') ||
+          l.Deal_Amount > 0 ||
+          l.Sub_Stage === 'Application Submitted') {
+        repMap[k].apps++;
+      }
     });
 
     // Waymo deals per rep (use Puller as basis, fallback to Package_Owner)
