@@ -111,7 +111,7 @@ router.get('/metrics', async (req, res) => {
     const ensure = (rawName) => {
       const key = normKey(rawName);
       if (!key || SKIP_KEYS.has(key)) return null;
-      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, showed: 0, apps: 0, deals: 0, funded_amt: 0, pts: 0, revenue: 0 };
+      if (!repMap[key]) repMap[key] = { display: norm(rawName), cal_active: 0, cal_canceled: 0, apps: 0, deals: 0, funded_amt: 0, pts: 0, revenue: 0 };
       return key;
     };
 
@@ -119,12 +119,11 @@ router.get('/metrics', async (req, res) => {
     calEvents.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_active++; }));
     calCanceled.forEach(e => (e.event_memberships || []).forEach(m => { const k = ensure(m.user_name); if (k) repMap[k].cal_canceled++; }));
 
-    // Waymo leads per rep (only count showed-up leads — no-shows get reassigned away)
+    // Waymo leads per rep (only count apps — net meetings comes from Calendly)
     waymoLeads.forEach(l => {
       const owner = l.Owner?.name || '';
       const k = ensure(owner);
       if (!k) return;
-      if (l.Disposition !== 'No Show' && l.Disposition !== 'Calendly') repMap[k].showed++;
       if (l.Disposition === 'Interested') repMap[k].apps++;
     });
 
@@ -142,12 +141,14 @@ router.get('/metrics', async (req, res) => {
     const rep_breakdown = {};
     Object.values(repMap).forEach(s => {
       const calTotal = s.cal_active + s.cal_canceled;
-      if (calTotal === 0 && s.showed === 0 && s.deals === 0) return;
+      // Net meetings per rep = their Calendly active events (source of truth for meetings held)
+      const netMeetings = s.cal_active;
+      if (calTotal === 0 && s.apps === 0 && s.deals === 0) return;
       rep_breakdown[s.display] = {
         calendly_scheduled: calTotal,
-        net_meetings: s.showed,
+        net_meetings: netMeetings,
         apps: s.apps,
-        meeting_to_app_rate: s.showed > 0 ? Math.round((s.apps / s.showed) * 100) : null,
+        meeting_to_app_rate: netMeetings > 0 ? Math.round((s.apps / netMeetings) * 100) : null,
         deals_funded: s.deals,
         funding_rate: s.apps > 0 ? Math.round((s.deals / s.apps) * 100) : null,
         avg_deal_size: s.deals > 0 ? Math.round(s.funded_amt / s.deals) : null,
