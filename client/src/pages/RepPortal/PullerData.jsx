@@ -41,7 +41,7 @@ export default function PullerData() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ rep: '', leadSource: '', dateRange: '90' });
+  const [filters, setFilters] = useState({ rep: '', leadSource: '', dateRange: 'all' });
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   const fetchData = async () => {
