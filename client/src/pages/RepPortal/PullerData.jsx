@@ -223,13 +223,16 @@ export default function PullerData() {
       {metrics && (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Total Appointments" value={metrics.total} icon={Database} color="blue" />
             <StatCard label="Apps Submitted" value={metrics.apps} icon={Database} color="blue" />
             <StatCard label="Approvals / Apps" value={`${metrics.approved} / ${metrics.apps}`} sub={`${metrics.approvalRate}%`} icon={CheckCircle2} color="green" />
             <StatCard label="App to Funding" value={`${metrics.fundingRate}%`} sub={`${metrics.funded} funded`} icon={TrendingUp} color="purple" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <StatCard label="Revenue" value={`$${metrics.totalRevenue.toLocaleString()}`} icon={CheckCircle2} color="green" />
-            <StatCard label="Declined" value={metrics.declined} icon={XCircle} color="red" />
+            <StatCard label="Cost" value={`$${metrics.totalCost.toLocaleString()}`} icon={XCircle} color="red" />
+            <StatCard label="Margin" value={`$${(metrics.totalRevenue - metrics.totalCost).toLocaleString()}`} sub={metrics.totalRevenue > 0 ? `${(((metrics.totalRevenue - metrics.totalCost) / metrics.totalRevenue) * 100).toFixed(1)}%` : '0%'} icon={TrendingUp} color={metrics.totalRevenue - metrics.totalCost >= 0 ? 'green' : 'red'} />
           </div>
 
           {/* Row 1: Status Pie + Time Series */}
