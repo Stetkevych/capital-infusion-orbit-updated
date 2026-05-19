@@ -7,11 +7,11 @@ const axios = require('axios');
 router.use(authMiddleware);
 
 const FILE = 'puller_data.json';
-const EXCLUDED_REPS = ['kip', 'jason kim'];
+const EXCLUDED_REPS = ['kip langat', 'jason kim'];
 
-const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID || '1000.YHGKFX4WODRTUIW4UY9ESMXW5OMR4P';
-const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || '5879634f9ce1f367cd59e58b4dc85cdaae01de7bb4';
-const ZOHO_REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN || '1000.f84dd4ea17cf10b4b0ad7db68749fa66.c917e2772f721a60e4466c3acae7b2dc';
+const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID_V2 || '1000.BHP4MQELZOMBZFOMA3TJVB4PI91MKW';
+const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET_V2 || 'cd7810d0995afc1734da0a6f92b3a9b3d3431c5091';
+const ZOHO_REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN_V2 || '1000.afc12ed33e4ef50b030f1c995c81e63f.275ec885877dad6ca3d949b003263d50';
 const ZOHO_API = 'https://www.zohoapis.com';
 
 let zohoToken = { access_token: '', expires_at: 0 };
@@ -25,7 +25,17 @@ async function getZohoToken() {
   return zohoToken.access_token;
 }
 
-// GET /api/puller-data — fetch from S3 cache or Zoho
+function mapStage(stage) {
+  if (!stage) return 'pending';
+  const s = stage.toLowerCase();
+  if (['funded', 'approved/qualified', 'approved - long close', 'contracts out', 'contracts in', 'future funding', 'funded-other', 'approved equipment &/or sba', 'requested contracts'].some(x => s.includes(x))) return 'approved';
+  if (['deal declined', 'deal lost', 'dl - incomplete', 'dl - interested'].some(x => s === x)) return 'declined';
+  if (s.includes('default') || s === 'dd - default') return 'default';
+  if (s === 'fraud') return 'fraud';
+  return 'pending';
+}
+
+// GET /api/puller-data
 router.get('/', async (req, res) => {
   try {
     const deals = await loadFromS3(FILE).catch(() => []);
@@ -42,46 +52,76 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/puller-data/sync — pull fresh from Zoho and cache
+// GET /api/puller-data/sync — pull Waymo/Calendly from Leads + Accounts
 router.get('/sync', async (req, res) => {
   try {
     const token = await getZohoToken();
     const deals = [];
-    let page = 1;
-    let hasMore = true;
 
-    while (hasMore && page <= 10) {
-      const r = await axios.get(`${ZOHO_API}/crm/v2/Deals`, {
+    // Pull from Accounts (Pipeline) — Waymo flagged or Calendly disposition
+    let page = 1, more = true;
+    while (more && page <= 20) {
+      const r = await axios.get(`${ZOHO_API}/crm/v2/Accounts`, {
         headers: { Authorization: `Zoho-oauthtoken ${token}` },
-        params: { page, per_page: 200, fields: 'Deal_Name,Stage,Amount,Lead_Source,Owner,Closing_Date,Created_Time,Account_Name' },
+        params: { page, per_page: 200, fields: 'Stage_of_Package,Disposition,Puller,Lead_Source,Marketing_Master,Owner,Waymo,Amount,Created_Time,Business_Legal_Name' },
       });
       const records = r.data?.data || [];
-      records.forEach(d => {
-        const stage = (d.Stage || '').toLowerCase();
-        let status = 'pending';
-        if (['closed won', 'funded', 'approved'].some(s => stage.includes(s))) status = 'approved';
-        else if (['closed lost', 'declined', 'dead'].some(s => stage.includes(s))) status = 'declined';
-        else if (stage.includes('default')) status = 'default';
-        else if (stage.includes('fraud')) status = 'fraud';
-
+      records.forEach(a => {
+        const isWaymo = a.Waymo === true || (a.Lead_Source || '').toLowerCase().includes('waymo') || (a.Disposition || '').toLowerCase() === 'calendly';
+        if (!isWaymo) return;
+        // Exclude Calendly disposition (future appointments not yet occurred)
+        const isCalendlyFuture = (a.Disposition || '').toLowerCase() === 'calendly';
         deals.push({
-          id: d.id,
-          company_name: d.Account_Name || d.Deal_Name || '',
-          rep_name: d.Owner?.name || '',
-          lead_source: d.Lead_Source || '',
-          status,
-          stage: d.Stage || '',
-          amount: d.Amount || 0,
-          date: d.Created_Time || d.Closing_Date || '',
+          id: a.id,
+          company_name: a.Business_Legal_Name || '',
+          rep_name: typeof a.Puller === 'string' ? a.Puller : (a.Owner?.name || ''),
+          lead_source: a.Lead_Source || a.Marketing_Master || 'Waymo',
+          status: mapStage(a.Stage_of_Package),
+          stage: a.Stage_of_Package || '',
+          disposition: a.Disposition || '',
+          amount: a.Amount || 0,
+          date: a.Created_Time || '',
+          source_module: 'Accounts',
+          is_future_appointment: isCalendlyFuture,
         });
       });
-      hasMore = r.data?.info?.more_records || false;
+      more = r.data?.info?.more_records || false;
+      page++;
+    }
+
+    // Pull from Leads — Waymo flagged
+    page = 1; more = true;
+    while (more && page <= 20) {
+      const r = await axios.get(`${ZOHO_API}/crm/v2/Leads`, {
+        headers: { Authorization: `Zoho-oauthtoken ${token}` },
+        params: { page, per_page: 200, fields: 'Lead_Status,Lead_Source,Owner,Company,Created_Time,Waymo,First_Name,Last_Name' },
+      });
+      const records = r.data?.data || [];
+      records.forEach(l => {
+        const isWaymo = l.Waymo === true || (l.Lead_Source || '').toLowerCase().includes('waymo');
+        if (!isWaymo) return;
+        deals.push({
+          id: l.id,
+          company_name: l.Company || [l.First_Name, l.Last_Name].filter(Boolean).join(' ') || '',
+          rep_name: l.Owner?.name || '',
+          lead_source: l.Lead_Source || 'Waymo',
+          status: 'pending',
+          stage: l.Lead_Status || 'New Lead',
+          disposition: '',
+          amount: 0,
+          date: l.Created_Time || '',
+          source_module: 'Leads',
+          is_future_appointment: false,
+        });
+      });
+      more = r.data?.info?.more_records || false;
       page++;
     }
 
     await saveToS3(FILE, deals);
     const filtered = deals.filter(d => !EXCLUDED_REPS.some(ex => (d.rep_name || '').toLowerCase().includes(ex)));
-    res.json({ synced: deals.length, displayed: filtered.length });
+    const excludingFuture = filtered.filter(d => !d.is_future_appointment);
+    res.json({ synced: deals.length, displayed: excludingFuture.length, future_appointments: filtered.length - excludingFuture.length });
   } catch (e) {
     console.error('[PullerData Sync]', e.message);
     res.status(500).json({ error: e.message });

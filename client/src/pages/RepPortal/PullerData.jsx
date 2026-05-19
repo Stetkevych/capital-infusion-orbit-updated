@@ -59,6 +59,7 @@ export default function PullerData() {
   const filtered = useMemo(() => {
     if (!data?.deals) return [];
     return data.deals.filter(d => {
+      if (d.is_future_appointment) return false;
       if (filters.rep && d.rep_name !== filters.rep) return false;
       if (filters.leadSource && d.lead_source !== filters.leadSource) return false;
       return true;
@@ -69,14 +70,15 @@ export default function PullerData() {
   const metrics = useMemo(() => {
     if (!filtered.length) return null;
     const total = filtered.length;
+    const apps = filtered.filter(d => d.source_module === 'Accounts').length;
     const approved = filtered.filter(d => d.status === 'approved').length;
     const declined = filtered.filter(d => ['declined', 'default', 'fraud'].includes(d.status)).length;
     const funded = filtered.filter(d => d.status === 'approved' && d.amount > 0).length;
-    const pending = filtered.filter(d => d.status === 'pending').length;
-    const approvalRate = total > 0 ? ((approved / total) * 100).toFixed(1) : 0;
-    const fundingRate = total > 0 ? ((funded / total) * 100).toFixed(1) : 0;
+    const approvalRate = apps > 0 ? ((approved / apps) * 100).toFixed(1) : 0;
+    const fundingRate = apps > 0 ? ((funded / apps) * 100).toFixed(1) : 0;
     const totalRevenue = filtered.reduce((s, d) => s + (d.status === 'approved' ? (d.amount || 0) : 0), 0);
-    return { total, approved, declined, funded, pending, approvalRate, fundingRate, totalRevenue };
+    const totalCost = filtered.reduce((s, d) => s + (['declined', 'default', 'fraud'].includes(d.status) ? (d.amount || 0) : 0), 0);
+    return { total, apps, approved, declined, funded, approvalRate, fundingRate, totalRevenue, totalCost };
   }, [filtered]);
 
   // Rep breakdown
@@ -222,12 +224,12 @@ export default function PullerData() {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <StatCard label="Applications" value={metrics.total} icon={Database} color="blue" />
-            <StatCard label="Approvals" value={`${metrics.approved} / ${metrics.total}`} icon={CheckCircle2} color="green" />
-            <StatCard label="Declined/Default/Fraud" value={metrics.declined} icon={XCircle} color="red" />
-            <StatCard label="Approval Rate" value={`${metrics.approvalRate}%`} sub={`${metrics.approved} of ${metrics.total} apps`} icon={TrendingUp} color="purple" />
-            <StatCard label="App to Funding" value={`${metrics.fundingRate}%`} sub={`${metrics.funded} funded`} icon={TrendingUp} color="amber" />
-            <StatCard label="Total Revenue" value={`$${metrics.totalRevenue.toLocaleString()}`} icon={Users} color="green" />
+            <StatCard label="Total Appointments" value={metrics.total} icon={Database} color="blue" />
+            <StatCard label="Apps Submitted" value={metrics.apps} icon={Database} color="blue" />
+            <StatCard label="Approvals / Apps" value={`${metrics.approved} / ${metrics.apps}`} sub={`${metrics.approvalRate}%`} icon={CheckCircle2} color="green" />
+            <StatCard label="App to Funding" value={`${metrics.fundingRate}%`} sub={`${metrics.funded} funded`} icon={TrendingUp} color="purple" />
+            <StatCard label="Revenue" value={`$${metrics.totalRevenue.toLocaleString()}`} icon={CheckCircle2} color="green" />
+            <StatCard label="Declined" value={metrics.declined} icon={XCircle} color="red" />
           </div>
 
           {/* Row 1: Status Pie + Time Series */}
