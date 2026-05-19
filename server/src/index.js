@@ -150,6 +150,10 @@ app.use('/api/calendly', calendlyRoutes);
 const ocrResultsRoutes = require('./routes/ocrResults');
 app.use('/api/ocr', ocrResultsRoutes);
 
+// OCR send/push (external OCR integration)
+const ocrSendRoutes = require('./routes/ocrSend');
+app.use('/api/ocr', ocrSendRoutes);
+
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 
