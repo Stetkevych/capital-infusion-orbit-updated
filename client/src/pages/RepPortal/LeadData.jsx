@@ -10,7 +10,7 @@ export default function LeadData() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(365);
   const [error, setError] = useState('');
-  const [sortCol, setSortCol] = useState('deals_funded');
+  const [sortCol, setSortCol] = useState('total_funded_amount');
   const [sortDir, setSortDir] = useState('desc');
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -18,26 +18,43 @@ export default function LeadData() {
   useEffect(() => { load(days); }, [days]);
 
   const pct = (v) => v != null ? `${v}%` : '—';
-  const money = (v) => v != null && v > 0 ? `$${v.toLocaleString()}` : '—';
+  const money = (v) => v != null && v !== 0 ? `$${v.toLocaleString()}` : '—';
   const toggleSort = (col) => { if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortCol(col); setSortDir('desc'); } };
   const SortHeader = ({ col, label }) => (
-    <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium whitespace-nowrap cursor-pointer hover:text-gray-600 select-none" onClick={() => toggleSort(col)}>
-      <span className="inline-flex items-center gap-1">{label}{sortCol === col && (sortDir === 'desc' ? <ChevronDown size={10} /> : <ChevronUp size={10} />)}</span>
+    <th className="text-left px-3 py-3 text-gray-400 text-xs font-medium whitespace-nowrap cursor-pointer hover:text-gray-600 select-none" onClick={() => toggleSort(col)}>
+      <span className="inline-flex items-center gap-0.5">{label}{sortCol === col && (sortDir === 'desc' ? <ChevronDown size={9} /> : <ChevronUp size={9} />)}</span>
     </th>
   );
-  const sortedReps = metrics?.rep_breakdown ? Object.entries(metrics.rep_breakdown).sort((a, b) => { const av = a[1][sortCol] ?? -1; const bv = b[1][sortCol] ?? -1; return sortDir === 'desc' ? bv - av : av - bv; }) : [];
+
+  // Color badge: <15% red, 15-35% yellow, >=35% green
+  const badge = (v) => {
+    if (v == null) return <span className="px-1.5 py-0.5 text-xs rounded-full bg-gray-50 text-gray-400">—</span>;
+    const cls = v >= 35 ? 'bg-green-50 text-green-600' : v >= 15 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600';
+    return <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${cls}`}>{v}%</span>;
+  };
+
+  const sortedReps = metrics?.rep_breakdown ? Object.entries(metrics.rep_breakdown)
+    .map(([name, s]) => {
+      const cost = (s.net_meetings || 0) * 200;
+      const revenue = s.revenue || s.total_funded_amount || 0;
+      const margin = revenue - cost;
+      const appPct = s.net_meetings > 0 ? Math.round((s.apps / s.net_meetings) * 100) : null;
+      const fundingPct = s.apps > 0 ? Math.round((s.deals_funded / s.apps) * 100) : null;
+      return [name, { ...s, cost, revenue, margin, app_pct: appPct, funding_pct: fundingPct }];
+    })
+    .sort((a, b) => { const av = a[1][sortCol] ?? -Infinity; const bv = b[1][sortCol] ?? -Infinity; return sortDir === 'desc' ? bv - av : av - bv; })
+    : [];
 
   const t = metrics?.totals || {};
+  const totalCost = (t.net_meetings || 0) * 200;
+  const totalMargin = (t.revenue || 0) - totalCost;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-full mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center"><BarChart2 size={16} className="text-white" /></div>
-          <div>
-            <h1 className="text-gray-900 font-semibold text-lg">Waymo Data</h1>
-            <p className="text-gray-400 text-xs">Calendly + Zoho CRM · Full funnel</p>
-          </div>
+          <div><h1 className="text-gray-900 font-semibold text-lg">Waymo Data</h1><p className="text-gray-400 text-xs">Calendly + Zoho CRM · Full funnel by rep</p></div>
         </div>
         <div className="flex items-center gap-2">
           {[30, 60, 90, 180, 365].map(d => (
@@ -52,107 +69,105 @@ export default function LeadData() {
       {loading ? <div className="text-center py-20"><Loader2 size={24} className="mx-auto animate-spin text-gray-300" /></div> : metrics && (
         <>
           {/* Top bubbles */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Total Funded</p>
-              <p className="text-gray-900 text-xl font-bold">{money(t.total_funded_amount)}</p>
-              <p className="text-gray-300 text-xs">{t.funded} deals</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Total Meetings</p>
+              <p className="text-gray-900 text-lg font-bold">{t.total_meetings}</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Avg Deal Size</p>
-              <p className="text-gray-900 text-xl font-bold">{money(t.avg_deal_size)}</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">No Shows</p>
+              <p className="text-red-500 text-lg font-bold">{t.no_shows}</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Cost</p>
-              <p className="text-red-500 text-xl font-bold">{money(t.cost)}</p>
-              <p className="text-gray-300 text-xs">{t.total_meetings} mtgs × $200</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Net Meetings</p>
+              <p className="text-gray-900 text-lg font-bold">{t.net_meetings}</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Revenue</p>
-              <p className="text-green-600 text-xl font-bold">{money(t.revenue)}</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Show-Up Rate</p>
+              <p className="text-green-600 text-lg font-bold">{t.show_up_rate}%</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Avg Points</p>
-              <p className="text-gray-900 text-xl font-bold">{t.avg_pts || '—'}</p>
-              <p className="text-gray-300 text-xs">per deal</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Apps</p>
+              <p className="text-blue-600 text-lg font-bold">{t.apps}</p>
+              <p className="text-gray-300 text-xs">{t.meeting_to_app_rate}% of net</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Approvals</p>
-              <p className="text-blue-600 text-xl font-bold">{t.approved}</p>
-              <p className="text-gray-300 text-xs">{t.approval_rate}% rate</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Approvals / Apps</p>
+              <p className="text-purple-600 text-lg font-bold">{t.approved} / {t.apps}</p>
+              <p className="text-gray-300 text-xs">{t.approval_rate}%</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
-              <p className="text-gray-400 text-xs font-medium mb-1">Funding Rate</p>
-              <p className="text-purple-600 text-xl font-bold">{t.funding_rate}%</p>
-              <p className="text-gray-300 text-xs">{t.funded} / {t.apps} apps</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Funded</p>
+              <p className="text-gray-900 text-lg font-bold">{t.funded}</p>
+              <p className="text-gray-300 text-xs">{money(t.total_funded_amount)}</p>
             </div>
-          </div>
-
-          {/* Funnel metrics row */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">Total Meetings</p>
-              <p className="text-gray-900 font-bold text-lg">{t.total_meetings}</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">No Shows</p>
-              <p className="text-red-500 font-bold text-lg">{t.no_shows}</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">Net Meetings</p>
-              <p className="text-gray-900 font-bold text-lg">{t.net_meetings}</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">Show-Up Rate</p>
-              <p className="text-green-600 font-bold text-lg">{t.show_up_rate}%</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">Meeting→App</p>
-              <p className="text-blue-600 font-bold text-lg">{t.meeting_to_app_rate}%</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-              <p className="text-gray-400 text-xs">Future Appts</p>
-              <p className="text-gray-600 font-bold text-lg">{t.future_appointments}</p>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Avg Deal / Pts</p>
+              <p className="text-gray-900 text-lg font-bold">{money(t.avg_deal_size)}</p>
+              <p className="text-gray-300 text-xs">{t.avg_pts} pts</p>
             </div>
           </div>
 
-          <p className="text-gray-400 text-xs italic">* Show-Up Rate = Net Meetings / Past Appointments. Meeting→App = Apps / Net Meetings. Funding Rate = Funded / Apps. No-shows factored out of all downstream rates.</p>
+          {/* Second row: cost/revenue/margin */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Cost</p>
+              <p className="text-red-500 text-lg font-bold">{money(t.cost)}</p>
+              <p className="text-gray-300 text-xs">{t.total_meetings} × $200</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Revenue</p>
+              <p className="text-green-600 text-lg font-bold">{money(t.revenue)}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+              <p className="text-gray-400 text-xs mb-0.5">Margin</p>
+              <p className={`text-lg font-bold ${totalMargin >= 0 ? 'text-green-600' : 'text-red-500'}`}>{money(totalMargin)}</p>
+            </div>
+          </div>
 
-          {/* Rep table */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
+          <p className="text-gray-400 text-xs italic">* All rates calculated with no-shows factored out. Cost = $200 × net meetings per rep. Red &lt;15%, Yellow 15-35%, Green ≥35%.</p>
+
+          {/* Rep table — wide */}
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
               <h3 className="text-gray-900 font-semibold text-sm">Rep Breakdown</h3>
-              <p className="text-gray-400 text-xs mt-0.5">Click headers to sort</p>
+              <p className="text-gray-400 text-xs">Click headers to sort</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium">Rep</th>
+                    <th className="text-left px-3 py-3 text-gray-400 text-xs font-medium">Rep</th>
                     <SortHeader col="calendly_scheduled" label="Meetings" />
-                    <SortHeader col="net_meetings" label="Net Meetings" />
+                    <SortHeader col="net_meetings" label="Net Mtgs" />
                     <SortHeader col="apps" label="Apps" />
-                    <SortHeader col="meeting_to_app_rate" label="Mtg→App %" />
-                    <SortHeader col="deals_funded" label="Funded" />
-                    <SortHeader col="funding_rate" label="Funding %" />
+                    <SortHeader col="app_pct" label="App %" />
+                    <SortHeader col="deals_funded" label="Approvals" />
+                    <SortHeader col="funding_pct" label="Funding %" />
                     <SortHeader col="avg_pts" label="Avg Pts" />
                     <SortHeader col="avg_deal_size" label="Avg Deal" />
+                    <SortHeader col="revenue" label="Revenue" />
+                    <SortHeader col="cost" label="Cost" />
+                    <SortHeader col="margin" label="Margin" />
                     <SortHeader col="total_funded_amount" label="Total Funded" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {sortedReps.map(([name, s]) => (
                     <tr key={name} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap">{name}</td>
-                      <td className="px-4 py-3 text-gray-700">{s.calendly_scheduled || 0}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">{s.net_meetings || 0}</td>
-                      <td className="px-4 py-3 text-gray-700">{s.apps || 0}</td>
-                      <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs rounded-full font-medium ${s.meeting_to_app_rate >= 30 ? 'bg-green-50 text-green-600' : s.meeting_to_app_rate >= 15 ? 'bg-amber-50 text-amber-600' : s.meeting_to_app_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'}`}>{pct(s.meeting_to_app_rate)}</span></td>
-                      <td className="px-4 py-3 text-gray-900 font-semibold">{s.deals_funded || 0}</td>
-                      <td className="px-4 py-3"><span className={`px-2 py-0.5 text-xs rounded-full font-medium ${s.funding_rate >= 20 ? 'bg-green-50 text-green-600' : s.funding_rate >= 10 ? 'bg-amber-50 text-amber-600' : s.funding_rate != null ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400'}`}>{pct(s.funding_rate)}</span></td>
-                      <td className="px-4 py-3 text-gray-700">{s.avg_pts || '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{money(s.avg_deal_size)}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
+                      <td className="px-3 py-2.5 text-gray-900 font-medium whitespace-nowrap">{name}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{s.calendly_scheduled || 0}</td>
+                      <td className="px-3 py-2.5 text-gray-900 font-medium">{s.net_meetings || 0}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{s.apps || 0}</td>
+                      <td className="px-3 py-2.5">{badge(s.app_pct)}</td>
+                      <td className="px-3 py-2.5 text-gray-900 font-semibold">{s.deals_funded || 0}</td>
+                      <td className="px-3 py-2.5">{badge(s.funding_pct)}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{s.avg_pts || '—'}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{money(s.avg_deal_size)}</td>
+                      <td className="px-3 py-2.5 text-green-600 font-medium">{money(s.revenue)}</td>
+                      <td className="px-3 py-2.5 text-red-500">{money(s.cost)}</td>
+                      <td className="px-3 py-2.5"><span className={`font-medium ${s.margin >= 0 ? 'text-green-600' : 'text-red-500'}`}>{money(s.margin)}</span></td>
+                      <td className="px-3 py-2.5 text-gray-900 font-medium">{money(s.total_funded_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
