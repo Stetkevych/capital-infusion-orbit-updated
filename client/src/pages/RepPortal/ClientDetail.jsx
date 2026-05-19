@@ -41,6 +41,8 @@ export default function ClientDetail() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [clientActivity, setClientActivity] = useState([]);
   const [ocrResults, setOcrResults] = useState([]);
+  const [ocrSending, setOcrSending] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState('');
 
   const mockClient = getClientById(id);
   const client = mockClient || apiClient;
@@ -497,6 +499,97 @@ export default function ClientDetail() {
       {/* Underwriting Tab */}
       {activeTab === 'Underwriting' && (
         <div className="space-y-4">
+          {/* Send to OCR */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900">Auto Underwrite</h3>
+              {ocrStatus && <span className="text-xs text-green-600">{ocrStatus}</span>}
+            </div>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Upload Bank Statement</label>
+                <input type="file" accept=".pdf" id="ocr-file-input"
+                  className="w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
+              </div>
+              <button onClick={async () => {
+                const fileInput = document.getElementById('ocr-file-input');
+                const file = fileInput?.files?.[0];
+                if (!file) { setOcrStatus('Select a PDF first'); return; }
+                setOcrSending(true); setOcrStatus('Sending to OCR...');
+                try {
+                  const fd = new FormData();
+                  fd.append('file', file);
+                  fd.append('clientId', id);
+                  const res = await fetch(`${API}/ocr/send`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Failed');
+                  setOcrStatus(`Processing... (ID: ${data.statementId})`);
+                  // Poll for completion
+                  const pollInterval = setInterval(async () => {
+                    try {
+                      const pushRes = await fetch(`${API}/ocr/push`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ statementId: data.statementId, clientId: id }) });
+                      const pushData = await pushRes.json();
+                      if (pushRes.ok && pushData.success) {
+                        clearInterval(pollInterval);
+                        setOcrStatus('Complete — results saved');
+                        // Refresh results
+                        fetch(`${API}/ocr/results/${id}`, { headers }).then(r => r.ok ? r.json() : []).then(d => setOcrResults(d)).catch(() => {});
+                      }
+                    } catch {}
+                  }, 5000);
+                  setTimeout(() => clearInterval(pollInterval), 120000);
+                } catch (e) { setOcrStatus(`Error: ${e.message}`); }
+                setOcrSending(false);
+              }} disabled={ocrSending}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs rounded-xl flex items-center gap-2 whitespace-nowrap">
+                {ocrSending ? 'Sending...' : 'Send to Underwriting'}
+              </button>
+            </div>
+            {realDocs.filter(d => d.category === 'bank_statements').length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-400 mb-2">Or send an existing uploaded statement:</p>
+                <div className="flex flex-wrap gap-2">
+                  {realDocs.filter(d => d.category === 'bank_statements').map(d => (
+                    <button key={d.id} onClick={async () => {
+                      setOcrSending(true); setOcrStatus('Fetching & sending...');
+                      try {
+                        const dlRes = await fetch(`${API}/documents/client/${id}/${d.id}/download`, { headers });
+                        const dlData = await dlRes.json();
+                        if (!dlData.url) throw new Error('No download URL');
+                        const fileRes = await fetch(dlData.url);
+                        const blob = await fileRes.blob();
+                        const fd = new FormData();
+                        fd.append('file', blob, d.fileName);
+                        fd.append('clientId', id);
+                        const res = await fetch(`${API}/ocr/send`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || 'Failed');
+                        setOcrStatus(`Processing... (ID: ${data.statementId})`);
+                        const pollInterval = setInterval(async () => {
+                          try {
+                            const pushRes = await fetch(`${API}/ocr/push`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ statementId: data.statementId, clientId: id }) });
+                            const pushData = await pushRes.json();
+                            if (pushRes.ok && pushData.success) {
+                              clearInterval(pollInterval);
+                              setOcrStatus('Complete — results saved');
+                              fetch(`${API}/ocr/results/${id}`, { headers }).then(r => r.ok ? r.json() : []).then(d => setOcrResults(d)).catch(() => {});
+                            }
+                          } catch {}
+                        }, 5000);
+                        setTimeout(() => clearInterval(pollInterval), 120000);
+                      } catch (e) { setOcrStatus(`Error: ${e.message}`); }
+                      setOcrSending(false);
+                    }} disabled={ocrSending}
+                      className="px-3 py-1.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 text-gray-700 text-xs rounded-lg transition-colors">
+                      {d.fileName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Results */}
           {ocrResults.length === 0 ? (
             <p className="text-gray-400 text-sm">No underwriting data saved for this client.</p>
           ) : ocrResults.map((entry, idx) => (
