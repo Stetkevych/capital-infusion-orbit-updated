@@ -130,9 +130,9 @@ router.get('/metrics', async (req, res) => {
       if (l.Disposition === 'Interested') repMap[k].apps++;
     });
 
-    // Waymo deals per rep
+    // Waymo deals per rep (use Puller as basis, fallback to Package_Owner)
     waymoDeals.forEach(d => {
-      const owner = d.Package_Owner?.name || d.Owner?.name || '';
+      const owner = d.Puller?.name || d.Package_Owner?.name || d.Owner?.name || '';
       const k = ensure(owner);
       if (!k) return;
       repMap[k].deals++;
