@@ -13,15 +13,12 @@ const REP_LINKS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/reps', label: 'Teams', icon: Users },
   { path: '/clients', label: 'Clients', icon: Users },
-  { path: '/deals', label: 'Deal Log', icon: TrendingUp },
   { path: '/upload', label: 'Secure Upload', icon: Upload },
   { path: '/documents', label: 'Documents', icon: FolderOpen },
   { path: '/messages', label: 'Messages', icon: MessageSquare, badge: true },
   { path: '/underwriting', label: 'Underwriting', icon: Zap, adminOnly: true },
-  { path: '/commissions', label: 'Commissions', icon: Calculator, adminOnly: true },
   { path: '/activity', label: 'Activity', icon: Activity, adminOnly: true },
   { path: '/training', label: 'Training', icon: GraduationCap },
-  { path: '/ci-loc', label: 'CI LOC', icon: CreditCard, adminOnly: true },
   { path: '/client-data', label: 'Client Data', icon: BarChart2, adminOnly: true },
   { path: '/rep-data', label: 'Orbit Rep Data', icon: TrendingUp, adminOnly: true },
   { path: '/waymo-data', label: 'Waymo Data', icon: BarChart2, adminOnly: true },
@@ -31,12 +28,7 @@ const REP_LINKS = [
   { path: '/client-logins', label: 'Client Logins', icon: Key },
   { path: '/my-orbit', label: 'My Orbit', icon: User },
   { path: '/nexus-bot', label: 'Nexus Bot', icon: Zap, adminOnly: true },
-
-  { path: '/funding-book', label: 'Funding Book', icon: BookOpen },
-  { path: '/portfolio', label: 'Portfolio', icon: CreditCard },
-  { path: '/lead-corroborator', label: 'Lead Corroborator', icon: GitCompare, adminOnly: true },
-  { path: '/puller-data', label: 'Puller Data', icon: BarChart2, adminOnly: true },
-  { path: '/email-eagle', label: 'Email Eagle', icon: Mail, adminOnly: true },
+  { path: '/email-eagle', label: 'Email Eagle', icon: Mail, adminOnly: true, hidden: true },
 ];
 
 const CLIENT_LINKS = [
@@ -60,6 +52,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
   const links = baseLinks.filter(l => {
     if (l.adminOnly && !isAdmin) return false;
     if (l.locOnly && !hasLoc) return false;
+    if (l.hidden) return false;
     return true;
   });
 

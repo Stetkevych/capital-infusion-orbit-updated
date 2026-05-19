@@ -177,6 +177,9 @@ function LoginCard() {
         <a href="mailto:support@capital-infusion.com" className="text-blue-600 text-xs font-medium hover:opacity-70 inline-flex items-center gap-1 mt-1">
           Contact Support <ArrowRight size={11} />
         </a>
+        <div className="mt-3">
+          <a href="/admin-login" className="text-gray-400 text-xs hover:text-gray-600 transition-colors">Admin Login</a>
+        </div>
       </div>
     </div>
   );

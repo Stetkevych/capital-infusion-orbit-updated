@@ -60,7 +60,8 @@ function AppShell() {
   if (!user) {
     return (
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<ClientLogin />} />
+        <Route path="/admin-login" element={<Login />} />
         <Route path="/client-login" element={<ClientLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/reset-password" element={<ResetPassword />} />
